@@ -885,16 +885,59 @@ function showTemplateConfigModal(sampleTypeId, currentIndicators) {
             const defVal = clean(ind.default_value, 15);
             const rem = clean(ind.remark, 30);
 
-            indicatorCheckboxes += `<tr class="indicator-row">`;
-            indicatorCheckboxes += `<td class="text-center"><input class="form-check-input indicator-checkbox" type="checkbox" value="${ind.id}" ${checked}></td>`;
-            indicatorCheckboxes += `<td>${name}</td>`;
-            indicatorCheckboxes += `<td>${unit}</td>`;
-            indicatorCheckboxes += `<td><span class="badge bg-info">${group}</span></td>`;
-            indicatorCheckboxes += `<td>${limit}</td>`;
-            indicatorCheckboxes += `<td>${method}</td>`;
-            indicatorCheckboxes += `<td>${defVal}</td>`;
-            indicatorCheckboxes += `<td>${rem}</td>`;
-            indicatorCheckboxes += `</tr>`;
+            // 调试：检查某个具体指标的数据
+            if (ind.name && ind.name.includes('总磷')) {
+                console.log('总磷指标数据:', {
+                    name: name,
+                    unit: unit,
+                    group: group,
+                    limit: limit,
+                    method: method,
+                    defVal: defVal,
+                    rem: rem,
+                    原始数据: ind
+                });
+            }
+
+            const row = document.createElement('tr');
+            row.className = 'indicator-row';
+
+            // 创建8个td
+            const td1 = document.createElement('td');
+            td1.className = 'text-center';
+            td1.innerHTML = `<input class="form-check-input indicator-checkbox" type="checkbox" value="${ind.id}" ${checked}>`;
+
+            const td2 = document.createElement('td');
+            td2.textContent = name;
+
+            const td3 = document.createElement('td');
+            td3.textContent = unit;
+
+            const td4 = document.createElement('td');
+            td4.innerHTML = `<span class="badge bg-info">${group}</span>`;
+
+            const td5 = document.createElement('td');
+            td5.textContent = limit;
+
+            const td6 = document.createElement('td');
+            td6.textContent = method;
+
+            const td7 = document.createElement('td');
+            td7.textContent = defVal;
+
+            const td8 = document.createElement('td');
+            td8.textContent = rem;
+
+            row.appendChild(td1);
+            row.appendChild(td2);
+            row.appendChild(td3);
+            row.appendChild(td4);
+            row.appendChild(td5);
+            row.appendChild(td6);
+            row.appendChild(td7);
+            row.appendChild(td8);
+
+            indicatorCheckboxes += row.outerHTML;
         });
 
         indicatorCheckboxes += `</tbody></table></div></div>`;
