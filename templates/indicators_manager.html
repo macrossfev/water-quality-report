@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>检测指标管理 - 水质检测报告系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .page-header { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 2rem 0; margin-bottom: 2rem; }
+        .search-box { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 1.5rem; }
+        .table-card { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .group-badge { cursor: pointer; transition: all 0.3s; }
+        .group-badge:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .group-badge.active { background-color: #0d6efd !important; }
+    </style>
+</head>
+<body>
+    <!-- 页面标题 -->
+    <div class="page-header">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="bi bi-list-check"></i> 检测指标管理</h2>
+                    <p class="mb-0">管理水质检测指标、限值和检测方法</p>
+                </div>
+                <button class="btn btn-light" onclick="window.location.href='/'">
+                    <i class="bi bi-arrow-left"></i> 返回主页
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="container">
+        <!-- 分组筛选 -->
+        <div class="search-box">
+            <h6 class="mb-3"><i class="bi bi-funnel"></i> 分组筛选</h6>
+            <div class="d-flex flex-wrap gap-2 mb-3" id="groupFilters">
+                <span class="badge bg-secondary group-badge active" data-group-id="" onclick="filterByGroup('')">
+                    全部
+                </span>
+            </div>
+            <div class="mb-2">
+                <button class="btn btn-sm btn-outline-primary" id="manageGroupsBtn">
+                    <i class="bi bi-gear"></i> 管理分组
+                </button>
+            </div>
+        </div>
+
+        <!-- 搜索和操作栏 -->
+        <div class="search-box">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" id="searchInput" placeholder="搜索指标名称或备注...">
+                        <button class="btn btn-primary" id="searchBtn">搜索</button>
+                        <button class="btn btn-outline-secondary" id="resetBtn">重置</button>
+                    </div>
+                </div>
+                <div class="col-md-6 text-end">
+                    <button class="btn btn-success" id="addBtn">
+                        <i class="bi bi-plus-circle"></i> 添加指标
+                    </button>
+                    <button class="btn btn-primary" id="exportBtn">
+                        <i class="bi bi-download"></i> 导出Excel
+                    </button>
+                    <button class="btn btn-warning" id="importBtn">
+                        <i class="bi bi-upload"></i> 导入Excel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据表格 -->
+        <div class="table-card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th width="5%">序号</th>
+                            <th width="12%">指标名称</th>
+                            <th width="8%">单位</th>
+                            <th width="10%">分组</th>
+                            <th width="10%">限值</th>
+                            <th width="15%">检测方法</th>
+                            <th width="10%">默认值</th>
+                            <th width="15%">备注</th>
+                            <th width="15%">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataTable"></tbody>
+                </table>
+            </div>
+
+            <!-- 分页控件 -->
+            <div class="p-3 border-top">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <span class="text-muted">共 <strong id="totalCount">0</strong> 条记录</span>
+                    </div>
+                    <div class="col-md-6">
+                        <nav>
+                            <ul class="pagination justify-content-end mb-0" id="pagination"></ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑指标模态框 -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">添加检测指标</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editForm">
+                        <input type="hidden" id="editId">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">指标名称 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="editName" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">单位</label>
+                                <input type="text" class="form-control" id="editUnit" placeholder="如：mg/L">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">所属分组</label>
+                                <select class="form-select" id="editGroupId">
+                                    <option value="">无分组</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">限值</label>
+                                <input type="text" class="form-control" id="editLimitValue" placeholder="如：≤1.0">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">检测方法</label>
+                            <input type="text" class="form-control" id="editDetectionMethod" placeholder="如：GB/T 5750.6-2023">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">默认值</label>
+                                <input type="text" class="form-control" id="editDefaultValue" placeholder="如：--">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">排序</label>
+                                <input type="number" class="form-control" id="editSortOrder" value="0">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">说明</label>
+                            <textarea class="form-control" id="editDescription" rows="2"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">备注</label>
+                            <textarea class="form-control" id="editRemark" rows="2"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="saveBtn">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 分组管理模态框 -->
+    <div class="modal fade" id="groupModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">分组管理</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <button class="btn btn-sm btn-success mb-3" id="addGroupBtn">
+                        <i class="bi bi-plus"></i> 添加分组
+                    </button>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>名称</th>
+                                <th>排序</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="groupsList"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑分组模态框 -->
+    <div class="modal fade" id="editGroupModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="groupModalTitle">添加分组</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editGroupForm">
+                        <input type="hidden" id="editGroupId">
+                        <div class="mb-3">
+                            <label class="form-label">分组名称 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="editGroupName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">排序</label>
+                            <input type="number" class="form-control" id="editGroupSortOrder" value="0">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="saveGroupBtn">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 导入文件选择 -->
+    <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none">
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 全局变量
+        let allData = [];
+        let filteredData = [];
+        let groups = [];
+        let currentPage = 1;
+        let currentGroupFilter = '';
+        const itemsPerPage = 10;
+        const editModal = new bootstrap.Modal(document.getElementById('editModal'));
+        const groupModal = new bootstrap.Modal(document.getElementById('groupModal'));
+        const editGroupModal = new bootstrap.Modal(document.getElementById('editGroupModal'));
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadGroups();
+            loadData();
+            initEventListeners();
+        });
+
+        // 加载分组
+        async function loadGroups() {
+            try {
+                const response = await fetch('/api/indicator-groups');
+                if (!response.ok) throw new Error('加载分组失败');
+
+                groups = await response.json();
+                renderGroupFilters();
+                renderGroupSelect();
+            } catch (error) {
+                alert('加载分组失败: ' + error.message);
+            }
+        }
+
+        // 渲染分组筛选
+        function renderGroupFilters() {
+            const container = document.getElementById('groupFilters');
+            const allButton = container.querySelector('[data-group-id=""]');
+
+            groups.forEach(group => {
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-secondary group-badge';
+                badge.setAttribute('data-group-id', group.id);
+                badge.textContent = group.name;
+                badge.onclick = () => filterByGroup(group.id);
+                container.appendChild(badge);
+            });
+        }
+
+        // 渲染分组下拉框
+        function renderGroupSelect() {
+            const select = document.getElementById('editGroupId');
+            select.innerHTML = '<option value="">无分组</option>';
+
+            groups.forEach(group => {
+                const option = document.createElement('option');
+                option.value = group.id;
+                option.textContent = group.name;
+                select.appendChild(option);
+            });
+        }
+
+        // 按分组筛选
+        function filterByGroup(groupId) {
+            currentGroupFilter = groupId;
+            currentPage = 1;
+
+            // 更新按钮状态
+            document.querySelectorAll('.group-badge').forEach(badge => {
+                badge.classList.remove('active');
+            });
+            document.querySelector(`[data-group-id="${groupId}"]`).classList.add('active');
+
+            // 筛选数据
+            applyFilters();
+        }
+
+        // 应用筛选
+        function applyFilters() {
+            const searchText = document.getElementById('searchInput').value.trim().toLowerCase();
+
+            filteredData = allData.filter(item => {
+                // 分组筛选
+                if (currentGroupFilter && item.group_id != currentGroupFilter) return false;
+
+                // 搜索筛选
+                if (searchText) {
+                    const name = (item.name || '').toLowerCase();
+                    const remark = (item.remark || '').toLowerCase();
+                    if (!name.includes(searchText) && !remark.includes(searchText)) return false;
+                }
+
+                return true;
+            });
+
+            renderTable();
+            renderPagination();
+        }
+
+        // 加载数据
+        async function loadData() {
+            try {
+                const response = await fetch('/api/indicators');
+                if (!response.ok) throw new Error('加载数据失败');
+
+                allData = await response.json();
+                applyFilters();
+            } catch (error) {
+                alert('加载数据失败: ' + error.message);
+            }
+        }
+
+        // 渲染表格
+        function renderTable() {
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageData = filteredData.slice(startIndex, endIndex);
+
+            const tbody = document.getElementById('dataTable');
+            tbody.innerHTML = '';
+
+            if (pageData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">暂无数据</td></tr>';
+                return;
+            }
+
+            pageData.forEach((item, index) => {
+                const groupName = item.group_name || '未分组';
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${startIndex + index + 1}</td>
+                    <td><strong>${item.name || '-'}</strong></td>
+                    <td><small>${item.unit || '-'}</small></td>
+                    <td><span class="badge bg-info">${groupName}</span></td>
+                    <td><small class="text-muted">${item.limit_value || '-'}</small></td>
+                    <td><small class="text-muted">${truncate(item.detection_method || '-', 20)}</small></td>
+                    <td><small class="text-muted">${item.default_value || '-'}</small></td>
+                    <td><small class="text-muted">${truncate(item.remark || '-', 15)}</small></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="editItem(${item.id})" title="编辑">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.id}, '${item.name}')" title="删除">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('totalCount').textContent = filteredData.length;
+        }
+
+        // 截断文本
+        function truncate(text, length) {
+            if (text.length <= length) return text;
+            return text.substring(0, length) + '...';
+        }
+
+        // 渲染分页
+        function renderPagination() {
+            const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+
+            if (totalPages <= 1) return;
+
+            // 上一页
+            const prevLi = document.createElement('li');
+            prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+            prevLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage - 1}); return false;">上一页</a>`;
+            pagination.appendChild(prevLi);
+
+            // 页码
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                    const li = document.createElement('li');
+                    li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+                    li.innerHTML = `<a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a>`;
+                    pagination.appendChild(li);
+                } else if (i === currentPage - 3 || i === currentPage + 3) {
+                    const li = document.createElement('li');
+                    li.className = 'page-item disabled';
+                    li.innerHTML = '<span class="page-link">...</span>';
+                    pagination.appendChild(li);
+                }
+            }
+
+            // 下一页
+            const nextLi = document.createElement('li');
+            nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+            nextLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage + 1}); return false;">下一页</a>`;
+            pagination.appendChild(nextLi);
+        }
+
+        // 切换页码
+        function changePage(page) {
+            const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+            if (page < 1 || page > totalPages) return;
+            currentPage = page;
+            renderTable();
+            renderPagination();
+        }
+
+        // 初始化事件监听
+        function initEventListeners() {
+            // 搜索
+            document.getElementById('searchBtn').addEventListener('click', applyFilters);
+            document.getElementById('searchInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') applyFilters();
+            });
+
+            // 重置
+            document.getElementById('resetBtn').addEventListener('click', () => {
+                document.getElementById('searchInput').value = '';
+                applyFilters();
+            });
+
+            // 添加指标
+            document.getElementById('addBtn').addEventListener('click', () => {
+                document.getElementById('modalTitle').textContent = '添加检测指标';
+                document.getElementById('editForm').reset();
+                document.getElementById('editId').value = '';
+                editModal.show();
+            });
+
+            // 保存指标
+            document.getElementById('saveBtn').addEventListener('click', saveItem);
+
+            // 管理分组
+            document.getElementById('manageGroupsBtn').addEventListener('click', () => {
+                loadGroupsList();
+                groupModal.show();
+            });
+
+            // 添加分组
+            document.getElementById('addGroupBtn').addEventListener('click', () => {
+                document.getElementById('groupModalTitle').textContent = '添加分组';
+                document.getElementById('editGroupForm').reset();
+                document.getElementById('editGroupId').value = '';
+                editGroupModal.show();
+            });
+
+            // 保存分组
+            document.getElementById('saveGroupBtn').addEventListener('click', saveGroup);
+
+            // 导出
+            document.getElementById('exportBtn').addEventListener('click', () => {
+                window.location.href = '/api/indicators/export/excel';
+            });
+
+            // 导入
+            document.getElementById('importBtn').addEventListener('click', () => {
+                document.getElementById('importFileInput').click();
+            });
+
+            document.getElementById('importFileInput').addEventListener('change', importFile);
+        }
+
+        // 编辑指标
+        function editItem(id) {
+            const item = allData.find(x => x.id === id);
+            if (!item) return;
+
+            document.getElementById('modalTitle').textContent = '编辑检测指标';
+            document.getElementById('editId').value = item.id;
+            document.getElementById('editName').value = item.name || '';
+            document.getElementById('editUnit').value = item.unit || '';
+            document.getElementById('editGroupId').value = item.group_id || '';
+            document.getElementById('editLimitValue').value = item.limit_value || '';
+            document.getElementById('editDetectionMethod').value = item.detection_method || '';
+            document.getElementById('editDefaultValue').value = item.default_value || '';
+            document.getElementById('editSortOrder').value = item.sort_order || 0;
+            document.getElementById('editDescription').value = item.description || '';
+            document.getElementById('editRemark').value = item.remark || '';
+            editModal.show();
+        }
+
+        // 保存指标
+        async function saveItem() {
+            const id = document.getElementById('editId').value;
+            const name = document.getElementById('editName').value.trim();
+
+            if (!name) {
+                alert('指标名称不能为空');
+                return;
+            }
+
+            const data = {
+                name: name,
+                unit: document.getElementById('editUnit').value.trim(),
+                group_id: document.getElementById('editGroupId').value || null,
+                limit_value: document.getElementById('editLimitValue').value.trim(),
+                detection_method: document.getElementById('editDetectionMethod').value.trim(),
+                default_value: document.getElementById('editDefaultValue').value.trim(),
+                sort_order: parseInt(document.getElementById('editSortOrder').value) || 0,
+                description: document.getElementById('editDescription').value.trim(),
+                remark: document.getElementById('editRemark').value.trim()
+            };
+
+            try {
+                let response;
+                if (id) {
+                    response = await fetch(`/api/indicators/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                } else {
+                    response = await fetch('/api/indicators', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                }
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '保存失败');
+                }
+
+                editModal.hide();
+                loadData();
+                alert(id ? '更新成功' : '添加成功');
+            } catch (error) {
+                alert('保存失败: ' + error.message);
+            }
+        }
+
+        // 删除指标
+        async function deleteItem(id, name) {
+            if (!confirm(`确定要删除检测指标"${name}"吗？`)) return;
+
+            try {
+                const response = await fetch(`/api/indicators/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '删除失败');
+                }
+
+                loadData();
+                alert('删除成功');
+            } catch (error) {
+                alert('删除失败: ' + error.message);
+            }
+        }
+
+        // 加载分组列表
+        async function loadGroupsList() {
+            const tbody = document.getElementById('groupsList');
+            tbody.innerHTML = '';
+
+            await loadGroups();
+
+            groups.forEach(group => {
+                const row = document.createElement('tr');
+                const canDelete = !group.is_system;
+                row.innerHTML = `
+                    <td>${group.name}${group.is_system ? ' <span class="badge bg-secondary">系统</span>' : ''}</td>
+                    <td>${group.sort_order || 0}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="editGroup(${group.id})" title="编辑">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        ${canDelete ? `
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteGroup(${group.id}, '${group.name}')" title="删除">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                        ` : ''}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // 编辑分组
+        function editGroup(id) {
+            const group = groups.find(x => x.id === id);
+            if (!group) return;
+
+            document.getElementById('groupModalTitle').textContent = '编辑分组';
+            document.getElementById('editGroupId').value = group.id;
+            document.getElementById('editGroupName').value = group.name || '';
+            document.getElementById('editGroupSortOrder').value = group.sort_order || 0;
+            editGroupModal.show();
+        }
+
+        // 保存分组
+        async function saveGroup() {
+            const id = document.getElementById('editGroupId').value;
+            const name = document.getElementById('editGroupName').value.trim();
+            const sort_order = parseInt(document.getElementById('editGroupSortOrder').value) || 0;
+
+            if (!name) {
+                alert('分组名称不能为空');
+                return;
+            }
+
+            const data = { name, sort_order };
+
+            try {
+                let response;
+                if (id) {
+                    response = await fetch(`/api/indicator-groups/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                } else {
+                    response = await fetch('/api/indicator-groups', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                }
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '保存失败');
+                }
+
+                editGroupModal.hide();
+                loadGroupsList();
+                loadGroups();
+                alert(id ? '更新成功' : '添加成功');
+            } catch (error) {
+                alert('保存失败: ' + error.message);
+            }
+        }
+
+        // 删除分组
+        async function deleteGroup(id, name) {
+            if (!confirm(`确定要删除分组"${name}"吗？`)) return;
+
+            try {
+                const response = await fetch(`/api/indicator-groups/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '删除失败');
+                }
+
+                loadGroupsList();
+                loadGroups();
+                alert('删除成功');
+            } catch (error) {
+                alert('删除失败: ' + error.message);
+            }
+        }
+
+        // 导入文件
+        async function importFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/indicators/import/excel', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '导入失败');
+                }
+
+                const result = await response.json();
+                alert(`导入成功！成功: ${result.success_count}条, 失败: ${result.fail_count}条`);
+                loadData();
+            } catch (error) {
+                alert('导入失败: ' + error.message);
+            } finally {
+                e.target.value = '';
+            }
+        }
+    </script>
+</body>
+</html>

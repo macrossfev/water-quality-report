@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>水质检测报告系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-droplet-fill"></i> 水质检测报告系统
+            </span>
+            <div class="d-flex align-items-center text-white">
+                <span class="me-3">
+                    <i class="bi bi-person-circle"></i>
+                    <span id="currentUsername">用户</span>
+                    <span class="badge bg-light text-dark ms-2" id="currentUserRole">角色</span>
+                </span>
+                <button class="btn btn-outline-light btn-sm" id="logoutBtn">
+                    <i class="bi bi-box-arrow-right"></i> 退出
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容区 -->
+    <div class="container-fluid mt-3">
+        <!-- 标签页导航 -->
+        <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation" id="templateTabLi">
+                <button class="nav-link active" id="template-tab" data-bs-toggle="tab" data-bs-target="#template" type="button">
+                    <i class="bi bi-file-earmark-text"></i> 模板管理
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="report-tab" data-bs-toggle="tab" data-bs-target="#report" type="button">
+                    <i class="bi bi-clipboard-data"></i> 报告填写
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="review-tab" data-bs-toggle="tab" data-bs-target="#review" type="button">
+                    <i class="bi bi-clipboard-check"></i> 报告审核
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="generate-tab" data-bs-toggle="tab" data-bs-target="#generate" type="button">
+                    <i class="bi bi-file-earmark-arrow-down"></i> 报告生成
+                </button>
+            </li>
+            <li class="nav-item" role="presentation" id="dataTabLi">
+                <button class="nav-link" id="data-tab" data-bs-toggle="tab" data-bs-target="#data" type="button">
+                    <i class="bi bi-database"></i> 数据管理
+                </button>
+            </li>
+        </ul>
+
+        <!-- 标签页内容 -->
+        <div class="tab-content mt-3" id="mainTabContent">
+            <!-- 模板管理标签页 -->
+            <div class="tab-pane fade show active" id="template" role="tabpanel">
+                <!-- 管理入口卡片 -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card shadow-sm h-100 border-primary">
+                            <div class="card-body text-center p-5">
+                                <div class="mb-3">
+                                    <i class="bi bi-tags" style="font-size: 3rem; color: #667eea;"></i>
+                                </div>
+                                <h4 class="card-title mb-3">样品类型管理</h4>
+                                <p class="card-text text-muted">
+                                    管理水质检测的样品类型、代码和备注信息<br>
+                                    支持搜索、分页和批量导入导出
+                                </p>
+                                <button class="btn btn-primary btn-lg mt-3" onclick="window.location.href='/sample-types-manager'">
+                                    <i class="bi bi-arrow-right-circle"></i> 进入管理
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="card shadow-sm h-100 border-success">
+                            <div class="card-body text-center p-5">
+                                <div class="mb-3">
+                                    <i class="bi bi-list-check" style="font-size: 3rem; color: #11998e;"></i>
+                                </div>
+                                <h4 class="card-title mb-3">检测指标管理</h4>
+                                <p class="card-text text-muted">
+                                    管理检测指标、限值、检测方法和分组<br>
+                                    支持分组筛选、搜索和批量操作
+                                </p>
+                                <button class="btn btn-success btn-lg mt-3" onclick="window.location.href='/indicators-manager'">
+                                    <i class="bi bi-arrow-right-circle"></i> 进入管理
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 报告模版管理入口 -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card shadow-sm border-warning">
+                            <div class="card-body text-center p-4">
+                                <div class="row align-items-center">
+                                    <div class="col-md-2">
+                                        <i class="bi bi-file-earmark-spreadsheet" style="font-size: 3rem; color: #f39c12;"></i>
+                                    </div>
+                                    <div class="col-md-7 text-start">
+                                        <h4 class="card-title mb-2">报告模版管理</h4>
+                                        <p class="card-text text-muted mb-0">
+                                            导入和管理Excel报告模版，配置字段映射，支持按模版生成报告
+                                        </p>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <button class="btn btn-warning btn-lg" onclick="window.location.href='/report-template-manager'">
+                                            <i class="bi bi-arrow-right-circle"></i> 进入管理
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0"><i class="bi bi-gear"></i> 模板配置</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label class="form-label">选择样品类型</label>
+                                        <select class="form-select" id="templateSampleType">
+                                            <option value="">请选择...</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-8">
+                                        <label class="form-label">操作</label><br>
+                                        <button class="btn btn-primary btn-sm" id="configTemplateBtn">
+                                            <i class="bi bi-wrench"></i> 配置检测项目
+                                        </button>
+                                        <button class="btn btn-warning btn-sm" id="exportTemplateBtn">
+                                            <i class="bi bi-download"></i> 导出模板
+                                        </button>
+                                        <button class="btn btn-info btn-sm" id="importTemplateBtn">
+                                            <i class="bi bi-upload"></i> 导入模板
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="mt-3" id="templateIndicatorsArea"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 报告填写标签页 -->
+            <div class="tab-pane fade" id="report" role="tabpanel">
+                <div class="card">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-file-earmark-plus"></i> 创建检测报告</h5>
+                        <div>
+                            <button class="btn btn-sm btn-light" id="downloadImportTemplateBtn">
+                                <i class="bi bi-download"></i> 下载导入模板
+                            </button>
+                            <button class="btn btn-sm btn-warning" id="importReportsBtn">
+                                <i class="bi bi-upload"></i> 批量导入
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <form id="reportForm">
+                            <!-- 步骤1: 选择报告模板 -->
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> <strong>第一步：</strong>请先选择报告模板，系统将根据模板生成填写表单
+                            </div>
+
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <label class="form-label">报告模板 <span class="text-danger">*</span></label>
+                                    <select class="form-select" id="reportTemplate" required>
+                                        <option value="">请选择报告模板...</option>
+                                    </select>
+                                    <div class="form-text">选择后将自动加载模板的填写表单</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">样品类型 <span class="text-danger">*</span></label>
+                                    <select class="form-select" id="reportSampleType" required>
+                                        <option value="">请选择样品类型...</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <hr class="my-4">
+
+                            <!-- 步骤2: 填写表单（选择模板后显示） -->
+                            <div id="reportFormContent" style="display:none;">
+                                <div class="alert alert-success">
+                                    <i class="bi bi-check-circle"></i> <strong>第二步：</strong>填写报告内容
+                                </div>
+
+                                <!-- 基本信息 -->
+                                <h6 class="mb-3"><i class="bi bi-card-list"></i> 基本信息</h6>
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <label class="form-label">样品编号 <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control" id="sampleNumber" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">委托单位</label>
+                                        <select class="form-select" id="reportCompany">
+                                            <option value="">请选择...</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">检测日期</label>
+                                        <input type="date" class="form-control" id="detectionDate">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">检测人员</label>
+                                        <input type="text" class="form-control" id="detectionPerson">
+                                    </div>
+                                </div>
+
+                                <div class="row mt-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label">审核人员</label>
+                                        <input type="text" class="form-control" id="reviewPerson">
+                                    </div>
+                                    <div class="col-md-8">
+                                        <label class="form-label">备注</label>
+                                        <input type="text" class="form-control" id="reportRemark">
+                                    </div>
+                                </div>
+
+                                <hr class="my-4">
+
+                                <!-- 模板动态字段 -->
+                                <h6 class="mb-3"><i class="bi bi-file-text"></i> 模板字段</h6>
+                                <div id="templateFieldsArea">
+                                    <!-- 动态生成的模板字段 -->
+                                </div>
+
+                                <hr class="my-4">
+
+                                <!-- 检测项目数据 -->
+                                <h6 class="mb-3"><i class="bi bi-clipboard-data"></i> 检测项目数据</h6>
+                                <div id="reportDataArea">
+                                    <p class="text-muted">请先选择样品类型</p>
+                                </div>
+
+                                <!-- 操作按钮 -->
+                                <div class="mt-4">
+                                    <button type="button" class="btn btn-outline-secondary" id="saveDraftBtn">
+                                        <i class="bi bi-save"></i> 保存草稿
+                                    </button>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="bi bi-check-circle"></i> 提交审核
+                                    </button>
+                                    <button type="reset" class="btn btn-secondary">
+                                        <i class="bi bi-x-circle"></i> 重置
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 报告审核标签页 -->
+            <div class="tab-pane fade" id="review" role="tabpanel">
+                <div class="card">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0"><i class="bi bi-clipboard-check"></i> 报告审核</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- 筛选条件 -->
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <input type="text" class="form-control" id="reviewSearchSampleNumber" placeholder="搜索样品编号...">
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="reviewSearchStatus">
+                                    <option value="">全部状态</option>
+                                    <option value="draft">草稿</option>
+                                    <option value="pending">待审核</option>
+                                    <option value="approved">已审核</option>
+                                    <option value="rejected">已拒绝</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="reviewSearchCompany">
+                                    <option value="">全部公司</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-primary" id="searchReviewBtn">
+                                    <i class="bi bi-search"></i> 搜索
+                                </button>
+                                <button class="btn btn-secondary" id="refreshReviewBtn">
+                                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 报告列表 -->
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>报告编号</th>
+                                        <th>样品编号</th>
+                                        <th>样品类型</th>
+                                        <th>委托单位</th>
+                                        <th>审核状态</th>
+                                        <th>创建时间</th>
+                                        <th>检测日期</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="reviewReportsList">
+                                    <!-- 动态加载 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 报告生成标签页 -->
+            <div class="tab-pane fade" id="generate" role="tabpanel">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="bi bi-file-earmark-arrow-down"></i> 报告生成</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> 只有已审核通过的报告才能生成最终报告文件
+                        </div>
+
+                        <!-- 筛选条件 -->
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <input type="text" class="form-control" id="genSearchSampleNumber" placeholder="搜索样品编号...">
+                            </div>
+                            <div class="col-md-4">
+                                <select class="form-select" id="genSearchCompany">
+                                    <option value="">全部公司</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-primary" id="searchGenReportBtn">
+                                    <i class="bi bi-search"></i> 搜索
+                                </button>
+                                <button class="btn btn-secondary" id="refreshGenReportBtn">
+                                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 已审核报告列表 -->
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>报告编号</th>
+                                        <th>样品编号</th>
+                                        <th>样品类型</th>
+                                        <th>委托单位</th>
+                                        <th>审核人</th>
+                                        <th>审核时间</th>
+                                        <th>生成状态</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="genReportsList">
+                                    <!-- 动态加载 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据管理标签页 -->
+            <div class="tab-pane fade" id="data" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-warning text-white">
+                                <h5 class="mb-0"><i class="bi bi-database-gear"></i> 数据备份</h5>
+                            </div>
+                            <div class="card-body">
+                                <button class="btn btn-success mb-3" id="createBackupBtn">
+                                    <i class="bi bi-cloud-arrow-down"></i> 创建备份
+                                </button>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>备份名称</th>
+                                                <th>创建时间</th>
+                                                <th>操作</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="backupsList"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0"><i class="bi bi-clock-history"></i> 操作日志</h5>
+                            </div>
+                            <div class="card-body">
+                                <button class="btn btn-primary btn-sm mb-3" id="refreshLogsBtn">
+                                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                                </button>
+                                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>时间</th>
+                                                <th>用户</th>
+                                                <th>操作</th>
+                                                <th>详情</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="logsList"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header bg-secondary text-white">
+                                <h5 class="mb-0"><i class="bi bi-people"></i> 用户管理</h5>
+                            </div>
+                            <div class="card-body">
+                                <button class="btn btn-success btn-sm mb-3" id="addUserBtn">
+                                    <i class="bi bi-person-plus"></i> 添加用户
+                                </button>
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>用户名</th>
+                                                <th>角色</th>
+                                                <th>创建时间</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="usersList"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast通知容器 -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" id="toastContainer"></div>
+
+    <!-- 模态框容器 -->
+    <div id="modalContainer"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,207 @@
+/* 全局样式 */
+body {
+    font-family: 'Microsoft YaHei', 'Arial', sans-serif;
+    background-color: #f5f5f5;
+}
+
+/* 卡片样式 */
+.card {
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.card-header {
+    border-radius: 8px 8px 0 0 !important;
+}
+
+/* 表格样式 */
+.table {
+    background: white;
+}
+
+.table-hover tbody tr:hover {
+    background-color: #f8f9fa;
+    cursor: pointer;
+}
+
+/* 按钮样式 */
+.btn {
+    border-radius: 4px;
+    padding: 6px 16px;
+}
+
+.btn-sm {
+    padding: 4px 12px;
+    font-size: 14px;
+}
+
+/* 表单样式 */
+.form-control:focus,
+.form-select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+/* 标签页样式 */
+.nav-tabs .nav-link {
+    color: #495057;
+    border: none;
+    border-bottom: 3px solid transparent;
+}
+
+.nav-tabs .nav-link:hover {
+    border-bottom-color: #667eea;
+}
+
+.nav-tabs .nav-link.active {
+    color: #667eea;
+    font-weight: 600;
+    border-bottom-color: #667eea;
+    background-color: transparent;
+}
+
+/* Toast通知样式 */
+.toast {
+    min-width: 300px;
+}
+
+.toast-success {
+    background-color: #28a745;
+    color: white;
+}
+
+.toast-error {
+    background-color: #dc3545;
+    color: white;
+}
+
+.toast-warning {
+    background-color: #ffc107;
+    color: #000;
+}
+
+/* 检测项目输入区域 */
+.indicator-input-group {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+}
+
+.indicator-group-header {
+    background: #667eea;
+    color: white;
+    padding: 8px 15px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+.indicator-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.indicator-label {
+    min-width: 150px;
+    font-weight: 500;
+}
+
+.indicator-input {
+    flex: 1;
+}
+
+.indicator-unit {
+    min-width: 80px;
+    color: #666;
+}
+
+/* 模板指标配置区域 */
+.template-indicator-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    margin-bottom: 5px;
+}
+
+.template-indicator-item:hover {
+    background: #e9ecef;
+}
+
+/* 模态框样式 */
+.modal-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.modal-header .btn-close {
+    filter: brightness(0) invert(1);
+}
+
+/* 徽章样式 */
+.badge {
+    font-weight: 500;
+    padding: 4px 8px;
+}
+
+/* 加载动画 */
+.loading {
+    text-align: center;
+    padding: 20px;
+}
+
+.spinner-border {
+    width: 2rem;
+    height: 2rem;
+}
+
+/* 空状态 */
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #999;
+}
+
+.empty-state i {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+/* 报告详情样式 */
+.report-detail-section {
+    margin-bottom: 20px;
+}
+
+.report-info-row {
+    display: flex;
+    margin-bottom: 8px;
+}
+
+.report-info-label {
+    min-width: 120px;
+    font-weight: 600;
+    color: #495057;
+}
+
+.report-info-value {
+    color: #212529;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .indicator-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .indicator-label,
+    .indicator-unit {
+        min-width: auto;
+        width: 100%;
+    }
+}

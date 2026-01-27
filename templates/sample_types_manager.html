@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>样品类型管理 - 水质检测报告系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .page-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem 0; margin-bottom: 2rem; }
+        .search-box { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 1.5rem; }
+        .table-card { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+    <!-- 页面标题 -->
+    <div class="page-header">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="bi bi-tags"></i> 样品类型管理</h2>
+                    <p class="mb-0">管理水质检测的样品类型和备注信息</p>
+                </div>
+                <button class="btn btn-light" onclick="window.location.href='/'">
+                    <i class="bi bi-arrow-left"></i> 返回主页
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="container">
+        <!-- 搜索和操作栏 -->
+        <div class="search-box">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" id="searchInput" placeholder="搜索样品名称或备注...">
+                        <button class="btn btn-primary" id="searchBtn">搜索</button>
+                        <button class="btn btn-outline-secondary" id="resetBtn">重置</button>
+                    </div>
+                </div>
+                <div class="col-md-6 text-end">
+                    <button class="btn btn-success" id="addBtn">
+                        <i class="bi bi-plus-circle"></i> 添加样品类型
+                    </button>
+                    <button class="btn btn-primary" id="exportBtn">
+                        <i class="bi bi-download"></i> 导出Excel
+                    </button>
+                    <button class="btn btn-warning" id="importBtn">
+                        <i class="bi bi-upload"></i> 导入Excel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据表格 -->
+        <div class="table-card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th width="5%">序号</th>
+                            <th width="20%">名称</th>
+                            <th width="15%">代码</th>
+                            <th width="25%">说明</th>
+                            <th width="20%">备注</th>
+                            <th width="15%">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataTable"></tbody>
+                </table>
+            </div>
+
+            <!-- 分页控件 -->
+            <div class="p-3 border-top">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <span class="text-muted">共 <strong id="totalCount">0</strong> 条记录</span>
+                    </div>
+                    <div class="col-md-6">
+                        <nav>
+                            <ul class="pagination justify-content-end mb-0" id="pagination"></ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑模态框 -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">添加样品类型</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editForm">
+                        <input type="hidden" id="editId">
+                        <div class="mb-3">
+                            <label class="form-label">样品名称 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="editName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">样品代码 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="editCode" required>
+                            <div class="form-text">建议使用英文缩写，如：CCW（出厂水）</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">说明</label>
+                            <textarea class="form-control" id="editDescription" rows="2"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">备注</label>
+                            <textarea class="form-control" id="editRemark" rows="2"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="saveBtn">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 导入文件选择 -->
+    <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none">
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 全局变量
+        let allData = [];
+        let filteredData = [];
+        let currentPage = 1;
+        const itemsPerPage = 10;
+        const modal = new bootstrap.Modal(document.getElementById('editModal'));
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadData();
+            initEventListeners();
+        });
+
+        // 加载数据
+        async function loadData(search = '') {
+            try {
+                const url = search ? `/api/sample-types?search=${encodeURIComponent(search)}` : '/api/sample-types';
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('加载数据失败');
+
+                allData = await response.json();
+                filteredData = allData;
+                currentPage = 1;
+                renderTable();
+                renderPagination();
+            } catch (error) {
+                alert('加载数据失败: ' + error.message);
+            }
+        }
+
+        // 渲染表格
+        function renderTable() {
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageData = filteredData.slice(startIndex, endIndex);
+
+            const tbody = document.getElementById('dataTable');
+            tbody.innerHTML = '';
+
+            if (pageData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">暂无数据</td></tr>';
+                return;
+            }
+
+            pageData.forEach((item, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${startIndex + index + 1}</td>
+                    <td>${item.name || '-'}</td>
+                    <td><span class="badge bg-primary">${item.code || '-'}</span></td>
+                    <td><small class="text-muted">${item.description || '-'}</small></td>
+                    <td><small class="text-muted">${item.remark || '-'}</small></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="editItem(${item.id})">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.id}, '${item.name}')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('totalCount').textContent = filteredData.length;
+        }
+
+        // 渲染分页
+        function renderPagination() {
+            const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+
+            if (totalPages <= 1) return;
+
+            // 上一页
+            const prevLi = document.createElement('li');
+            prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+            prevLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage - 1}); return false;">上一页</a>`;
+            pagination.appendChild(prevLi);
+
+            // 页码
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                    const li = document.createElement('li');
+                    li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+                    li.innerHTML = `<a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a>`;
+                    pagination.appendChild(li);
+                } else if (i === currentPage - 3 || i === currentPage + 3) {
+                    const li = document.createElement('li');
+                    li.className = 'page-item disabled';
+                    li.innerHTML = '<span class="page-link">...</span>';
+                    pagination.appendChild(li);
+                }
+            }
+
+            // 下一页
+            const nextLi = document.createElement('li');
+            nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+            nextLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage + 1}); return false;">下一页</a>`;
+            pagination.appendChild(nextLi);
+        }
+
+        // 切换页码
+        function changePage(page) {
+            const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+            if (page < 1 || page > totalPages) return;
+            currentPage = page;
+            renderTable();
+            renderPagination();
+        }
+
+        // 初始化事件监听
+        function initEventListeners() {
+            // 搜索
+            document.getElementById('searchBtn').addEventListener('click', () => {
+                const search = document.getElementById('searchInput').value.trim();
+                loadData(search);
+            });
+
+            // 回车搜索
+            document.getElementById('searchInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    document.getElementById('searchBtn').click();
+                }
+            });
+
+            // 重置
+            document.getElementById('resetBtn').addEventListener('click', () => {
+                document.getElementById('searchInput').value = '';
+                loadData();
+            });
+
+            // 添加
+            document.getElementById('addBtn').addEventListener('click', () => {
+                document.getElementById('modalTitle').textContent = '添加样品类型';
+                document.getElementById('editForm').reset();
+                document.getElementById('editId').value = '';
+                modal.show();
+            });
+
+            // 保存
+            document.getElementById('saveBtn').addEventListener('click', saveItem);
+
+            // 导出
+            document.getElementById('exportBtn').addEventListener('click', () => {
+                window.location.href = '/api/sample-types/export/excel';
+            });
+
+            // 导入
+            document.getElementById('importBtn').addEventListener('click', () => {
+                document.getElementById('importFileInput').click();
+            });
+
+            document.getElementById('importFileInput').addEventListener('change', importFile);
+        }
+
+        // 编辑项目
+        function editItem(id) {
+            const item = allData.find(x => x.id === id);
+            if (!item) return;
+
+            document.getElementById('modalTitle').textContent = '编辑样品类型';
+            document.getElementById('editId').value = item.id;
+            document.getElementById('editName').value = item.name || '';
+            document.getElementById('editCode').value = item.code || '';
+            document.getElementById('editDescription').value = item.description || '';
+            document.getElementById('editRemark').value = item.remark || '';
+            modal.show();
+        }
+
+        // 保存项目
+        async function saveItem() {
+            const id = document.getElementById('editId').value;
+            const name = document.getElementById('editName').value.trim();
+            const code = document.getElementById('editCode').value.trim();
+            const description = document.getElementById('editDescription').value.trim();
+            const remark = document.getElementById('editRemark').value.trim();
+
+            if (!name || !code) {
+                alert('样品名称和代码不能为空');
+                return;
+            }
+
+            const data = { name, code, description, remark };
+
+            try {
+                let response;
+                if (id) {
+                    response = await fetch(`/api/sample-types/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                } else {
+                    response = await fetch('/api/sample-types', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                }
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '保存失败');
+                }
+
+                modal.hide();
+                loadData();
+                alert(id ? '更新成功' : '添加成功');
+            } catch (error) {
+                alert('保存失败: ' + error.message);
+            }
+        }
+
+        // 删除项目
+        async function deleteItem(id, name) {
+            if (!confirm(`确定要删除样品类型"${name}"吗？`)) return;
+
+            try {
+                const response = await fetch(`/api/sample-types/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '删除失败');
+                }
+
+                loadData();
+                alert('删除成功');
+            } catch (error) {
+                alert('删除失败: ' + error.message);
+            }
+        }
+
+        // 导入文件
+        async function importFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/sample-types/import/excel', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '导入失败');
+                }
+
+                const result = await response.json();
+                alert(`导入成功！成功: ${result.success_count}条, 失败: ${result.fail_count}条`);
+                loadData();
+            } catch (error) {
+                alert('导入失败: ' + error.message);
+            } finally {
+                e.target.value = '';
+            }
+        }
+    </script>
+</body>
+</html>
