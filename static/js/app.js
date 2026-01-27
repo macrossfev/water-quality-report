@@ -853,10 +853,12 @@ function showTemplateConfigModal(sampleTypeId, currentIndicators) {
                     <table class="table table-sm table-hover table-bordered" style="table-layout: fixed; width: 100%;">
                         <colgroup>
                             <col style="width: 50px;">
-                            <col style="width: 180px;">
+                            <col style="width: 150px;">
+                            <col style="width: 70px;">
+                            <col style="width: 100px;">
+                            <col style="width: 100px;">
+                            <col style="width: 200px;">
                             <col style="width: 80px;">
-                            <col style="width: 120px;">
-                            <col style="width: 250px;">
                             <col style="width: auto;">
                         </colgroup>
                         <thead class="table-light">
@@ -866,8 +868,10 @@ function showTemplateConfigModal(sampleTypeId, currentIndicators) {
                                 </th>
                                 <th>指标名称</th>
                                 <th>单位</th>
+                                <th>分组</th>
                                 <th>限值</th>
                                 <th>检测方法</th>
+                                <th>默认值</th>
                                 <th>备注</th>
                             </tr>
                         </thead>
@@ -888,11 +892,13 @@ function showTemplateConfigModal(sampleTypeId, currentIndicators) {
                     <td class="text-center">
                         <input class="form-check-input indicator-checkbox" type="checkbox" value="${ind.id}" id="ind_${ind.id}" ${checked}>
                     </td>
-                    <td><strong>${cleanText(ind.name, 30)}</strong></td>
-                    <td><span class="text-muted">${cleanText(ind.unit, 20)}</span></td>
-                    <td><span class="text-info">${cleanText(ind.limit_value, 30)}</span></td>
-                    <td><small class="text-muted">${cleanText(ind.detection_method, 50)}</small></td>
-                    <td><small class="text-muted">${cleanText(ind.remark, 50)}</small></td>
+                    <td><strong>${cleanText(ind.name, 25)}</strong></td>
+                    <td><span class="text-muted">${cleanText(ind.unit, 10)}</span></td>
+                    <td><span class="badge bg-info">${cleanText(ind.group_name || '未分组', 15)}</span></td>
+                    <td><span class="text-info">${cleanText(ind.limit_value, 20)}</span></td>
+                    <td><small class="text-muted">${cleanText(ind.detection_method, 40)}</small></td>
+                    <td><small class="text-muted">${cleanText(ind.default_value || '-', 15)}</small></td>
+                    <td><small class="text-muted">${cleanText(ind.remark, 30)}</small></td>
                 </tr>
             `;
         });
