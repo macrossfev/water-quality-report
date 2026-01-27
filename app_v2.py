@@ -2200,6 +2200,55 @@ def api_reports_pending_submit():
 
     return jsonify([dict(r) for r in reports])
 
+@app.route('/api/reports/submitted', methods=['GET'])
+@login_required
+def api_reports_submitted():
+    """获取已提交报告列表（pending、approved、rejected状态的报告）"""
+    conn = get_db_connection()
+
+    # 获取筛选条件
+    sample_number = request.args.get('sample_number', '')
+    status = request.args.get('status', '')
+    company_id = request.args.get('company_id', '')
+    date = request.args.get('date', '')
+
+    # 构建SQL - 查询当前用户创建的已提交报告
+    sql = '''
+        SELECT r.*,
+               st.name as sample_type_name,
+               c.name as company_name,
+               t.name as template_name
+        FROM reports r
+        LEFT JOIN sample_types st ON r.sample_type_id = st.id
+        LEFT JOIN companies c ON r.company_id = c.id
+        LEFT JOIN excel_report_templates t ON r.template_id = t.id
+        WHERE r.created_by = ? AND r.review_status IN ('pending', 'approved', 'rejected')
+    '''
+    params = [session['user_id']]
+
+    if sample_number:
+        sql += ' AND r.sample_number LIKE ?'
+        params.append(f'%{sample_number}%')
+
+    if status:
+        sql += ' AND r.review_status = ?'
+        params.append(status)
+
+    if company_id:
+        sql += ' AND r.company_id = ?'
+        params.append(company_id)
+
+    if date:
+        sql += ' AND DATE(r.created_at) = ?'
+        params.append(date)
+
+    sql += ' ORDER BY r.created_at DESC'
+
+    reports = conn.execute(sql, params).fetchall()
+    conn.close()
+
+    return jsonify([dict(r) for r in reports])
+
 @app.route('/api/reports/review', methods=['GET'])
 @login_required
 def api_reports_review():

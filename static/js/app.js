@@ -144,6 +144,14 @@ function bindEvents() {
     document.getElementById('searchPendingBtn')?.addEventListener('click', loadPendingReports);
     document.getElementById('refreshPendingBtn')?.addEventListener('click', loadPendingReports);
 
+    // 已提交报告
+    document.getElementById('searchSubmittedBtn')?.addEventListener('click', loadSubmittedReports);
+    document.getElementById('refreshSubmittedBtn')?.addEventListener('click', loadSubmittedReports);
+
+    // 报告审核
+    document.getElementById('searchReviewBtn')?.addEventListener('click', loadReviewReports);
+    document.getElementById('refreshReviewBtn')?.addEventListener('click', loadReviewReports);
+
     // 报告查询
     document.getElementById('searchReportBtn').addEventListener('click', searchReports);
     document.getElementById('refreshReportBtn').addEventListener('click', () => loadReports());
@@ -165,6 +173,8 @@ function bindEvents() {
                 loadUsers();
             } else if (targetId === '#pending-reports') {
                 loadPendingReports();
+            } else if (targetId === '#submitted-reports') {
+                loadSubmittedReports();
             } else if (targetId === '#review') {
                 loadReviewReports();
             }
@@ -1835,8 +1845,11 @@ async function loadPendingReports() {
                     <td>${new Date(report.created_at).toLocaleString('zh-CN')}</td>
                     <td class="text-truncate" style="max-width: 200px;" title="${rejectReason}">${rejectReason}</td>
                     <td>
+                        <button class="btn btn-sm btn-info" onclick="showReviewDetailModal(${report.id})">
+                            <i class="bi bi-eye"></i> 预览
+                        </button>
                         <button class="btn btn-sm btn-primary" onclick="submitPendingReport(${report.id})">
-                            <i class="bi bi-send"></i> 提交审核
+                            <i class="bi bi-send"></i> 提交
                         </button>
                         <button class="btn btn-sm btn-danger" onclick="deletePendingReport(${report.id})">
                             <i class="bi bi-trash"></i>
@@ -1880,6 +1893,293 @@ async function deletePendingReport(reportId) {
     } catch (error) {
         console.error('删除报告失败:', error);
         showToast('删除报告失败: ' + error.message, 'error');
+    }
+}
+
+// ==================== 已提交报告 ====================
+
+async function loadSubmittedReports() {
+    try {
+        const sampleNumber = document.getElementById('submittedSearchSampleNumber').value;
+        const status = document.getElementById('submittedSearchStatus').value;
+        const companyId = document.getElementById('submittedSearchCompany').value;
+        const date = document.getElementById('submittedSearchDate').value;
+
+        let url = '/api/reports/submitted?';
+        if (sampleNumber) url += `sample_number=${sampleNumber}&`;
+        if (status) url += `status=${status}&`;
+        if (companyId) url += `company_id=${companyId}&`;
+        if (date) url += `date=${date}&`;
+
+        const reports = await apiRequest(url);
+
+        const tbody = document.getElementById('submittedReportsTableBody');
+
+        if (reports.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">暂无已提交报告</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = reports.map(report => {
+            // 审核状态
+            let reviewStatusBadge = '';
+            switch (report.review_status) {
+                case 'pending':
+                    reviewStatusBadge = '<span class="badge bg-warning text-dark">待审核</span>';
+                    break;
+                case 'approved':
+                    reviewStatusBadge = '<span class="badge bg-success">已审核</span>';
+                    break;
+                case 'rejected':
+                    reviewStatusBadge = '<span class="badge bg-danger">已拒绝</span>';
+                    break;
+                default:
+                    reviewStatusBadge = '<span class="badge bg-secondary">未知</span>';
+            }
+
+            // 生成状态
+            let generateStatusBadge = '';
+            if (report.generated_report_path) {
+                generateStatusBadge = '<span class="badge bg-primary">已生成</span>';
+            } else if (report.review_status === 'approved') {
+                generateStatusBadge = '<span class="badge bg-secondary">可生成</span>';
+            } else {
+                generateStatusBadge = '<span class="badge bg-light text-dark">未生成</span>';
+            }
+
+            return `
+                <tr>
+                    <td>${report.report_number || '-'}</td>
+                    <td>${report.sample_number || '-'}</td>
+                    <td>${report.sample_type_name || '-'}</td>
+                    <td>${report.company_name || '-'}</td>
+                    <td>${report.template_name || '-'}</td>
+                    <td>${reviewStatusBadge}</td>
+                    <td>${generateStatusBadge}</td>
+                    <td>${new Date(report.created_at).toLocaleString('zh-CN')}</td>
+                    <td>
+                        <button class="btn btn-sm btn-info" onclick="showReviewDetailModal(${report.id})">
+                            <i class="bi bi-eye"></i> 查看
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('加载已提交报告失败:', error);
+        showToast('加载已提交报告失败', 'error');
+    }
+}
+
+// ==================== 报告审核 ====================
+
+async function loadReviewReports() {
+    try {
+        const sampleNumber = document.getElementById('reviewSearchSampleNumber').value;
+        const status = document.getElementById('reviewSearchStatus').value;
+        const companyId = document.getElementById('reviewSearchCompany').value;
+
+        let url = '/api/reports/review?';
+        if (sampleNumber) url += `sample_number=${sampleNumber}&`;
+        if (status) url += `status=${status}&`;
+        if (companyId) url += `company_id=${companyId}&`;
+
+        const reports = await apiRequest(url);
+
+        const tbody = document.getElementById('reviewReportsList');
+
+        if (reports.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">暂无报告</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = reports.map(report => {
+            let statusBadge = '';
+            let actionButtons = '';
+
+            switch (report.review_status) {
+                case 'draft':
+                    statusBadge = '<span class="badge bg-secondary">草稿</span>';
+                    break;
+                case 'pending':
+                    statusBadge = '<span class="badge bg-warning text-dark">待审核</span>';
+                    actionButtons = `
+                        <button class="btn btn-sm btn-success" onclick="showApproveModal(${report.id})">
+                            <i class="bi bi-check-circle"></i> 通过
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="showRejectModal(${report.id})">
+                            <i class="bi bi-x-circle"></i> 拒绝
+                        </button>
+                    `;
+                    break;
+                case 'approved':
+                    statusBadge = '<span class="badge bg-success">已审核</span>';
+                    break;
+                case 'rejected':
+                    statusBadge = '<span class="badge bg-danger">已拒绝</span>';
+                    break;
+                default:
+                    statusBadge = '<span class="badge bg-secondary">未知</span>';
+            }
+
+            return `
+                <tr>
+                    <td>${report.report_number || '-'}</td>
+                    <td>${report.sample_number || '-'}</td>
+                    <td>${report.sample_type_name || '-'}</td>
+                    <td>${report.company_name || '-'}</td>
+                    <td>${statusBadge}</td>
+                    <td>${new Date(report.created_at).toLocaleString('zh-CN')}</td>
+                    <td>${report.detection_date || '-'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-info" onclick="showReviewDetailModal(${report.id})">
+                            <i class="bi bi-eye"></i> 查看
+                        </button>
+                        ${actionButtons}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('加载报告审核列表失败:', error);
+        showToast('加载报告审核列表失败', 'error');
+    }
+}
+
+async function showReviewDetailModal(reportId) {
+    try {
+        const data = await apiRequest(`/api/reports/${reportId}/review-detail`);
+
+        // 创建详情模态框
+        const modalHTML = `
+            <div class="modal fade" id="reviewDetailModal" tabindex="-1">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">报告详情 - ${data.report.report_number}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <h6 class="mb-3"><i class="bi bi-card-list"></i> 基本信息</h6>
+                            <div class="row mb-3">
+                                <div class="col-md-4"><strong>样品编号：</strong>${data.report.sample_number}</div>
+                                <div class="col-md-4"><strong>样品类型：</strong>${data.report.sample_type_name || '-'}</div>
+                                <div class="col-md-4"><strong>委托单位：</strong>${data.report.company_name || '-'}</div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-4"><strong>检测日期：</strong>${data.report.detection_date || '-'}</div>
+                                <div class="col-md-4"><strong>检测人员：</strong>${data.report.detection_person || '-'}</div>
+                                <div class="col-md-4"><strong>审核人员：</strong>${data.report.review_person || '-'}</div>
+                            </div>
+
+                            <hr>
+
+                            <h6 class="mb-3"><i class="bi bi-clipboard-data"></i> 检测数据</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>检测项目</th>
+                                            <th>检测值</th>
+                                            <th>单位</th>
+                                            <th>限值</th>
+                                            <th>检测方法</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${data.detection_data.map(item => `
+                                            <tr>
+                                                <td>${item.indicator_name}</td>
+                                                <td>${item.measured_value}</td>
+                                                <td>${item.unit || '-'}</td>
+                                                <td>${item.limit_value || '-'}</td>
+                                                <td>${item.detection_method || '-'}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            ${data.template_fields.length > 0 ? `
+                                <hr>
+                                <h6 class="mb-3"><i class="bi bi-file-text"></i> 模板字段</h6>
+                                <div class="row">
+                                    ${data.template_fields.map(field => `
+                                        <div class="col-md-4 mb-2">
+                                            <strong>${field.field_display_name || field.field_name}：</strong>
+                                            ${field.field_value}
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : ''}
+
+                            ${data.report.review_comment ? `
+                                <hr>
+                                <h6 class="mb-2"><i class="bi bi-chat-left-text"></i> 审核意见</h6>
+                                <div class="alert alert-${data.report.review_status === 'rejected' ? 'danger' : 'success'}">
+                                    ${data.report.review_comment}
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // 移除旧模态框
+        const oldModal = document.getElementById('reviewDetailModal');
+        if (oldModal) oldModal.remove();
+
+        // 添加新模态框
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        const modal = new bootstrap.Modal(document.getElementById('reviewDetailModal'));
+        modal.show();
+
+    } catch (error) {
+        console.error('加载报告详情失败:', error);
+        showToast('加载报告详情失败', 'error');
+    }
+}
+
+async function showApproveModal(reportId) {
+    const comment = prompt('审核意见（可选）:');
+    if (comment === null) return; // 用户点击取消
+
+    try {
+        await apiRequest(`/api/reports/${reportId}/approve`, {
+            method: 'POST',
+            body: JSON.stringify({ comment: comment || '' })
+        });
+
+        showToast('审核通过');
+        loadReviewReports();
+    } catch (error) {
+        console.error('审核通过失败:', error);
+        showToast('审核通过失败: ' + error.message, 'error');
+    }
+}
+
+async function showRejectModal(reportId) {
+    const comment = prompt('请填写拒绝原因（必填）:');
+    if (!comment || comment.trim() === '') {
+        showToast('拒绝原因不能为空', 'warning');
+        return;
+    }
+
+    try {
+        await apiRequest(`/api/reports/${reportId}/reject`, {
+            method: 'POST',
+            body: JSON.stringify({ comment: comment })
+        });
+
+        showToast('已拒绝');
+        loadReviewReports();
+    } catch (error) {
+        console.error('拒绝失败:', error);
+        showToast('拒绝失败: ' + error.message, 'error');
     }
 }
 

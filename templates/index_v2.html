@@ -176,6 +176,11 @@
                             <i class="bi bi-clock-history"></i> 待提交报告
                         </button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="submitted-reports-tab" data-bs-toggle="tab" data-bs-target="#submitted-reports" type="button" role="tab">
+                            <i class="bi bi-check2-circle"></i> 已提交报告
+                        </button>
+                    </li>
                 </ul>
 
                 <!-- 子标签内容 -->
@@ -340,6 +345,72 @@
                                         <tbody id="pendingReportsTableBody">
                                             <tr>
                                                 <td colspan="9" class="text-center text-muted">暂无待提交报告</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 已提交报告 -->
+                    <div class="tab-pane fade" id="submitted-reports" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header bg-success text-white">
+                                <h5 class="mb-0"><i class="bi bi-check2-circle"></i> 已提交报告</h5>
+                                <div class="text-white-50 small mt-1">已提交审核的报告（待审核、已审核、已生成）</div>
+                            </div>
+                            <div class="card-body">
+                                <!-- 搜索筛选 -->
+                                <div class="row mb-3">
+                                    <div class="col-md-3">
+                                        <input type="text" class="form-control" id="submittedSearchSampleNumber" placeholder="搜索样品编号...">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <select class="form-select" id="submittedSearchStatus">
+                                            <option value="">全部状态</option>
+                                            <option value="pending">待审核</option>
+                                            <option value="approved">已审核</option>
+                                            <option value="rejected">已拒绝</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <select class="form-select" id="submittedSearchCompany">
+                                            <option value="">全部公司</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <input type="date" class="form-control" id="submittedSearchDate" placeholder="提交日期">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button class="btn btn-primary" id="searchSubmittedBtn">
+                                            <i class="bi bi-search"></i> 搜索
+                                        </button>
+                                        <button class="btn btn-secondary" id="refreshSubmittedBtn">
+                                            <i class="bi bi-arrow-clockwise"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- 报告列表 -->
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>报告编号</th>
+                                                <th>样品编号</th>
+                                                <th>样品类型</th>
+                                                <th>委托单位</th>
+                                                <th>模板</th>
+                                                <th>审核状态</th>
+                                                <th>生成状态</th>
+                                                <th>提交时间</th>
+                                                <th>操作</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="submittedReportsTableBody">
+                                            <tr>
+                                                <td colspan="9" class="text-center text-muted">暂无已提交报告</td>
                                             </tr>
                                         </tbody>
                                     </table>
