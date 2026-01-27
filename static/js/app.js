@@ -840,72 +840,64 @@ function showTemplateConfigModal(sampleTypeId, currentIndicators) {
         groupedIndicators[groupName].push(ind);
     });
 
-    // 生成分组显示的HTML - 使用表格横向显示
+    // HTML转义函数
+    const escapeHtml = (text) => {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    };
+
+    // 清理和截断文本
+    const clean = (text, maxLen = 50) => {
+        if (!text || text === 'null' || text === 'undefined') return '-';
+        const str = String(text).replace(/[\r\n\t]+/g, ' ').trim();
+        const truncated = str.length > maxLen ? str.substring(0, maxLen) + '...' : str;
+        return escapeHtml(truncated);
+    };
+
+    // 生成分组显示的HTML
     let indicatorCheckboxes = '';
     for (const [groupName, indicators] of Object.entries(groupedIndicators)) {
-        indicatorCheckboxes += `
-            <div class="mb-3 indicator-group">
-                <h6 class="text-primary border-bottom pb-2">
-                    <i class="bi bi-folder"></i> ${groupName}
-                    <span class="badge bg-secondary">${indicators.length}项</span>
-                </h6>
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover table-bordered" style="table-layout: fixed; width: 100%;">
-                        <colgroup>
-                            <col style="width: 50px;">
-                            <col style="width: 150px;">
-                            <col style="width: 70px;">
-                            <col style="width: 100px;">
-                            <col style="width: 100px;">
-                            <col style="width: 200px;">
-                            <col style="width: 80px;">
-                            <col style="width: auto;">
-                        </colgroup>
-                        <thead class="table-light">
-                            <tr>
-                                <th class="text-center">
-                                    <input type="checkbox" class="form-check-input group-select-all" data-group="${groupName}">
-                                </th>
-                                <th>指标名称</th>
-                                <th>单位</th>
-                                <th>分组</th>
-                                <th>限值</th>
-                                <th>检测方法</th>
-                                <th>默认值</th>
-                                <th>备注</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-        `;
+        const escapedGroupName = escapeHtml(groupName);
+
+        indicatorCheckboxes += `<div class="mb-3 indicator-group">`;
+        indicatorCheckboxes += `<h6 class="text-primary border-bottom pb-2"><i class="bi bi-folder"></i> ${escapedGroupName} <span class="badge bg-secondary">${indicators.length}项</span></h6>`;
+        indicatorCheckboxes += `<div class="table-responsive"><table class="table table-sm table-hover table-bordered">`;
+        indicatorCheckboxes += `<thead class="table-light"><tr>`;
+        indicatorCheckboxes += `<th style="width:50px" class="text-center"><input type="checkbox" class="form-check-input group-select-all" data-group="${escapedGroupName}"></th>`;
+        indicatorCheckboxes += `<th style="width:150px">指标名称</th>`;
+        indicatorCheckboxes += `<th style="width:70px">单位</th>`;
+        indicatorCheckboxes += `<th style="width:100px">分组</th>`;
+        indicatorCheckboxes += `<th style="width:100px">限值</th>`;
+        indicatorCheckboxes += `<th style="width:200px">检测方法</th>`;
+        indicatorCheckboxes += `<th style="width:80px">默认值</th>`;
+        indicatorCheckboxes += `<th>备注</th>`;
+        indicatorCheckboxes += `</tr></thead><tbody>`;
 
         indicators.forEach(ind => {
             const checked = currentIds.includes(ind.id) ? 'checked' : '';
-
-            // 清理和截断文本
-            const clean = (text, maxLen = 50) => {
-                if (!text || text === 'null' || text === 'undefined') return '-';
-                const str = String(text).replace(/[\r\n\t]+/g, ' ').trim();
-                return str.length > maxLen ? str.substring(0, maxLen) + '...' : str;
-            };
-
-            // 确保所有字段都有值
             const name = clean(ind.name, 25);
             const unit = clean(ind.unit, 10);
-            const groupName = ind.group_name ? clean(ind.group_name, 15) : '未分组';
-            const limitValue = clean(ind.limit_value, 20);
+            const group = ind.group_name ? clean(ind.group_name, 15) : '未分组';
+            const limit = clean(ind.limit_value, 20);
             const method = clean(ind.detection_method, 40);
-            const defaultVal = clean(ind.default_value, 15);
-            const remark = clean(ind.remark, 30);
+            const defVal = clean(ind.default_value, 15);
+            const rem = clean(ind.remark, 30);
 
-            indicatorCheckboxes += `<tr class="indicator-row"><td class="text-center"><input class="form-check-input indicator-checkbox" type="checkbox" value="${ind.id}" id="ind_${ind.id}" ${checked}></td><td>${name}</td><td>${unit}</td><td><span class="badge bg-info">${groupName}</span></td><td>${limitValue}</td><td>${method}</td><td>${defaultVal}</td><td>${remark}</td></tr>`;
+            indicatorCheckboxes += `<tr class="indicator-row">`;
+            indicatorCheckboxes += `<td class="text-center"><input class="form-check-input indicator-checkbox" type="checkbox" value="${ind.id}" ${checked}></td>`;
+            indicatorCheckboxes += `<td>${name}</td>`;
+            indicatorCheckboxes += `<td>${unit}</td>`;
+            indicatorCheckboxes += `<td><span class="badge bg-info">${group}</span></td>`;
+            indicatorCheckboxes += `<td>${limit}</td>`;
+            indicatorCheckboxes += `<td>${method}</td>`;
+            indicatorCheckboxes += `<td>${defVal}</td>`;
+            indicatorCheckboxes += `<td>${rem}</td>`;
+            indicatorCheckboxes += `</tr>`;
         });
 
-        indicatorCheckboxes += `
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
+        indicatorCheckboxes += `</tbody></table></div></div>`;
     }
 
     const modalHTML = `
