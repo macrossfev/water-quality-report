@@ -912,7 +912,7 @@ function showTemplateConfigModal(sampleTypeId, currentIndicators) {
                             <div class="col-md-8">
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="bi bi-search"></i></span>
-                                    <input type="text" class="form-control" id="indicatorSearchInput" placeholder="搜索指标名称、单位、限值、检测方法或备注...">
+                                    <input type="text" class="form-control" id="indicatorSearchInput" placeholder="搜索分组名称、指标名称、单位、限值、检测方法或备注...">
                                 </div>
                             </div>
                             <div class="col-md-4">
@@ -926,7 +926,7 @@ function showTemplateConfigModal(sampleTypeId, currentIndicators) {
                         </div>
                         <div class="alert alert-info mb-3">
                             <i class="bi bi-info-circle"></i>
-                            选择该样品类型需要检测的项目。可以使用搜索框筛选，或按分组批量选择。
+                            选择该样品类型需要检测的项目。可以使用搜索框按分组名称或指标内容筛选，也可以点击分组标题旁的复选框批量选择整个分组。
                         </div>
                         <div id="indicatorsList" style="max-height: 500px; overflow-y: auto;">
                             ${indicatorCheckboxes}
@@ -947,20 +947,35 @@ function showTemplateConfigModal(sampleTypeId, currentIndicators) {
     const modal = new bootstrap.Modal(document.getElementById('configTemplateModal'));
     modal.show();
 
-    // 绑定搜索功能
+    // 绑定搜索功能 - 支持按分组名称搜索
     document.getElementById('indicatorSearchInput').addEventListener('input', function(e) {
         const searchTerm = e.target.value.toLowerCase();
-        const rows = document.querySelectorAll('#indicatorsList .indicator-row');
+        const groups = document.querySelectorAll('.indicator-group');
 
-        rows.forEach(row => {
-            const text = row.textContent.toLowerCase();
-            row.style.display = text.includes(searchTerm) ? '' : 'none';
-        });
+        groups.forEach(group => {
+            const groupTitle = group.querySelector('h6').textContent.toLowerCase();
+            const rows = group.querySelectorAll('.indicator-row');
 
-        // 隐藏没有可见项的分组
-        document.querySelectorAll('.indicator-group').forEach(group => {
-            const visibleRows = group.querySelectorAll('.indicator-row:not([style*="display: none"])');
-            group.style.display = visibleRows.length > 0 ? '' : 'none';
+            // 如果搜索词匹配分组名称，显示该分组的所有项目
+            if (groupTitle.includes(searchTerm)) {
+                rows.forEach(row => {
+                    row.style.display = '';
+                });
+                group.style.display = '';
+            } else {
+                // 否则按行内容搜索
+                let hasVisibleRow = false;
+                rows.forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    if (text.includes(searchTerm)) {
+                        row.style.display = '';
+                        hasVisibleRow = true;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+                group.style.display = hasVisibleRow ? '' : 'none';
+            }
         });
     });
 

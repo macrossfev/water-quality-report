@@ -2021,15 +2021,18 @@ def api_report_template_detail(id):
         if not name:
             return jsonify({'error': '模版名称不能为空'}), 400
 
-        # 检查是否存在同名的其他模版
+        # 检查是否存在同名的其他模版（包括已删除的模版，因为UNIQUE约束对所有行生效）
         existing = conn.execute(
-            'SELECT id FROM excel_report_templates WHERE name = ? AND id != ? AND is_active = 1',
+            'SELECT id, is_active FROM excel_report_templates WHERE name = ? AND id != ?',
             (name, id)
         ).fetchone()
 
         if existing:
             conn.close()
-            return jsonify({'error': '模版名称已存在，请使用其他名称'}), 400
+            if existing['is_active']:
+                return jsonify({'error': '模版名称已存在，请使用其他名称'}), 400
+            else:
+                return jsonify({'error': '该名称已被删除的模版使用，请使用其他名称'}), 400
 
         try:
             conn.execute(
