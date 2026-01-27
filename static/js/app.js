@@ -880,27 +880,24 @@ function showTemplateConfigModal(sampleTypeId, currentIndicators) {
 
         indicators.forEach(ind => {
             const checked = currentIds.includes(ind.id) ? 'checked' : '';
-            // 清理和截断文本以防止排版问题
-            const cleanText = (text, maxLen = 50) => {
-                if (!text) return '-';
-                const cleaned = String(text).replace(/[\r\n]+/g, ' ').trim();
-                return cleaned.length > maxLen ? cleaned.substring(0, maxLen) + '...' : cleaned;
+
+            // 清理和截断文本
+            const clean = (text, maxLen = 50) => {
+                if (!text || text === 'null' || text === 'undefined') return '-';
+                const str = String(text).replace(/[\r\n\t]+/g, ' ').trim();
+                return str.length > maxLen ? str.substring(0, maxLen) + '...' : str;
             };
 
-            indicatorCheckboxes += `
-                <tr class="indicator-row">
-                    <td class="text-center">
-                        <input class="form-check-input indicator-checkbox" type="checkbox" value="${ind.id}" id="ind_${ind.id}" ${checked}>
-                    </td>
-                    <td><strong>${cleanText(ind.name, 25)}</strong></td>
-                    <td><span class="text-muted">${cleanText(ind.unit, 10)}</span></td>
-                    <td><span class="badge bg-info">${cleanText(ind.group_name || '未分组', 15)}</span></td>
-                    <td><span class="text-info">${cleanText(ind.limit_value, 20)}</span></td>
-                    <td><small class="text-muted">${cleanText(ind.detection_method, 40)}</small></td>
-                    <td><small class="text-muted">${cleanText(ind.default_value || '-', 15)}</small></td>
-                    <td><small class="text-muted">${cleanText(ind.remark, 30)}</small></td>
-                </tr>
-            `;
+            // 确保所有字段都有值
+            const name = clean(ind.name, 25);
+            const unit = clean(ind.unit, 10);
+            const groupName = ind.group_name ? clean(ind.group_name, 15) : '未分组';
+            const limitValue = clean(ind.limit_value, 20);
+            const method = clean(ind.detection_method, 40);
+            const defaultVal = clean(ind.default_value, 15);
+            const remark = clean(ind.remark, 30);
+
+            indicatorCheckboxes += `<tr class="indicator-row"><td class="text-center"><input class="form-check-input indicator-checkbox" type="checkbox" value="${ind.id}" id="ind_${ind.id}" ${checked}></td><td>${name}</td><td>${unit}</td><td><span class="badge bg-info">${groupName}</span></td><td>${limitValue}</td><td>${method}</td><td>${defaultVal}</td><td>${remark}</td></tr>`;
         });
 
         indicatorCheckboxes += `
