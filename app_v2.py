@@ -1821,10 +1821,39 @@ def api_import_report_template():
         conn = get_db_connection()
         cursor = conn.cursor()
 
+        # 检查模板名称是否已存在，如果存在则自动添加序号
+        final_template_name = template_name
+        existing = conn.execute(
+            'SELECT COUNT(*) as count FROM excel_report_templates WHERE name = ?',
+            (template_name,)
+        ).fetchone()
+
+        if existing['count'] > 0:
+            # 查找所有相似名称的模板
+            similar = conn.execute(
+                'SELECT name FROM excel_report_templates WHERE name LIKE ?',
+                (f'{template_name}%',)
+            ).fetchall()
+
+            # 找出最大的序号
+            max_num = 0
+            for row in similar:
+                name = row['name']
+                # 尝试提取末尾的数字
+                import re
+                match = re.search(r'_(\d+)$', name)
+                if match:
+                    num = int(match.group(1))
+                    if num > max_num:
+                        max_num = num
+
+            # 使用下一个序号
+            final_template_name = f"{template_name}_{max_num + 1}"
+
         cursor.execute(
             'INSERT INTO excel_report_templates (name, sample_type_id, description, template_file_path) '
             'VALUES (?, ?, ?, ?)',
-            (template_name, sample_type_id if sample_type_id else None, description, file_path)
+            (final_template_name, sample_type_id if sample_type_id else None, description, file_path)
         )
 
         template_id = cursor.lastrowid
