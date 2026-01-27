@@ -143,13 +143,14 @@ def change_password(user_id, old_password, new_password):
 
     return True, '密码修改成功'
 
-def log_operation(operation_type, operation_detail='', user_id=None, ip_address=None):
+def log_operation(operation_type, operation_detail='', user_id=None, ip_address=None, conn=None):
     """
     记录操作日志
     :param operation_type: 操作类型
     :param operation_detail: 操作详情
     :param user_id: 用户ID(如果为None则从session获取)
     :param ip_address: IP地址(如果为None则从request获取)
+    :param conn: 数据库连接(如果为None则创建新连接)
     """
     if user_id is None and 'user_id' in session:
         user_id = session['user_id']
@@ -157,14 +158,21 @@ def log_operation(operation_type, operation_detail='', user_id=None, ip_address=
     if ip_address is None:
         ip_address = request.remote_addr
 
-    conn = get_db_connection()
+    # 如果没有传入连接，则创建新连接
+    own_conn = conn is None
+    if own_conn:
+        conn = get_db_connection()
+
     conn.execute(
         'INSERT INTO operation_logs (user_id, operation_type, operation_detail, ip_address) '
         'VALUES (?, ?, ?, ?)',
         (user_id, operation_type, operation_detail, ip_address)
     )
-    conn.commit()
-    conn.close()
+
+    # 只有我们自己创建的连接才需要commit和close
+    if own_conn:
+        conn.commit()
+        conn.close()
 
 def get_operation_logs(limit=100, offset=0, user_id=None, operation_type=None):
     """

@@ -129,9 +129,10 @@ def api_companies():
             cursor.execute('INSERT INTO companies (name) VALUES (?)', (name,))
             conn.commit()
             company_id = cursor.lastrowid
+
+            log_operation('添加公司', f'添加公司: {name}', conn=conn)
             conn.close()
 
-            log_operation('添加公司', f'添加公司: {name}')
             return jsonify({'id': company_id, 'message': '公司添加成功'}), 201
         except Exception as e:
             conn.close()
@@ -158,9 +159,10 @@ def api_company_detail(id):
 
         conn.execute('DELETE FROM companies WHERE id = ?', (id,))
         conn.commit()
+
+        log_operation('删除公司', f'删除公司: {company["name"]}', conn=conn)
         conn.close()
 
-        log_operation('删除公司', f'删除公司: {company["name"]}')
         return jsonify({'message': '公司删除成功'})
 
     if request.method == 'PUT':
@@ -248,9 +250,10 @@ def api_sample_type_detail(id):
 
         conn.execute('DELETE FROM sample_types WHERE id = ?', (id,))
         conn.commit()
+
+        log_operation('删除样品类型', f'删除样品类型: {sample_type["name"]}', conn=conn)
         conn.close()
 
-        log_operation('删除样品类型', f'删除样品类型: {sample_type["name"]}')
         return jsonify({'message': '样品类型删除成功'})
 
     if request.method == 'PUT':
@@ -338,9 +341,10 @@ def api_indicator_group_detail(id):
 
         conn.execute('DELETE FROM indicator_groups WHERE id = ?', (id,))
         conn.commit()
+
+        log_operation('删除检测项目分组', f'删除分组: {group["name"]}', conn=conn)
         conn.close()
 
-        log_operation('删除检测项目分组', f'删除分组: {group["name"]}')
         return jsonify({'message': '分组删除成功'})
 
     if request.method == 'PUT':
@@ -400,9 +404,10 @@ def api_indicators():
             )
             conn.commit()
             indicator_id = cursor.lastrowid
+
+            log_operation('添加检测指标', f'添加指标: {name}', conn=conn)
             conn.close()
 
-            log_operation('添加检测指标', f'添加指标: {name}')
             return jsonify({'id': indicator_id, 'message': '指标添加成功'}), 201
         except Exception as e:
             conn.close()
@@ -434,18 +439,45 @@ def api_indicator_detail(id):
     conn = get_db_connection()
 
     if request.method == 'DELETE':
-        indicator = conn.execute('SELECT name FROM indicators WHERE id = ?', (id,)).fetchone()
+        try:
+            indicator = conn.execute('SELECT name FROM indicators WHERE id = ?', (id,)).fetchone()
 
-        if not indicator:
+            if not indicator:
+                conn.close()
+                return jsonify({'error': '指标不存在'}), 404
+
+            # 检查是否被模板使用
+            template_usage = conn.execute(
+                'SELECT COUNT(*) as count FROM template_indicators WHERE indicator_id = ?',
+                (id,)
+            ).fetchone()
+
+            if template_usage['count'] > 0:
+                conn.close()
+                return jsonify({'error': f'该指标正在被 {template_usage["count"]} 个模板使用，无法删除'}), 400
+
+            # 检查是否被报告数据使用
+            report_usage = conn.execute(
+                'SELECT COUNT(*) as count FROM report_data WHERE indicator_id = ?',
+                (id,)
+            ).fetchone()
+
+            if report_usage['count'] > 0:
+                conn.close()
+                return jsonify({'error': f'该指标已在 {report_usage["count"]} 份报告中使用，无法删除'}), 400
+
+            # 执行删除
+            conn.execute('DELETE FROM indicators WHERE id = ?', (id,))
+
+            log_operation('删除检测指标', f'删除指标: {indicator["name"]}', conn=conn)
             conn.close()
-            return jsonify({'error': '指标不存在'}), 404
 
-        conn.execute('DELETE FROM indicators WHERE id = ?', (id,))
-        conn.commit()
-        conn.close()
-
-        log_operation('删除检测指标', f'删除指标: {indicator["name"]}')
-        return jsonify({'message': '指标删除成功'})
+            return jsonify({'message': '指标删除成功'})
+        except Exception as e:
+            conn.close()
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': f'删除失败: {str(e)}'}), 500
 
     if request.method == 'PUT':
         data = request.json
@@ -469,9 +501,10 @@ def api_indicator_detail(id):
                 (group_id, name, unit, default_value, limit_value, detection_method, description, remark, sort_order, id)
             )
             conn.commit()
+
+            log_operation('更新检测指标', f'更新指标: {name}', conn=conn)
             conn.close()
 
-            log_operation('更新检测指标', f'更新指标: {name}')
             return jsonify({'message': '指标更新成功'})
         except Exception as e:
             conn.close()
@@ -507,9 +540,10 @@ def api_template_indicators():
             )
             conn.commit()
             ti_id = cursor.lastrowid
+
+            log_operation('添加模板检测项', f'样品类型ID:{sample_type_id}, 指标ID:{indicator_id}', conn=conn)
             conn.close()
 
-            log_operation('添加模板检测项', f'样品类型ID:{sample_type_id}, 指标ID:{indicator_id}')
             return jsonify({'id': ti_id, 'message': '检测项目添加成功'}), 201
         except Exception as e:
             conn.close()
@@ -550,9 +584,10 @@ def api_template_indicator_delete(id):
 
     conn.execute('DELETE FROM template_indicators WHERE id = ?', (id,))
     conn.commit()
+
+    log_operation('删除模板检测项', f'模板检测项ID:{id}', conn=conn)
     conn.close()
 
-    log_operation('删除模板检测项', f'模板检测项ID:{id}')
     return jsonify({'message': '检测项目删除成功'})
 
 # ==================== 报告管理 API ====================
@@ -1176,6 +1211,7 @@ def api_export_indicators_excel():
         'ORDER BY i.sort_order, i.name'
     ).fetchall()
 
+    # 关闭连接释放锁
     conn.close()
 
     # 创建Excel工作簿
@@ -1194,7 +1230,7 @@ def api_export_indicators_excel():
     )
 
     # 表头
-    headers = ['指标名称', '单位', '默认值', '所属分组', '排序', '说明']
+    headers = ['指标名称', '单位', '默认值', '限值', '检测方法', '所属分组', '排序', '备注']
     for col, header in enumerate(headers, start=1):
         cell = ws.cell(row=1, column=col)
         cell.value = header
@@ -1208,9 +1244,11 @@ def api_export_indicators_excel():
             indicator['name'],
             indicator['unit'] or '',
             indicator['default_value'] or '',
+            indicator['limit_value'] or '',
+            indicator['detection_method'] or '',
             indicator['group_name'] or '',
             indicator['sort_order'],
-            indicator['description'] or ''
+            indicator['remark'] or ''
         ]
 
         for col, value in enumerate(row_data, start=1):
@@ -1224,8 +1262,10 @@ def api_export_indicators_excel():
     ws.column_dimensions['B'].width = 10
     ws.column_dimensions['C'].width = 15
     ws.column_dimensions['D'].width = 15
-    ws.column_dimensions['E'].width = 10
-    ws.column_dimensions['F'].width = 30
+    ws.column_dimensions['E'].width = 25
+    ws.column_dimensions['F'].width = 15
+    ws.column_dimensions['G'].width = 10
+    ws.column_dimensions['H'].width = 30
 
     # 保存文件
     os.makedirs('exports', exist_ok=True)
@@ -1233,6 +1273,7 @@ def api_export_indicators_excel():
     wb.save(filename)
 
     log_operation('导出检测指标', f'导出 {len(indicators)} 个检测指标')
+
     return send_file(filename, as_attachment=True, download_name='检测指标.xlsx')
 
 @app.route('/api/indicators/import/excel', methods=['POST'])
@@ -1267,6 +1308,7 @@ def api_import_indicators_excel():
         error_rows = []
 
         # 从第2行开始读取（第1行是表头）
+        # 新格式：指标名称、单位、默认值、限值、检测方法、所属分组、排序、备注
         for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
             if not row[0]:  # 跳过空行
                 continue
@@ -1274,9 +1316,11 @@ def api_import_indicators_excel():
             name = row[0]
             unit = row[1] or ''
             default_value = row[2] or ''
-            group_name = row[3] or ''
-            sort_order = row[4] if row[4] is not None else 0
-            description = row[5] or ''
+            limit_value = row[3] or '' if len(row) > 3 else ''
+            detection_method = row[4] or '' if len(row) > 4 else ''
+            group_name = row[5] or '' if len(row) > 5 else ''
+            sort_order = row[6] if len(row) > 6 and row[6] is not None else 0
+            remark = row[7] or '' if len(row) > 7 else ''
 
             # 查找分组ID
             group_id = group_map.get(group_name) if group_name else None
@@ -1288,17 +1332,17 @@ def api_import_indicators_excel():
                 if existing:
                     # 更新现有指标
                     cursor.execute(
-                        'UPDATE indicators SET group_id = ?, unit = ?, default_value = ?, '
-                        'description = ?, sort_order = ? WHERE name = ?',
-                        (group_id, unit, default_value, description, sort_order, name)
+                        'UPDATE indicators SET group_id = ?, unit = ?, default_value = ?, limit_value = ?, '
+                        'detection_method = ?, remark = ?, sort_order = ? WHERE name = ?',
+                        (group_id, unit, default_value, limit_value, detection_method, remark, sort_order, name)
                     )
                     updated_count += 1
                 else:
                     # 插入新指标
                     cursor.execute(
-                        'INSERT INTO indicators (group_id, name, unit, default_value, description, sort_order) '
-                        'VALUES (?, ?, ?, ?, ?, ?)',
-                        (group_id, name, unit, default_value, description, sort_order)
+                        'INSERT INTO indicators (group_id, name, unit, default_value, limit_value, detection_method, remark, sort_order) '
+                        'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                        (group_id, name, unit, default_value, limit_value, detection_method, remark, sort_order)
                     )
                     imported_count += 1
             except Exception as e:

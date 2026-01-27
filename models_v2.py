@@ -11,10 +11,15 @@ DATABASE_PATH = 'database/water_quality_v2.db'
 
 def get_db_connection():
     """获取数据库连接"""
-    conn = sqlite3.connect(DATABASE_PATH)
+    # 设置30秒超时时间，避免数据库锁定错误
+    conn = sqlite3.connect(DATABASE_PATH, timeout=30.0, isolation_level=None)
     conn.row_factory = sqlite3.Row
     # 启用外键约束
     conn.execute('PRAGMA foreign_keys = ON')
+    # 启用WAL模式以支持更好的并发
+    conn.execute('PRAGMA journal_mode = WAL')
+    # 设置繁忙超时
+    conn.execute('PRAGMA busy_timeout = 30000')
     return conn
 
 def init_database():
@@ -23,11 +28,15 @@ def init_database():
     os.makedirs('exports', exist_ok=True)
     os.makedirs('backups', exist_ok=True)
 
-    conn = sqlite3.connect(DATABASE_PATH)
+    conn = sqlite3.connect(DATABASE_PATH, timeout=30.0)
     cursor = conn.cursor()
 
+    # 启用WAL模式以支持更好的并发
+    cursor.execute('PRAGMA journal_mode = WAL')
     # 启用外键约束
     cursor.execute('PRAGMA foreign_keys = ON')
+    # 设置繁忙超时
+    cursor.execute('PRAGMA busy_timeout = 30000')
 
     # ==================== 用户表 ====================
     cursor.execute('''

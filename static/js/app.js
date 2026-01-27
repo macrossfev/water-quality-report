@@ -733,7 +733,7 @@ function showImportIndicatorsModal() {
                         <div class="alert alert-info">
                             <small>
                                 <strong>格式说明：</strong><br>
-                                Excel应包含以下列：指标名称、单位、默认值、所属分组、排序、说明<br>
+                                Excel应包含以下列：指标名称、单位、默认值、限值、检测方法、所属分组、排序、备注<br>
                                 建议先导出现有数据作为模板参考
                             </small>
                         </div>
@@ -840,36 +840,51 @@ function showTemplateConfigModal(sampleTypeId, currentIndicators) {
         groupedIndicators[groupName].push(ind);
     });
 
-    // 生成分组显示的HTML
+    // 生成分组显示的HTML - 使用表格横向显示
     let indicatorCheckboxes = '';
     for (const [groupName, indicators] of Object.entries(groupedIndicators)) {
         indicatorCheckboxes += `
-            <div class="mb-3">
+            <div class="mb-3 indicator-group">
                 <h6 class="text-primary border-bottom pb-2">
                     <i class="bi bi-folder"></i> ${groupName}
                     <span class="badge bg-secondary">${indicators.length}项</span>
                 </h6>
-                <div class="ps-3">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 50px;">
+                                    <input type="checkbox" class="form-check-input group-select-all" data-group="${groupName}">
+                                </th>
+                                <th>指标名称</th>
+                                <th>单位</th>
+                                <th>限值</th>
+                                <th>检测方法</th>
+                                <th>备注</th>
+                            </tr>
+                        </thead>
+                        <tbody>
         `;
 
         indicators.forEach(ind => {
             const checked = currentIds.includes(ind.id) ? 'checked' : '';
-            const remarkText = ind.remark ? `<br><small class="text-muted">备注: ${ind.remark}</small>` : '';
-            const limitText = ind.limit_value ? `<br><small class="text-info">限值: ${ind.limit_value}</small>` : '';
-
             indicatorCheckboxes += `
-                <div class="form-check mb-2">
-                    <input class="form-check-input" type="checkbox" value="${ind.id}" id="ind_${ind.id}" ${checked}>
-                    <label class="form-check-label" for="ind_${ind.id}">
-                        <strong>${ind.name}</strong> ${ind.unit ? '<span class="text-muted">(' + ind.unit + ')</span>' : ''}
-                        ${limitText}
-                        ${remarkText}
-                    </label>
-                </div>
+                <tr class="indicator-row">
+                    <td>
+                        <input class="form-check-input indicator-checkbox" type="checkbox" value="${ind.id}" id="ind_${ind.id}" ${checked}>
+                    </td>
+                    <td><strong>${ind.name}</strong></td>
+                    <td><span class="text-muted">${ind.unit || '-'}</span></td>
+                    <td><span class="text-info">${ind.limit_value || '-'}</span></td>
+                    <td><small class="text-muted">${ind.detection_method || '-'}</small></td>
+                    <td><small class="text-muted">${ind.remark || '-'}</small></td>
+                </tr>
             `;
         });
 
         indicatorCheckboxes += `
+                        </tbody>
+                    </table>
                 </div>
             </div>
         `;
@@ -877,7 +892,7 @@ function showTemplateConfigModal(sampleTypeId, currentIndicators) {
 
     const modalHTML = `
         <div class="modal fade" id="configTemplateModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
+            <div class="modal-dialog modal-xl">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">
@@ -886,11 +901,27 @@ function showTemplateConfigModal(sampleTypeId, currentIndicators) {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                    <input type="text" class="form-control" id="indicatorSearchInput" placeholder="搜索指标名称、单位、限值、检测方法或备注...">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="button" class="btn btn-outline-primary" id="selectAllIndicators">
+                                    <i class="bi bi-check-square"></i> 全选
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="deselectAllIndicators">
+                                    <i class="bi bi-square"></i> 取消全选
+                                </button>
+                            </div>
+                        </div>
                         <div class="alert alert-info mb-3">
                             <i class="bi bi-info-circle"></i>
-                            选择该样品类型需要检测的项目。已按分组显示，包含限值和备注信息。
+                            选择该样品类型需要检测的项目。可以使用搜索框筛选，或按分组批量选择。
                         </div>
-                        <div style="max-height: 500px; overflow-y: auto;">
+                        <div id="indicatorsList" style="max-height: 500px; overflow-y: auto;">
                             ${indicatorCheckboxes}
                         </div>
                     </div>
@@ -908,10 +939,58 @@ function showTemplateConfigModal(sampleTypeId, currentIndicators) {
     document.getElementById('modalContainer').innerHTML = modalHTML;
     const modal = new bootstrap.Modal(document.getElementById('configTemplateModal'));
     modal.show();
+
+    // 绑定搜索功能
+    document.getElementById('indicatorSearchInput').addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase();
+        const rows = document.querySelectorAll('#indicatorsList .indicator-row');
+
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(searchTerm) ? '' : 'none';
+        });
+
+        // 隐藏没有可见项的分组
+        document.querySelectorAll('.indicator-group').forEach(group => {
+            const visibleRows = group.querySelectorAll('.indicator-row:not([style*="display: none"])');
+            group.style.display = visibleRows.length > 0 ? '' : 'none';
+        });
+    });
+
+    // 绑定全选功能
+    document.getElementById('selectAllIndicators').addEventListener('click', function() {
+        document.querySelectorAll('#indicatorsList .indicator-checkbox').forEach(cb => {
+            const row = cb.closest('.indicator-row');
+            if (row && row.style.display !== 'none') {
+                cb.checked = true;
+            }
+        });
+    });
+
+    // 绑定取消全选功能
+    document.getElementById('deselectAllIndicators').addEventListener('click', function() {
+        document.querySelectorAll('#indicatorsList .indicator-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
+    });
+
+    // 绑定分组全选功能
+    document.querySelectorAll('.group-select-all').forEach(groupCheckbox => {
+        groupCheckbox.addEventListener('change', function() {
+            const groupElement = this.closest('.indicator-group');
+            const checkboxes = groupElement.querySelectorAll('.indicator-checkbox');
+            checkboxes.forEach(cb => {
+                const row = cb.closest('.indicator-row');
+                if (row && row.style.display !== 'none') {
+                    cb.checked = this.checked;
+                }
+            });
+        });
+    });
 }
 
 async function saveTemplateConfig(sampleTypeId) {
-    const checkboxes = document.querySelectorAll('#configTemplateModal .form-check-input:checked');
+    const checkboxes = document.querySelectorAll('#configTemplateModal .indicator-checkbox:checked');
     const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
 
     try {
