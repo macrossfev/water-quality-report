@@ -850,17 +850,17 @@ function showTemplateConfigModal(sampleTypeId, currentIndicators) {
                     <span class="badge bg-secondary">${indicators.length}项</span>
                 </h6>
                 <div class="table-responsive">
-                    <table class="table table-sm table-hover">
+                    <table class="table table-sm table-hover table-bordered">
                         <thead class="table-light">
                             <tr>
-                                <th style="width: 50px;">
+                                <th style="width: 50px; text-align: center;">
                                     <input type="checkbox" class="form-check-input group-select-all" data-group="${groupName}">
                                 </th>
-                                <th>指标名称</th>
-                                <th>单位</th>
-                                <th>限值</th>
-                                <th>检测方法</th>
-                                <th>备注</th>
+                                <th style="min-width: 120px;">指标名称</th>
+                                <th style="width: 80px;">单位</th>
+                                <th style="width: 100px;">限值</th>
+                                <th style="min-width: 150px;">检测方法</th>
+                                <th style="min-width: 150px;">备注</th>
                             </tr>
                         </thead>
                         <tbody>

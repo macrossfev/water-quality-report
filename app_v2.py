@@ -2003,11 +2003,38 @@ def api_import_report_template():
     except Exception as e:
         return jsonify({'error': f'导入失败: {str(e)}'}), 500
 
-@app.route('/api/report-templates/<int:id>', methods=['GET', 'DELETE'])
+@app.route('/api/report-templates/<int:id>', methods=['GET', 'PUT', 'DELETE'])
 @login_required
 def api_report_template_detail(id):
-    """获取或删除报告模版"""
+    """获取、修改或删除报告模版"""
     conn = get_db_connection()
+
+    if request.method == 'PUT':
+        # 仅管理员可修改
+        if session.get('role') != 'admin':
+            return jsonify({'error': '需要管理员权限'}), 403
+
+        data = request.json
+        name = data.get('name')
+        description = data.get('description', '')
+
+        if not name:
+            return jsonify({'error': '模版名称不能为空'}), 400
+
+        try:
+            conn.execute(
+                'UPDATE excel_report_templates SET name = ?, description = ? WHERE id = ?',
+                (name, description, id)
+            )
+            conn.commit()
+
+            log_operation('修改报告模版', f'修改模版: {name}', conn=conn)
+            conn.close()
+
+            return jsonify({'message': '模版更新成功'})
+        except Exception as e:
+            conn.close()
+            return jsonify({'error': f'更新失败: {str(e)}'}), 500
 
     if request.method == 'DELETE':
         # 仅管理员可删除

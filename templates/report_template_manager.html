@@ -95,6 +95,37 @@
         </div>
     </div>
 
+    <!-- 编辑模版模态框 -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑模版</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editForm">
+                        <input type="hidden" id="editTemplateId">
+                        <div class="mb-3">
+                            <label class="form-label">模版名称 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="editTemplateName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">模版描述</label>
+                            <textarea class="form-control" id="editTemplateDescription" rows="2"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="saveEditBtn">
+                        <i class="bi bi-check-lg"></i> 保存
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 模版详情模态框 -->
     <div class="modal fade" id="detailModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
@@ -118,6 +149,7 @@
         // 全局变量
         let templates = [];
         const importModal = new bootstrap.Modal(document.getElementById('importModal'));
+        const editModal = new bootstrap.Modal(document.getElementById('editModal'));
         const detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
 
         // 初始化
@@ -196,6 +228,9 @@
                             </div>
                         </div>
                         <div class="col-md-4 text-end">
+                            <button class="btn btn-sm btn-outline-success" onclick="editTemplate(${template.id})">
+                                <i class="bi bi-pencil"></i> 编辑
+                            </button>
                             <button class="btn btn-sm btn-outline-primary" onclick="viewDetail(${template.id})">
                                 <i class="bi bi-eye"></i> 查看详情
                             </button>
@@ -226,6 +261,8 @@
             document.getElementById('refreshBtn').addEventListener('click', loadTemplates);
 
             document.getElementById('uploadBtn').addEventListener('click', uploadTemplate);
+
+            document.getElementById('saveEditBtn').addEventListener('click', saveEdit);
         }
 
         // 上传模版
@@ -367,6 +404,58 @@
 
                 ${fieldsTable}
             `;
+        }
+
+        // 编辑模版
+        async function editTemplate(id) {
+            try {
+                const response = await fetch(`/api/report-templates/${id}`);
+                if (!response.ok) throw new Error('获取模版信息失败');
+
+                const data = await response.json();
+                const template = data.template;
+
+                document.getElementById('editTemplateId').value = template.id;
+                document.getElementById('editTemplateName').value = template.name;
+                document.getElementById('editTemplateDescription').value = template.description || '';
+
+                editModal.show();
+            } catch (error) {
+                alert('获取模版信息失败: ' + error.message);
+            }
+        }
+
+        // 保存编辑
+        async function saveEdit() {
+            const id = document.getElementById('editTemplateId').value;
+            const name = document.getElementById('editTemplateName').value.trim();
+            const description = document.getElementById('editTemplateDescription').value.trim();
+
+            if (!name) {
+                alert('请填写模版名称');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/report-templates/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, description })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '保存失败');
+                }
+
+                alert('保存成功');
+                editModal.hide();
+                loadTemplates();
+            } catch (error) {
+                alert('保存失败: ' + error.message);
+            }
         }
 
         // 删除模版
