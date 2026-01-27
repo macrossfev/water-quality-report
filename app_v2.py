@@ -572,6 +572,9 @@ def api_reports():
         detection_date = data.get('detection_date')
         remark = data.get('remark', '')
         report_data_list = data.get('data', [])
+        template_id = data.get('template_id')
+        template_fields = data.get('template_fields', [])
+        review_status = data.get('review_status', 'draft')  # 默认为草稿，可以是 'draft' 或 'pending'
 
         if not sample_number or not sample_type_id:
             return jsonify({'error': '样品编号和样品类型不能为空'}), 400
@@ -602,10 +605,10 @@ def api_reports():
             cursor = conn.cursor()
             cursor.execute(
                 'INSERT INTO reports (report_number, sample_number, company_id, sample_type_id, '
-                'detection_person, review_person, detection_date, remark, created_by) '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'detection_person, review_person, detection_date, remark, template_id, review_status, created_by) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 (report_number, sample_number, company_id, sample_type_id, detection_person,
-                 review_person, detection_date, remark, session['user_id'])
+                 review_person, detection_date, remark, template_id, review_status, session['user_id'])
             )
             conn.commit()
             report_id = cursor.lastrowid
@@ -620,10 +623,20 @@ def api_reports():
                          item.get('remark', ''))
                     )
 
+            # 添加模板字段值
+            for field in template_fields:
+                if field.get('field_mapping_id') and field.get('field_value'):
+                    cursor.execute(
+                        'INSERT INTO report_field_values (report_id, field_mapping_id, field_value) '
+                        'VALUES (?, ?, ?)',
+                        (report_id, field['field_mapping_id'], field['field_value'])
+                    )
+
             conn.commit()
             conn.close()
 
-            log_operation('创建报告', f'报告编号:{report_number}')
+            status_text = '草稿' if review_status == 'draft' else '提交审核'
+            log_operation('创建报告', f'报告编号:{report_number}, 状态:{status_text}')
             return jsonify({'id': report_id, 'report_number': report_number, 'message': '报告创建成功'}), 201
         except Exception as e:
             conn.close()
@@ -2148,6 +2161,45 @@ def api_import_reports():
         if os.path.exists(upload_path):
             os.remove(upload_path)
 
+@app.route('/api/reports/pending-submit', methods=['GET'])
+@login_required
+def api_reports_pending_submit():
+    """获取待提交报告列表（草稿和被拒绝的报告）"""
+    conn = get_db_connection()
+
+    # 获取筛选条件
+    sample_number = request.args.get('sample_number', '')
+    company_id = request.args.get('company_id', '')
+
+    # 构建SQL - 查询当前用户创建的draft和rejected状态的报告
+    sql = '''
+        SELECT r.*,
+               st.name as sample_type_name,
+               c.name as company_name,
+               t.name as template_name
+        FROM reports r
+        LEFT JOIN sample_types st ON r.sample_type_id = st.id
+        LEFT JOIN companies c ON r.company_id = c.id
+        LEFT JOIN excel_report_templates t ON r.template_id = t.id
+        WHERE r.created_by = ? AND (r.review_status = 'draft' OR r.review_status = 'rejected' OR r.review_status IS NULL)
+    '''
+    params = [session['user_id']]
+
+    if sample_number:
+        sql += ' AND r.sample_number LIKE ?'
+        params.append(f'%{sample_number}%')
+
+    if company_id:
+        sql += ' AND r.company_id = ?'
+        params.append(company_id)
+
+    sql += ' ORDER BY r.created_at DESC'
+
+    reports = conn.execute(sql, params).fetchall()
+    conn.close()
+
+    return jsonify([dict(r) for r in reports])
+
 @app.route('/api/reports/review', methods=['GET'])
 @login_required
 def api_reports_review():
@@ -2319,6 +2371,44 @@ def api_reject_report(id):
         log_operation('审核报告', f'报告ID: {id}, 结果: 拒绝')
 
         return jsonify({'message': '已拒绝'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/reports/<int:id>/submit', methods=['POST'])
+@login_required
+def api_submit_report(id):
+    """提交报告到审核（将draft或rejected状态改为pending）"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # 检查报告是否存在
+        report = conn.execute('SELECT id, review_status, created_by FROM reports WHERE id = ?', (id,)).fetchone()
+        if not report:
+            return jsonify({'error': '报告不存在'}), 404
+
+        # 检查权限（仅创建人或管理员可提交）
+        if session.get('role') != 'admin' and report['created_by'] != session['user_id']:
+            return jsonify({'error': '无权提交此报告'}), 403
+
+        # 检查当前状态是否允许提交
+        if report['review_status'] not in ['draft', 'rejected', None]:
+            return jsonify({'error': f'当前状态 ({report["review_status"]}) 不允许提交'}), 400
+
+        # 更新状态为pending
+        cursor.execute('''
+            UPDATE reports
+            SET review_status = 'pending'
+            WHERE id = ?
+        ''', (id,))
+
+        conn.commit()
+        log_operation('提交报告', f'报告ID: {id}')
+
+        return jsonify({'message': '报告已提交审核'})
     except Exception as e:
         conn.rollback()
         return jsonify({'error': str(e)}), 500

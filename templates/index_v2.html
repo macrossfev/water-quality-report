@@ -164,19 +164,37 @@
 
             <!-- 报告填写标签页 -->
             <div class="tab-pane fade" id="report" role="tabpanel">
-                <div class="card">
-                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="bi bi-file-earmark-plus"></i> 创建检测报告</h5>
-                        <div>
-                            <button class="btn btn-sm btn-light" id="downloadImportTemplateBtn">
-                                <i class="bi bi-download"></i> 下载导入模板
-                            </button>
-                            <button class="btn btn-sm btn-warning" id="importReportsBtn">
-                                <i class="bi bi-upload"></i> 批量导入
-                            </button>
-                        </div>
-                    </div>
-                    <div class="card-body">
+                <!-- 子标签导航 -->
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="new-report-tab" data-bs-toggle="tab" data-bs-target="#new-report" type="button" role="tab">
+                            <i class="bi bi-file-earmark-plus"></i> 新建检测报告
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="pending-reports-tab" data-bs-toggle="tab" data-bs-target="#pending-reports" type="button" role="tab">
+                            <i class="bi bi-clock-history"></i> 待提交报告
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- 子标签内容 -->
+                <div class="tab-content">
+                    <!-- 新建检测报告 -->
+                    <div class="tab-pane fade show active" id="new-report" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0"><i class="bi bi-file-earmark-plus"></i> 创建检测报告</h5>
+                                <div>
+                                    <button class="btn btn-sm btn-light" id="downloadImportTemplateBtn">
+                                        <i class="bi bi-download"></i> 下载导入模板
+                                    </button>
+                                    <button class="btn btn-sm btn-warning" id="importReportsBtn">
+                                        <i class="bi bi-upload"></i> 批量导入
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body">
                         <form id="reportForm">
                             <!-- 步骤1: 选择报告模板 -->
                             <div class="alert alert-info">
@@ -271,6 +289,63 @@
                                 </div>
                             </div>
                         </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 待提交报告 -->
+                    <div class="tab-pane fade" id="pending-reports" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0"><i class="bi bi-clock-history"></i> 待提交报告</h5>
+                                <div class="text-white-50 small mt-1">草稿和被拒绝的报告</div>
+                            </div>
+                            <div class="card-body">
+                                <!-- 搜索筛选 -->
+                                <div class="row mb-3">
+                                    <div class="col-md-4">
+                                        <input type="text" class="form-control" id="pendingSearchSampleNumber" placeholder="搜索样品编号...">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <select class="form-select" id="pendingSearchCompany">
+                                            <option value="">全部公司</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <button class="btn btn-primary" id="searchPendingBtn">
+                                            <i class="bi bi-search"></i> 搜索
+                                        </button>
+                                        <button class="btn btn-secondary" id="refreshPendingBtn">
+                                            <i class="bi bi-arrow-clockwise"></i> 刷新
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- 报告列表 -->
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>报告编号</th>
+                                                <th>样品编号</th>
+                                                <th>样品类型</th>
+                                                <th>委托单位</th>
+                                                <th>模板</th>
+                                                <th>状态</th>
+                                                <th>创建时间</th>
+                                                <th>拒绝原因</th>
+                                                <th>操作</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="pendingReportsTableBody">
+                                            <tr>
+                                                <td colspan="9" class="text-center text-muted">暂无待提交报告</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

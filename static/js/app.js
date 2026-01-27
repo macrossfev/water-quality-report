@@ -136,8 +136,13 @@ function bindEvents() {
     document.getElementById('reportTemplate')?.addEventListener('change', onReportTemplateChange);
     document.getElementById('reportSampleType').addEventListener('change', onSampleTypeChange);
     document.getElementById('reportForm').addEventListener('submit', submitReport);
+    document.getElementById('saveDraftBtn')?.addEventListener('click', saveDraft);
     document.getElementById('downloadImportTemplateBtn')?.addEventListener('click', downloadImportTemplate);
     document.getElementById('importReportsBtn')?.addEventListener('click', showImportReportsModal);
+
+    // 待提交报告
+    document.getElementById('searchPendingBtn')?.addEventListener('click', loadPendingReports);
+    document.getElementById('refreshPendingBtn')?.addEventListener('click', loadPendingReports);
 
     // 报告查询
     document.getElementById('searchReportBtn').addEventListener('click', searchReports);
@@ -158,6 +163,10 @@ function bindEvents() {
                 loadBackups();
                 loadLogs();
                 loadUsers();
+            } else if (targetId === '#pending-reports') {
+                loadPendingReports();
+            } else if (targetId === '#review') {
+                loadReviewReports();
             }
         });
     });
@@ -1081,7 +1090,14 @@ async function onSampleTypeChange() {
 
 async function submitReport(e) {
     e.preventDefault();
+    await saveOrSubmitReport('pending');
+}
 
+async function saveDraft() {
+    await saveOrSubmitReport('draft');
+}
+
+async function saveOrSubmitReport(reviewStatus) {
     const sampleNumber = document.getElementById('sampleNumber').value;
     const sampleTypeId = document.getElementById('reportSampleType').value;
     const companyId = document.getElementById('reportCompany').value || null;
@@ -1089,6 +1105,7 @@ async function submitReport(e) {
     const detectionPerson = document.getElementById('detectionPerson').value;
     const reviewPerson = document.getElementById('reviewPerson').value;
     const remark = document.getElementById('reportRemark').value;
+    const templateId = document.getElementById('reportTemplate').value;
 
     // 收集检测数据
     const dataInputs = document.querySelectorAll('.indicator-input');
@@ -1096,11 +1113,26 @@ async function submitReport(e) {
     dataInputs.forEach(input => {
         const indicatorId = input.getAttribute('data-indicator-id');
         const measuredValue = input.value.trim();
-        data.push({
-            indicator_id: parseInt(indicatorId),
-            measured_value: measuredValue,
-            remark: ''
-        });
+        if (measuredValue) {
+            data.push({
+                indicator_id: parseInt(indicatorId),
+                measured_value: measuredValue,
+                remark: ''
+            });
+        }
+    });
+
+    // 收集模板字段值
+    const templateFields = [];
+    document.querySelectorAll('[id^="field_"]').forEach(input => {
+        const fieldMappingId = input.id.replace('field_', '');
+        const fieldValue = input.value.trim();
+        if (fieldValue) {
+            templateFields.push({
+                field_mapping_id: parseInt(fieldMappingId),
+                field_value: fieldValue
+            });
+        }
     });
 
     try {
@@ -1114,15 +1146,26 @@ async function submitReport(e) {
                 detection_person: detectionPerson,
                 review_person: reviewPerson,
                 remark: remark,
-                data: data
+                template_id: templateId ? parseInt(templateId) : null,
+                template_fields: templateFields,
+                data: data,
+                review_status: reviewStatus
             })
         });
 
-        showToast(`报告创建成功！报告编号: ${result.report_number}`);
+        const statusText = reviewStatus === 'draft' ? '保存草稿' : '提交审核';
+        showToast(`${statusText}成功！报告编号: ${result.report_number}`);
         document.getElementById('reportForm').reset();
         document.getElementById('reportDataArea').innerHTML = '<p class="text-muted">请先选择样品类型</p>';
+        document.getElementById('reportFormContent').style.display = 'none';
+        document.getElementById('templateFieldsArea').innerHTML = '';
+
+        // 如果是草稿，刷新待提交报告列表
+        if (reviewStatus === 'draft') {
+            loadPendingReports();
+        }
     } catch (error) {
-        console.error('创建报告失败:', error);
+        console.error('操作失败:', error);
     }
 }
 
@@ -1749,6 +1792,94 @@ async function addUser() {
         await loadUsers();
     } catch (error) {
         console.error('添加用户失败:', error);
+    }
+}
+
+// ==================== 待提交报告 ====================
+
+async function loadPendingReports() {
+    try {
+        const sampleNumber = document.getElementById('pendingSearchSampleNumber').value;
+        const companyId = document.getElementById('pendingSearchCompany').value;
+
+        let url = '/api/reports/pending-submit?';
+        if (sampleNumber) url += `sample_number=${sampleNumber}&`;
+        if (companyId) url += `company_id=${companyId}&`;
+
+        const reports = await apiRequest(url);
+
+        const tbody = document.getElementById('pendingReportsTableBody');
+
+        if (reports.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">暂无待提交报告</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = reports.map(report => {
+            const statusBadge = report.review_status === 'draft'
+                ? '<span class="badge bg-secondary">草稿</span>'
+                : '<span class="badge bg-danger">已拒绝</span>';
+
+            const rejectReason = report.review_status === 'rejected' && report.review_comment
+                ? report.review_comment
+                : '-';
+
+            return `
+                <tr>
+                    <td>${report.report_number || '-'}</td>
+                    <td>${report.sample_number || '-'}</td>
+                    <td>${report.sample_type_name || '-'}</td>
+                    <td>${report.company_name || '-'}</td>
+                    <td>${report.template_name || '-'}</td>
+                    <td>${statusBadge}</td>
+                    <td>${new Date(report.created_at).toLocaleString('zh-CN')}</td>
+                    <td class="text-truncate" style="max-width: 200px;" title="${rejectReason}">${rejectReason}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="submitPendingReport(${report.id})">
+                            <i class="bi bi-send"></i> 提交审核
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deletePendingReport(${report.id})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('加载待提交报告失败:', error);
+        showToast('加载待提交报告失败', 'error');
+    }
+}
+
+async function submitPendingReport(reportId) {
+    if (!confirm('确定要提交此报告到审核吗？')) return;
+
+    try {
+        await apiRequest(`/api/reports/${reportId}/submit`, {
+            method: 'POST'
+        });
+
+        showToast('报告已提交审核');
+        loadPendingReports();
+    } catch (error) {
+        console.error('提交报告失败:', error);
+        showToast('提交报告失败: ' + error.message, 'error');
+    }
+}
+
+async function deletePendingReport(reportId) {
+    if (!confirm('确定要删除这个报告吗？此操作不可恢复！')) return;
+
+    try {
+        await apiRequest(`/api/reports/${reportId}`, {
+            method: 'DELETE'
+        });
+
+        showToast('报告已删除');
+        loadPendingReports();
+    } catch (error) {
+        console.error('删除报告失败:', error);
+        showToast('删除报告失败: ' + error.message, 'error');
     }
 }
 
