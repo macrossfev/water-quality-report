@@ -850,17 +850,25 @@ function showTemplateConfigModal(sampleTypeId, currentIndicators) {
                     <span class="badge bg-secondary">${indicators.length}项</span>
                 </h6>
                 <div class="table-responsive">
-                    <table class="table table-sm table-hover table-bordered">
+                    <table class="table table-sm table-hover table-bordered" style="table-layout: fixed; width: 100%;">
+                        <colgroup>
+                            <col style="width: 50px;">
+                            <col style="width: 180px;">
+                            <col style="width: 80px;">
+                            <col style="width: 120px;">
+                            <col style="width: 250px;">
+                            <col style="width: auto;">
+                        </colgroup>
                         <thead class="table-light">
                             <tr>
-                                <th style="width: 50px; text-align: center;">
+                                <th class="text-center">
                                     <input type="checkbox" class="form-check-input group-select-all" data-group="${groupName}">
                                 </th>
-                                <th style="min-width: 120px;">指标名称</th>
-                                <th style="width: 80px;">单位</th>
-                                <th style="width: 100px;">限值</th>
-                                <th style="min-width: 150px;">检测方法</th>
-                                <th style="min-width: 150px;">备注</th>
+                                <th>指标名称</th>
+                                <th>单位</th>
+                                <th>限值</th>
+                                <th>检测方法</th>
+                                <th>备注</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -877,14 +885,14 @@ function showTemplateConfigModal(sampleTypeId, currentIndicators) {
 
             indicatorCheckboxes += `
                 <tr class="indicator-row">
-                    <td style="width: 50px; text-align: center;">
+                    <td class="text-center">
                         <input class="form-check-input indicator-checkbox" type="checkbox" value="${ind.id}" id="ind_${ind.id}" ${checked}>
                     </td>
-                    <td style="min-width: 120px;"><strong>${cleanText(ind.name, 30)}</strong></td>
-                    <td style="width: 80px;"><span class="text-muted">${cleanText(ind.unit, 20)}</span></td>
-                    <td style="width: 100px;"><span class="text-info">${cleanText(ind.limit_value, 30)}</span></td>
-                    <td style="min-width: 150px;"><small class="text-muted">${cleanText(ind.detection_method, 40)}</small></td>
-                    <td style="min-width: 150px;"><small class="text-muted">${cleanText(ind.remark, 40)}</small></td>
+                    <td><strong>${cleanText(ind.name, 30)}</strong></td>
+                    <td><span class="text-muted">${cleanText(ind.unit, 20)}</span></td>
+                    <td><span class="text-info">${cleanText(ind.limit_value, 30)}</span></td>
+                    <td><small class="text-muted">${cleanText(ind.detection_method, 50)}</small></td>
+                    <td><small class="text-muted">${cleanText(ind.remark, 50)}</small></td>
                 </tr>
             `;
         });

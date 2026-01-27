@@ -55,7 +55,7 @@
                 <div class="col-md-6">
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-search"></i></span>
-                        <input type="text" class="form-control" id="searchInput" placeholder="搜索指标名称或备注...">
+                        <input type="text" class="form-control" id="searchInput" placeholder="搜索分组名称、指标名称或备注...">
                         <button class="btn btn-primary" id="searchBtn">搜索</button>
                         <button class="btn btn-outline-secondary" id="resetBtn">重置</button>
                     </div>
@@ -320,11 +320,12 @@
                 // 分组筛选
                 if (currentGroupFilter && item.group_id != currentGroupFilter) return false;
 
-                // 搜索筛选
+                // 搜索筛选 - 支持搜索分组名称、指标名称和备注
                 if (searchText) {
                     const name = (item.name || '').toLowerCase();
                     const remark = (item.remark || '').toLowerCase();
-                    if (!name.includes(searchText) && !remark.includes(searchText)) return false;
+                    const groupName = (item.group_name || '').toLowerCase();
+                    if (!name.includes(searchText) && !remark.includes(searchText) && !groupName.includes(searchText)) return false;
                 }
 
                 return true;
