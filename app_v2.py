@@ -716,7 +716,7 @@ def api_report_detail(id):
 
     if request.method == 'DELETE':
         # 仅创建人或管理员可删除
-        report = conn.execute('SELECT created_by FROM reports WHERE id = ?', (id,)).fetchone()
+        report = conn.execute('SELECT created_by, generated_report_path FROM reports WHERE id = ?', (id,)).fetchone()
 
         if not report:
             conn.close()
@@ -726,11 +726,19 @@ def api_report_detail(id):
             conn.close()
             return jsonify({'error': '无权删除此报告'}), 403
 
+        # 删除生成的报告文件（如果存在）
+        if report['generated_report_path'] and os.path.exists(report['generated_report_path']):
+            try:
+                os.remove(report['generated_report_path'])
+            except Exception as e:
+                print(f"删除报告文件失败: {e}")
+
         conn.execute('DELETE FROM reports WHERE id = ?', (id,))
         conn.commit()
+
+        log_operation('删除报告', f'报告ID:{id}', conn=conn)
         conn.close()
 
-        log_operation('删除报告', f'报告ID:{id}')
         return jsonify({'message': '报告删除成功'})
 
     if request.method == 'PUT':

@@ -868,16 +868,23 @@ function showTemplateConfigModal(sampleTypeId, currentIndicators) {
 
         indicators.forEach(ind => {
             const checked = currentIds.includes(ind.id) ? 'checked' : '';
+            // 清理和截断文本以防止排版问题
+            const cleanText = (text, maxLen = 50) => {
+                if (!text) return '-';
+                const cleaned = String(text).replace(/[\r\n]+/g, ' ').trim();
+                return cleaned.length > maxLen ? cleaned.substring(0, maxLen) + '...' : cleaned;
+            };
+
             indicatorCheckboxes += `
                 <tr class="indicator-row">
-                    <td>
+                    <td style="width: 50px; text-align: center;">
                         <input class="form-check-input indicator-checkbox" type="checkbox" value="${ind.id}" id="ind_${ind.id}" ${checked}>
                     </td>
-                    <td><strong>${ind.name}</strong></td>
-                    <td><span class="text-muted">${ind.unit || '-'}</span></td>
-                    <td><span class="text-info">${ind.limit_value || '-'}</span></td>
-                    <td><small class="text-muted">${ind.detection_method || '-'}</small></td>
-                    <td><small class="text-muted">${ind.remark || '-'}</small></td>
+                    <td style="min-width: 120px;"><strong>${cleanText(ind.name, 30)}</strong></td>
+                    <td style="width: 80px;"><span class="text-muted">${cleanText(ind.unit, 20)}</span></td>
+                    <td style="width: 100px;"><span class="text-info">${cleanText(ind.limit_value, 30)}</span></td>
+                    <td style="min-width: 150px;"><small class="text-muted">${cleanText(ind.detection_method, 40)}</small></td>
+                    <td style="min-width: 150px;"><small class="text-muted">${cleanText(ind.remark, 40)}</small></td>
                 </tr>
             `;
         });
@@ -2213,9 +2220,19 @@ async function loadReviewReports() {
                     break;
                 case 'approved':
                     statusBadge = '<span class="badge bg-success">已审核</span>';
+                    actionButtons = `
+                        <button class="btn btn-sm btn-danger" onclick="deleteReport(${report.id}, 'review')">
+                            <i class="bi bi-trash"></i> 删除
+                        </button>
+                    `;
                     break;
                 case 'rejected':
                     statusBadge = '<span class="badge bg-danger">已拒绝</span>';
+                    actionButtons = `
+                        <button class="btn btn-sm btn-danger" onclick="deleteReport(${report.id}, 'review')">
+                            <i class="bi bi-trash"></i> 删除
+                        </button>
+                    `;
                     break;
                 default:
                     statusBadge = '<span class="badge bg-secondary">未知</span>';
@@ -2410,9 +2427,15 @@ async function loadGenReports() {
             const actionButtons = report.generated_report_path
                 ? `<button class="btn btn-sm btn-primary" onclick="downloadReport(${report.id})">
                        <i class="bi bi-download"></i> 下载
+                   </button>
+                   <button class="btn btn-sm btn-danger" onclick="deleteReport(${report.id}, 'gen')">
+                       <i class="bi bi-trash"></i> 删除
                    </button>`
                 : `<button class="btn btn-sm btn-success" onclick="generateReport(${report.id})">
                        <i class="bi bi-file-earmark-plus"></i> 生成报告
+                   </button>
+                   <button class="btn btn-sm btn-danger" onclick="deleteReport(${report.id}, 'gen')">
+                       <i class="bi bi-trash"></i> 删除
                    </button>`;
 
             return `
@@ -2495,6 +2518,33 @@ async function downloadReport(reportId) {
     } catch (error) {
         console.error('下载报告失败:', error);
         showToast('下载报告失败: ' + error.message, 'error');
+    }
+}
+
+async function deleteReport(reportId, module) {
+    if (!confirm('确定要删除此报告吗？删除后无法恢复！')) {
+        return;
+    }
+
+    try {
+        await apiRequest(`/api/reports/${reportId}`, {
+            method: 'DELETE'
+        });
+
+        showToast('报告删除成功');
+
+        // 根据模块刷新相应的列表
+        if (module === 'review') {
+            loadReviewReports();
+        } else if (module === 'gen') {
+            loadGenReports();
+        } else if (module === 'submitted') {
+            loadSubmittedReports();
+        }
+
+    } catch (error) {
+        console.error('删除报告失败:', error);
+        showToast('删除报告失败: ' + error.message, 'error');
     }
 }
 
