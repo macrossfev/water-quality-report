@@ -717,6 +717,7 @@ def api_report_detail(id):
         detection_date = data.get('detection_date')
         remark = data.get('remark', '')
         report_data_list = data.get('data', [])
+        template_fields = data.get('template_fields', [])
 
         try:
             cursor = conn.cursor()
@@ -738,6 +739,18 @@ def api_report_detail(id):
                         'VALUES (?, ?, ?, ?)',
                         (id, item['indicator_id'], item.get('measured_value', ''),
                          item.get('remark', ''))
+                    )
+
+            # 删除旧的模板字段值
+            cursor.execute('DELETE FROM report_field_values WHERE report_id = ?', (id,))
+
+            # 插入新的模板字段值
+            for field in template_fields:
+                if field.get('field_mapping_id') and field.get('field_value'):
+                    cursor.execute(
+                        'INSERT INTO report_field_values (report_id, field_mapping_id, field_value) '
+                        'VALUES (?, ?, ?)',
+                        (id, field['field_mapping_id'], field['field_value'])
                     )
 
             conn.commit()
@@ -776,10 +789,21 @@ def api_report_detail(id):
         (id,)
     ).fetchall()
 
+    # 获取模板字段值
+    template_fields = []
+    if report['template_id']:
+        template_fields = conn.execute('''
+            SELECT rfv.*, tfm.field_name, tfm.field_display_name
+            FROM report_field_values rfv
+            LEFT JOIN template_field_mappings tfm ON rfv.field_mapping_id = tfm.id
+            WHERE rfv.report_id = ?
+        ''', (id,)).fetchall()
+
     conn.close()
 
     result = dict(report)
     result['data'] = [dict(row) for row in data]
+    result['template_fields'] = [dict(row) for row in template_fields]
     return jsonify(result)
 
 # ==================== 模板导入导出 API ====================

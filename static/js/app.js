@@ -8,7 +8,8 @@ const AppState = {
     indicatorGroups: [],
     companies: [],
     reports: [],
-    reportTemplates: []
+    reportTemplates: [],
+    editingReportId: null  // 当前正在编辑的报告ID
 };
 
 // ==================== 工具函数 ====================
@@ -152,6 +153,10 @@ function bindEvents() {
     document.getElementById('searchReviewBtn')?.addEventListener('click', loadReviewReports);
     document.getElementById('refreshReviewBtn')?.addEventListener('click', loadReviewReports);
 
+    // 报告生成
+    document.getElementById('searchGenReportBtn')?.addEventListener('click', loadGenReports);
+    document.getElementById('refreshGenReportBtn')?.addEventListener('click', loadGenReports);
+
     // 报告查询
     document.getElementById('searchReportBtn').addEventListener('click', searchReports);
     document.getElementById('refreshReportBtn').addEventListener('click', () => loadReports());
@@ -177,6 +182,8 @@ function bindEvents() {
                 loadSubmittedReports();
             } else if (targetId === '#review') {
                 loadReviewReports();
+            } else if (targetId === '#generate') {
+                loadGenReports();
             }
         });
     });
@@ -1146,34 +1153,71 @@ async function saveOrSubmitReport(reviewStatus) {
     });
 
     try {
-        const result = await apiRequest('/api/reports', {
-            method: 'POST',
-            body: JSON.stringify({
-                sample_number: sampleNumber,
-                sample_type_id: parseInt(sampleTypeId),
-                company_id: companyId ? parseInt(companyId) : null,
-                detection_date: detectionDate,
-                detection_person: detectionPerson,
-                review_person: reviewPerson,
-                remark: remark,
-                template_id: templateId ? parseInt(templateId) : null,
-                template_fields: templateFields,
-                data: data,
-                review_status: reviewStatus
-            })
-        });
+        let result;
 
-        const statusText = reviewStatus === 'draft' ? '保存草稿' : '提交审核';
-        showToast(`${statusText}成功！报告编号: ${result.report_number}`);
+        // 检测是否为编辑模式
+        if (AppState.editingReportId) {
+            // 更新现有报告
+            result = await apiRequest(`/api/reports/${AppState.editingReportId}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    company_id: companyId ? parseInt(companyId) : null,
+                    detection_date: detectionDate,
+                    detection_person: detectionPerson,
+                    review_person: reviewPerson,
+                    remark: remark,
+                    template_fields: templateFields,
+                    data: data
+                })
+            });
+
+            showToast('报告更新成功！');
+
+            // 清除编辑状态
+            AppState.editingReportId = null;
+
+            // 恢复按钮文本
+            const submitBtn = document.querySelector('#reportForm button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> 提交审核';
+            }
+            const draftBtn = document.getElementById('saveDraftBtn');
+            if (draftBtn) {
+                draftBtn.innerHTML = '<i class="bi bi-save"></i> 保存草稿';
+            }
+
+        } else {
+            // 创建新报告
+            result = await apiRequest('/api/reports', {
+                method: 'POST',
+                body: JSON.stringify({
+                    sample_number: sampleNumber,
+                    sample_type_id: parseInt(sampleTypeId),
+                    company_id: companyId ? parseInt(companyId) : null,
+                    detection_date: detectionDate,
+                    detection_person: detectionPerson,
+                    review_person: reviewPerson,
+                    remark: remark,
+                    template_id: templateId ? parseInt(templateId) : null,
+                    template_fields: templateFields,
+                    data: data,
+                    review_status: reviewStatus
+                })
+            });
+
+            const statusText = reviewStatus === 'draft' ? '保存草稿' : '提交审核';
+            showToast(`${statusText}成功！报告编号: ${result.report_number}`);
+        }
+
+        // 重置表单
         document.getElementById('reportForm').reset();
         document.getElementById('reportDataArea').innerHTML = '<p class="text-muted">请先选择样品类型</p>';
         document.getElementById('reportFormContent').style.display = 'none';
         document.getElementById('templateFieldsArea').innerHTML = '';
 
-        // 如果是草稿，刷新待提交报告列表
-        if (reviewStatus === 'draft') {
-            loadPendingReports();
-        }
+        // 刷新待提交报告列表
+        loadPendingReports();
+
     } catch (error) {
         console.error('操作失败:', error);
     }
@@ -1845,6 +1889,9 @@ async function loadPendingReports() {
                     <td>${new Date(report.created_at).toLocaleString('zh-CN')}</td>
                     <td class="text-truncate" style="max-width: 200px;" title="${rejectReason}">${rejectReason}</td>
                     <td>
+                        <button class="btn btn-sm btn-warning" onclick="editPendingReport(${report.id})">
+                            <i class="bi bi-pencil"></i> 编辑
+                        </button>
                         <button class="btn btn-sm btn-info" onclick="showReviewDetailModal(${report.id})">
                             <i class="bi bi-eye"></i> 预览
                         </button>
@@ -1893,6 +1940,79 @@ async function deletePendingReport(reportId) {
     } catch (error) {
         console.error('删除报告失败:', error);
         showToast('删除报告失败: ' + error.message, 'error');
+    }
+}
+
+async function editPendingReport(reportId) {
+    try {
+        // 加载报告详情
+        const report = await apiRequest(`/api/reports/${reportId}`);
+
+        // 切换到新建报告标签页
+        const newReportTab = new bootstrap.Tab(document.getElementById('new-report-tab'));
+        newReportTab.show();
+
+        // 设置编辑模式
+        AppState.editingReportId = reportId;
+
+        // 填充基本信息
+        document.getElementById('reportTemplate').value = report.template_id || '';
+        document.getElementById('reportSampleType').value = report.sample_type_id || '';
+        document.getElementById('sampleNumber').value = report.sample_number || '';
+        document.getElementById('reportCompany').value = report.company_id || '';
+        document.getElementById('detectionDate').value = report.detection_date || '';
+        document.getElementById('detectionPerson').value = report.detection_person || '';
+        document.getElementById('reviewPerson').value = report.review_person || '';
+        document.getElementById('reportRemark').value = report.remark || '';
+
+        // 显示表单内容区域
+        document.getElementById('reportFormContent').style.display = 'block';
+
+        // 如果有模板，加载模板字段
+        if (report.template_id) {
+            await onReportTemplateChange();
+
+            // 填充模板字段值
+            if (report.template_fields && report.template_fields.length > 0) {
+                report.template_fields.forEach(field => {
+                    const input = document.getElementById(`field_${field.field_mapping_id}`);
+                    if (input) {
+                        input.value = field.field_value || '';
+                    }
+                });
+            }
+        }
+
+        // 加载检测项目并填充数据
+        await onSampleTypeChange();
+
+        // 填充检测数据
+        if (report.data && report.data.length > 0) {
+            report.data.forEach(item => {
+                const input = document.querySelector(`.indicator-input[data-indicator-id="${item.indicator_id}"]`);
+                if (input) {
+                    input.value = item.measured_value || '';
+                }
+            });
+        }
+
+        // 修改提交按钮文本
+        const submitBtn = document.querySelector('#reportForm button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> 更新报告';
+        }
+
+        // 修改保存草稿按钮文本
+        const draftBtn = document.getElementById('saveDraftBtn');
+        if (draftBtn) {
+            draftBtn.innerHTML = '<i class="bi bi-save"></i> 保存修改';
+        }
+
+        showToast('报告已加载，可以开始编辑');
+
+    } catch (error) {
+        console.error('加载报告失败:', error);
+        showToast('加载报告失败: ' + error.message, 'error');
     }
 }
 
@@ -2180,6 +2300,122 @@ async function showRejectModal(reportId) {
     } catch (error) {
         console.error('拒绝失败:', error);
         showToast('拒绝失败: ' + error.message, 'error');
+    }
+}
+
+// ==================== 报告生成 ====================
+
+async function loadGenReports() {
+    try {
+        const sampleNumber = document.getElementById('genSearchSampleNumber').value;
+        const companyId = document.getElementById('genSearchCompany').value;
+
+        let url = '/api/reports/review?status=approved&';
+        if (sampleNumber) url += `sample_number=${sampleNumber}&`;
+        if (companyId) url += `company_id=${companyId}&`;
+
+        const reports = await apiRequest(url);
+
+        const tbody = document.getElementById('genReportsList');
+
+        if (reports.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">暂无已审核通过的报告</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = reports.map(report => {
+            const generateStatusBadge = report.generated_report_path
+                ? '<span class="badge bg-success">已生成</span>'
+                : '<span class="badge bg-secondary">未生成</span>';
+
+            const actionButtons = report.generated_report_path
+                ? `<button class="btn btn-sm btn-primary" onclick="downloadReport(${report.id})">
+                       <i class="bi bi-download"></i> 下载
+                   </button>`
+                : `<button class="btn btn-sm btn-success" onclick="generateReport(${report.id})">
+                       <i class="bi bi-file-earmark-plus"></i> 生成报告
+                   </button>`;
+
+            return `
+                <tr>
+                    <td>${report.report_number || '-'}</td>
+                    <td>${report.sample_number || '-'}</td>
+                    <td>${report.sample_type_name || '-'}</td>
+                    <td>${report.company_name || '-'}</td>
+                    <td>${report.review_person || '-'}</td>
+                    <td>${report.review_time ? new Date(report.review_time).toLocaleString('zh-CN') : '-'}</td>
+                    <td>${generateStatusBadge}</td>
+                    <td>${actionButtons}</td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('加载报告生成列表失败:', error);
+        showToast('加载报告生成列表失败', 'error');
+    }
+}
+
+async function generateReport(reportId) {
+    try {
+        // 获取报告信息以确定template_id
+        const report = await apiRequest(`/api/reports/${reportId}/review-detail`);
+
+        if (!report.report.template_id) {
+            showToast('该报告没有关联模板，无法生成', 'warning');
+            return;
+        }
+
+        if (!confirm('确定要生成此报告吗？')) return;
+
+        showToast('正在生成报告，请稍候...', 'warning');
+
+        const result = await apiRequest(`/api/reports/${reportId}/generate`, {
+            method: 'POST',
+            body: JSON.stringify({
+                template_id: report.report.template_id
+            })
+        });
+
+        showToast('报告生成成功！');
+        loadGenReports();  // 刷新列表
+
+    } catch (error) {
+        console.error('生成报告失败:', error);
+        showToast('生成报告失败: ' + error.message, 'error');
+    }
+}
+
+async function downloadReport(reportId) {
+    try {
+        const response = await fetch(`/api/reports/${reportId}/download`);
+        if (!response.ok) {
+            throw new Error('下载失败');
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+
+        // 从响应头获取文件名
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = 'report.xlsx';
+        if (contentDisposition) {
+            const match = contentDisposition.match(/filename="?(.+)"?/);
+            if (match) filename = match[1];
+        }
+
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+        showToast('报告下载成功');
+
+    } catch (error) {
+        console.error('下载报告失败:', error);
+        showToast('下载报告失败: ' + error.message, 'error');
     }
 }
 
