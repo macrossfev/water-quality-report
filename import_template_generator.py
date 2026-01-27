@@ -127,44 +127,67 @@ class ImportTemplateGenerator:
         ws.column_dimensions['G'].width = 25
 
     def _create_detection_data_sheet(self, wb):
-        """创建检测数据sheet"""
+        """创建检测数据sheet（横向格式：首行样品编号，首列检测项目）"""
         ws = wb.create_sheet("检测数据")
 
         # 设置标题行样式
         header_fill = PatternFill(start_color="70AD47", end_color="70AD47", fill_type="solid")
         header_font = Font(color="FFFFFF", bold=True)
 
-        # 标题行
-        headers = [
-            '样品编号*', '指标名称*', '检测值*', '备注'
-        ]
+        # A1单元格：说明
+        cell = ws.cell(1, 1)
+        cell.value = "检测项目 \\ 样品编号"
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center', vertical='center')
 
-        for col, header in enumerate(headers, start=1):
-            cell = ws.cell(1, col)
-            cell.value = header
+        # 首行：样品编号（示例3个样品）
+        sample_numbers = ['S20250115001', 'S20250115002', 'S20250115003']
+        for col_idx, sample_number in enumerate(sample_numbers, start=2):
+            cell = ws.cell(1, col_idx)
+            cell.value = sample_number
             cell.fill = header_fill
             cell.font = header_font
             cell.alignment = Alignment(horizontal='center', vertical='center')
 
-        # 示例数据
-        example_data = [
-            ['S20250115001', 'pH', '7.2', ''],
-            ['S20250115001', '浊度', '0.5', ''],
-            ['S20250115001', '余氯', '0.3', ''],
-            ['S20250115001', '总大肠菌群', '未检出', ''],
+        # 首列：检测项目
+        indicators = [
+            'pH',
+            '浊度',
+            '余氯',
+            '色度',
+            '臭和味',
+            '肉眼可见物',
+            '耗氧量',
+            '总大肠菌群',
+            '菌落总数'
         ]
 
-        for row_idx, row_data in enumerate(example_data, start=2):
-            for col, value in enumerate(row_data, start=1):
-                cell = ws.cell(row_idx, col)
-                cell.value = value
-                cell.alignment = Alignment(horizontal='center', vertical='center')
+        # 左侧列头样式
+        left_header_fill = PatternFill(start_color="A9D08E", end_color="A9D08E", fill_type="solid")
+        left_header_font = Font(bold=True)
+
+        for row_idx, indicator in enumerate(indicators, start=2):
+            cell = ws.cell(row_idx, 1)
+            cell.value = indicator
+            cell.fill = left_header_fill
+            cell.font = left_header_font
+            cell.alignment = Alignment(horizontal='left', vertical='center')
+
+        # 填写示例数据（第一个样品）
+        example_values = ['7.2', '0.5', '0.3', '<5', '无', '无', '1.2', '未检出', '<1']
+        for row_idx, value in enumerate(example_values, start=2):
+            cell = ws.cell(row_idx, 2)
+            cell.value = value
+            cell.alignment = Alignment(horizontal='center', vertical='center')
 
         # 调整列宽
-        ws.column_dimensions['A'].width = 20
-        ws.column_dimensions['B'].width = 25
-        ws.column_dimensions['C'].width = 15
-        ws.column_dimensions['D'].width = 30
+        ws.column_dimensions['A'].width = 25  # 检测项目列
+        for col_letter in ['B', 'C', 'D', 'E', 'F']:
+            ws.column_dimensions[col_letter].width = 18  # 样品数据列
+
+        # 冻结首行首列
+        ws.freeze_panes = 'B2'
 
     def _create_template_fields_sheet(self, wb):
         """创建模板字段sheet"""
@@ -235,10 +258,12 @@ class ImportTemplateGenerator:
             ("", "  - 检测日期：格式：YYYY-MM-DD"),
             ("", "  - 检测人员、审核人员：可选"),
             ("", ""),
-            ("", "【检测数据】：填写各项检测指标的数值，一个指标一行"),
-            ("", "  - 样品编号：与基本信息中的样品编号对应"),
-            ("", "  - 指标名称：必须是系统中已存在的指标名称"),
-            ("", "  - 检测值：实际检测的数值或结果"),
+            ("", "【检测数据】：横向格式，首行为样品编号，首列为检测项目"),
+            ("", "  - 格式说明：第1行填写样品编号，第1列填写检测项目名称"),
+            ("", "  - 数据填写：在对应的交叉单元格中填写检测值"),
+            ("", "  - 例如：pH项目、S001样品的值填在B2单元格"),
+            ("", "  - 优点：可同时查看多个样品的同一指标，便于横向对比"),
+            ("", "  - 支持冻结首行首列，方便浏览大量数据"),
             ("", ""),
         ]
 

@@ -146,7 +146,7 @@ class ImportProcessor:
         return basic_info_list
 
     def _parse_detection_data(self):
-        """解析检测数据sheet"""
+        """解析检测数据sheet（横向格式：首行样品编号，首列检测项目）"""
         if '检测数据' not in self.workbook.sheetnames:
             self.results['warnings'].append({
                 'sheet': '检测数据',
@@ -157,51 +157,47 @@ class ImportProcessor:
         ws = self.workbook['检测数据']
         detection_data_dict = {}
 
-        # 读取标题行
-        headers = []
-        for cell in ws[1]:
-            headers.append(str(cell.value).strip() if cell.value else '')
+        # 读取首行的样品编号（从B列开始，A1是"检测项目\样品编号"）
+        sample_numbers = []
+        for col in range(2, ws.max_column + 1):
+            cell_value = ws.cell(1, col).value
+            if cell_value:
+                sample_number = str(cell_value).strip()
+                sample_numbers.append(sample_number)
+                # 初始化样品的数据列表
+                if sample_number not in detection_data_dict:
+                    detection_data_dict[sample_number] = []
+            else:
+                break  # 遇到空列就停止
 
-        # 字段映射
-        field_map = {
-            '样品编号*': 'sample_number',
-            '样品编号': 'sample_number',
-            '指标名称*': 'indicator_name',
-            '指标名称': 'indicator_name',
-            '检测值*': 'measured_value',
-            '检测值': 'measured_value',
-            '备注': 'remark'
-        }
+        if not sample_numbers:
+            self.results['warnings'].append({
+                'sheet': '检测数据',
+                'message': '未找到样品编号（首行应包含样品编号）'
+            })
+            return {}
 
-        # 读取数据行
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            if not row or not row[0]:  # 跳过空行
-                continue
+        # 读取数据（从第2行开始）
+        for row in range(2, ws.max_row + 1):
+            # 读取检测项目名称（第1列）
+            indicator_name = ws.cell(row, 1).value
+            if not indicator_name:
+                continue  # 跳过空行
 
-            data_item = {}
-            for idx, value in enumerate(row):
-                if idx < len(headers):
-                    header = headers[idx]
-                    if header in field_map:
-                        field_name = field_map[header]
-                        data_item[field_name] = str(value).strip() if value else ''
+            indicator_name = str(indicator_name).strip()
 
-            # 验证必填字段
-            sample_number = data_item.get('sample_number', '')
-            if not sample_number:
-                continue
+            # 读取每个样品的检测值（从第2列开始）
+            for col_idx, sample_number in enumerate(sample_numbers, start=2):
+                measured_value = ws.cell(row, col_idx).value
 
-            if not data_item.get('indicator_name') or not data_item.get('measured_value'):
-                self.results['warnings'].append({
-                    'sample_number': sample_number,
-                    'message': f'检测数据缺少指标名称或检测值'
-                })
-                continue
-
-            # 按样品编号分组
-            if sample_number not in detection_data_dict:
-                detection_data_dict[sample_number] = []
-            detection_data_dict[sample_number].append(data_item)
+                # 只有当检测值不为空时才添加
+                if measured_value is not None and str(measured_value).strip():
+                    data_item = {
+                        'indicator_name': indicator_name,
+                        'measured_value': str(measured_value).strip(),
+                        'remark': ''
+                    }
+                    detection_data_dict[sample_number].append(data_item)
 
         return detection_data_dict
 
