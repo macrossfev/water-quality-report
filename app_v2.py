@@ -2021,6 +2021,16 @@ def api_report_template_detail(id):
         if not name:
             return jsonify({'error': '模版名称不能为空'}), 400
 
+        # 检查是否存在同名的其他模版
+        existing = conn.execute(
+            'SELECT id FROM excel_report_templates WHERE name = ? AND id != ? AND is_active = 1',
+            (name, id)
+        ).fetchone()
+
+        if existing:
+            conn.close()
+            return jsonify({'error': '模版名称已存在，请使用其他名称'}), 400
+
         try:
             conn.execute(
                 'UPDATE excel_report_templates SET name = ?, description = ? WHERE id = ?',
@@ -2661,6 +2671,37 @@ def api_download_report(id):
         return jsonify({'error': '文件不存在'}), 404
 
     return send_file(file_path, as_attachment=True, download_name=os.path.basename(file_path))
+
+@app.route('/api/template-fields/batch-update-defaults', methods=['POST'])
+@admin_required
+def api_batch_update_field_defaults():
+    """批量更新字段默认值"""
+    data = request.json
+    updates = data.get('updates', [])
+
+    if not updates:
+        return jsonify({'error': '没有要更新的数据'}), 400
+
+    conn = get_db_connection()
+
+    try:
+        for update in updates:
+            field_id = update.get('id')
+            default_value = update.get('default_value', '')
+
+            conn.execute(
+                'UPDATE template_field_mappings SET default_value = ? WHERE id = ?',
+                (default_value, field_id)
+            )
+
+        conn.commit()
+        log_operation('更新字段默认值', f'批量更新 {len(updates)} 个字段', conn=conn)
+        conn.close()
+
+        return jsonify({'message': f'成功更新 {len(updates)} 个字段的默认值'})
+    except Exception as e:
+        conn.close()
+        return jsonify({'error': f'更新失败: {str(e)}'}), 500
 
 @app.route('/api/template-fields/<int:template_id>', methods=['GET'])
 @login_required
