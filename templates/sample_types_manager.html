@@ -92,7 +92,7 @@
 
     <!-- 添加/编辑模态框 -->
     <div class="modal fade" id="editModal" tabindex="-1">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="modalTitle">添加样品类型</h5>
@@ -101,22 +101,46 @@
                 <div class="modal-body">
                     <form id="editForm">
                         <input type="hidden" id="editId">
-                        <div class="mb-3">
-                            <label class="form-label">样品名称 <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="editName" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">样品代码 <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="editCode" required>
-                            <div class="form-text">建议使用英文缩写，如：CCW（出厂水）</div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">说明</label>
-                            <textarea class="form-control" id="editDescription" rows="2"></textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">备注</label>
-                            <textarea class="form-control" id="editRemark" rows="2"></textarea>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">样品名称 <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="editName" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">样品代码 <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="editCode" required>
+                                    <div class="form-text">建议使用英文缩写，如：CCW（出厂水）</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">说明</label>
+                                    <textarea class="form-control" id="editDescription" rows="2"></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">备注</label>
+                                    <textarea class="form-control" id="editRemark" rows="2"></textarea>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label d-flex justify-content-between align-items-center">
+                                        <span>检测项目</span>
+                                        <div>
+                                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="toggleAllIndicators(true)">全选</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAllIndicators(false)">取消全选</button>
+                                        </div>
+                                    </label>
+                                    <div id="indicatorsList" style="max-height: 400px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px;">
+                                        <div class="text-center text-muted py-3">
+                                            <span class="spinner-border spinner-border-sm me-2"></span>
+                                            加载中...
+                                        </div>
+                                    </div>
+                                    <div class="form-text mt-2">
+                                        <span id="selectedCount">0</span> 个项目已选中
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -139,10 +163,13 @@
         let currentPage = 1;
         const itemsPerPage = 10;
         const modal = new bootstrap.Modal(document.getElementById('editModal'));
+        let allIndicators = [];  // 所有检测项目
+        let indicatorGroups = [];  // 检测项目分组
 
         // 初始化
         document.addEventListener('DOMContentLoaded', function() {
             loadData();
+            loadIndicators();
             initEventListeners();
         });
 
@@ -161,6 +188,109 @@
             } catch (error) {
                 alert('加载数据失败: ' + error.message);
             }
+        }
+
+        // 加载检测项目和分组
+        async function loadIndicators() {
+            try {
+                // 加载分组
+                const groupsRes = await fetch('/api/indicator-groups');
+                if (groupsRes.ok) {
+                    indicatorGroups = await groupsRes.json();
+                }
+
+                // 加载所有检测项目
+                const indicatorsRes = await fetch('/api/indicators');
+                if (indicatorsRes.ok) {
+                    allIndicators = await indicatorsRes.json();
+                }
+            } catch (error) {
+                console.error('加载检测项目失败:', error);
+            }
+        }
+
+        // 渲染检测项目列表
+        function renderIndicatorsList(selectedIds = []) {
+            const container = document.getElementById('indicatorsList');
+            container.innerHTML = '';
+
+            if (allIndicators.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted py-3">暂无检测项目</div>';
+                return;
+            }
+
+            // 按分组组织检测项目
+            const groupedIndicators = {};
+            indicatorGroups.forEach(group => {
+                groupedIndicators[group.id] = {
+                    name: group.name,
+                    indicators: []
+                };
+            });
+
+            // 未分组项目
+            groupedIndicators[0] = {
+                name: '未分组',
+                indicators: []
+            };
+
+            allIndicators.forEach(indicator => {
+                const groupId = indicator.group_id || 0;
+                if (groupedIndicators[groupId]) {
+                    groupedIndicators[groupId].indicators.push(indicator);
+                }
+            });
+
+            // 渲染每个分组
+            Object.keys(groupedIndicators).forEach(groupId => {
+                const group = groupedIndicators[groupId];
+                if (group.indicators.length === 0) return;
+
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'mb-3';
+                groupDiv.innerHTML = `
+                    <div class="fw-bold text-primary mb-2">
+                        <i class="bi bi-folder"></i> ${group.name}
+                    </div>
+                    <div class="ps-3">
+                        ${group.indicators.map(ind => `
+                            <div class="form-check">
+                                <input class="form-check-input indicator-checkbox" type="checkbox"
+                                       value="${ind.id}" id="indicator_${ind.id}"
+                                       ${selectedIds.includes(ind.id) ? 'checked' : ''}
+                                       onchange="updateSelectedCount()">
+                                <label class="form-check-label" for="indicator_${ind.id}">
+                                    ${ind.name}
+                                    ${ind.unit ? `<span class="text-muted small">(${ind.unit})</span>` : ''}
+                                </label>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                container.appendChild(groupDiv);
+            });
+
+            updateSelectedCount();
+        }
+
+        // 更新选中数量
+        function updateSelectedCount() {
+            const checkboxes = document.querySelectorAll('.indicator-checkbox');
+            const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            document.getElementById('selectedCount').textContent = checkedCount;
+        }
+
+        // 全选/取消全选
+        function toggleAllIndicators(select) {
+            const checkboxes = document.querySelectorAll('.indicator-checkbox');
+            checkboxes.forEach(cb => cb.checked = select);
+            updateSelectedCount();
+        }
+
+        // 获取选中的检测项目ID列表
+        function getSelectedIndicatorIds() {
+            const checkboxes = document.querySelectorAll('.indicator-checkbox:checked');
+            return Array.from(checkboxes).map(cb => parseInt(cb.value));
         }
 
         // 渲染表格
@@ -271,6 +401,7 @@
                 document.getElementById('modalTitle').textContent = '添加样品类型';
                 document.getElementById('editForm').reset();
                 document.getElementById('editId').value = '';
+                renderIndicatorsList([]);  // 清空选择
                 modal.show();
             });
 
@@ -291,17 +422,28 @@
         }
 
         // 编辑项目
-        function editItem(id) {
-            const item = allData.find(x => x.id === id);
-            if (!item) return;
+        async function editItem(id) {
+            try {
+                // 获取样品类型详情（包括关联的检测项目）
+                const response = await fetch(`/api/sample-types/${id}`);
+                if (!response.ok) throw new Error('加载数据失败');
 
-            document.getElementById('modalTitle').textContent = '编辑样品类型';
-            document.getElementById('editId').value = item.id;
-            document.getElementById('editName').value = item.name || '';
-            document.getElementById('editCode').value = item.code || '';
-            document.getElementById('editDescription').value = item.description || '';
-            document.getElementById('editRemark').value = item.remark || '';
-            modal.show();
+                const item = await response.json();
+
+                document.getElementById('modalTitle').textContent = '编辑样品类型';
+                document.getElementById('editId').value = item.id;
+                document.getElementById('editName').value = item.name || '';
+                document.getElementById('editCode').value = item.code || '';
+                document.getElementById('editDescription').value = item.description || '';
+                document.getElementById('editRemark').value = item.remark || '';
+
+                // 渲染检测项目列表并选中已关联的项目
+                renderIndicatorsList(item.indicator_ids || []);
+
+                modal.show();
+            } catch (error) {
+                alert('加载数据失败: ' + error.message);
+            }
         }
 
         // 保存项目
@@ -311,13 +453,20 @@
             const code = document.getElementById('editCode').value.trim();
             const description = document.getElementById('editDescription').value.trim();
             const remark = document.getElementById('editRemark').value.trim();
+            const indicator_ids = getSelectedIndicatorIds();
 
             if (!name || !code) {
                 alert('样品名称和代码不能为空');
                 return;
             }
 
-            const data = { name, code, description, remark };
+            const data = {
+                name,
+                code,
+                description,
+                remark,
+                indicator_ids  // 包含选中的检测项目ID列表
+            };
 
             try {
                 let response;

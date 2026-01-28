@@ -111,6 +111,13 @@
                             <input type="text" class="form-control" id="editTemplateName" required>
                         </div>
                         <div class="mb-3">
+                            <label class="form-label">关联样品类型</label>
+                            <select class="form-select" id="editSampleTypeSelect">
+                                <option value="">不关联</option>
+                            </select>
+                            <div class="form-text">选择与此模板关联的样品类型</div>
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label">模版描述</label>
                             <textarea class="form-control" id="editTemplateDescription" rows="2"></textarea>
                         </div>
@@ -169,6 +176,42 @@
         </div>
     </div>
 
+    <!-- 导入配置模态框 -->
+    <div class="modal fade" id="importConfigModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">导入模版配置</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>警告：</strong>导入配置会删除该模版的所有现有字段配置，然后重新创建。请确保已备份现有配置。
+                    </div>
+                    <form id="importConfigForm">
+                        <input type="hidden" id="importConfigTemplateId">
+                        <div class="mb-3">
+                            <label class="form-label">模版名称</label>
+                            <input type="text" class="form-control" id="importConfigTemplateName" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">配置文件 <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control" id="importConfigFile" accept=".xlsx,.xls" required>
+                            <div class="form-text">请选择之前导出的模版配置Excel文件</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-warning" id="uploadConfigBtn">
+                        <i class="bi bi-upload"></i> 开始导入
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // 全局变量
@@ -178,6 +221,7 @@
         const editModal = new bootstrap.Modal(document.getElementById('editModal'));
         const configDefaultsModal = new bootstrap.Modal(document.getElementById('configDefaultsModal'));
         const detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
+        const importConfigModal = new bootstrap.Modal(document.getElementById('importConfigModal'));
 
         // 初始化
         document.addEventListener('DOMContentLoaded', function() {
@@ -193,13 +237,25 @@
                 if (!response.ok) throw new Error('加载样品类型失败');
 
                 const types = await response.json();
+
+                // 加载到导入模态框的下拉框
                 const select = document.getElementById('sampleTypeSelect');
+                select.innerHTML = '<option value="">不关联</option>';
+
+                // 加载到编辑模态框的下拉框
+                const editSelect = document.getElementById('editSampleTypeSelect');
+                editSelect.innerHTML = '<option value="">不关联</option>';
 
                 types.forEach(type => {
                     const option = document.createElement('option');
                     option.value = type.id;
                     option.textContent = `${type.name} (${type.code})`;
                     select.appendChild(option);
+
+                    const editOption = document.createElement('option');
+                    editOption.value = type.id;
+                    editOption.textContent = `${type.name} (${type.code})`;
+                    editSelect.appendChild(editOption);
                 });
             } catch (error) {
                 console.error('加载样品类型失败:', error);
@@ -255,15 +311,25 @@
                             </div>
                         </div>
                         <div class="col-md-4 text-end">
-                            <button class="btn btn-sm btn-outline-success" onclick="editTemplate(${template.id})">
-                                <i class="bi bi-pencil"></i> 编辑
-                            </button>
-                            <button class="btn btn-sm btn-outline-primary" onclick="viewDetail(${template.id})">
-                                <i class="bi bi-eye"></i> 查看详情
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteTemplate(${template.id}, '${template.name}')">
-                                <i class="bi bi-trash"></i> 删除
-                            </button>
+                            <div class="btn-group mb-1" role="group">
+                                <button class="btn btn-sm btn-success" onclick="editTemplate(${template.id})">
+                                    <i class="bi bi-pencil"></i> 编辑
+                                </button>
+                                <button class="btn btn-sm btn-primary" onclick="viewDetail(${template.id})">
+                                    <i class="bi bi-eye"></i> 详情
+                                </button>
+                            </div>
+                            <div class="btn-group mb-1" role="group">
+                                <button class="btn btn-sm btn-outline-info" onclick="exportConfig(${template.id}, '${template.name}')">
+                                    <i class="bi bi-download"></i> 导出
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning" onclick="showImportConfigModal(${template.id}, '${template.name}')">
+                                    <i class="bi bi-upload"></i> 导入
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteTemplate(${template.id}, '${template.name}')">
+                                    <i class="bi bi-trash"></i> 删除
+                                </button>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -292,6 +358,8 @@
             document.getElementById('saveEditBtn').addEventListener('click', saveEdit);
 
             document.getElementById('saveDefaultsBtn').addEventListener('click', saveFieldDefaults);
+
+            document.getElementById('uploadConfigBtn').addEventListener('click', uploadConfig);
         }
 
         // 上传模版
@@ -454,6 +522,7 @@
 
                 document.getElementById('editTemplateId').value = template.id;
                 document.getElementById('editTemplateName').value = template.name;
+                document.getElementById('editSampleTypeSelect').value = template.sample_type_id || '';
                 document.getElementById('editTemplateDescription').value = template.description || '';
 
                 editModal.show();
@@ -466,6 +535,7 @@
         async function saveEdit() {
             const id = document.getElementById('editTemplateId').value;
             const name = document.getElementById('editTemplateName').value.trim();
+            const sampleTypeId = document.getElementById('editSampleTypeSelect').value;
             const description = document.getElementById('editTemplateDescription').value.trim();
 
             if (!name) {
@@ -479,7 +549,11 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ name, description })
+                    body: JSON.stringify({
+                        name,
+                        sample_type_id: sampleTypeId || null,
+                        description
+                    })
                 });
 
                 if (!response.ok) {
@@ -582,6 +656,11 @@
             }
         }
 
+        // 配置字段（已禁用 - 功能已整合到样品类型管理中）
+        // function configFields(id) {
+        //     window.location.href = `/template-config-editor?id=${id}`;
+        // }
+
         // 删除模版
         async function deleteTemplate(id, name) {
             if (!confirm(`确定要删除模版"${name}"吗？此操作不可恢复。`)) return;
@@ -600,6 +679,84 @@
                 loadTemplates();
             } catch (error) {
                 alert('删除失败: ' + error.message);
+            }
+        }
+
+        // 导出配置
+        async function exportConfig(id, name) {
+            try {
+                const response = await fetch(`/api/report-templates/${id}/export-config`);
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '导出失败');
+                }
+
+                // 下载文件
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${name}_配置_${new Date().toISOString().slice(0,10)}.xlsx`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                alert('配置导出成功');
+            } catch (error) {
+                alert('导出失败: ' + error.message);
+            }
+        }
+
+        // 显示导入配置模态框
+        function showImportConfigModal(id, name) {
+            document.getElementById('importConfigTemplateId').value = id;
+            document.getElementById('importConfigTemplateName').value = name;
+            document.getElementById('importConfigFile').value = '';
+            importConfigModal.show();
+        }
+
+        // 上传配置
+        async function uploadConfig() {
+            const templateId = document.getElementById('importConfigTemplateId').value;
+            const fileInput = document.getElementById('importConfigFile');
+
+            if (!fileInput.files[0]) {
+                alert('请选择配置文件');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            // 显示加载状态
+            const uploadBtn = document.getElementById('uploadConfigBtn');
+            const originalText = uploadBtn.innerHTML;
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 导入中...';
+
+            try {
+                const response = await fetch(`/api/report-templates/${templateId}/import-config`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '导入失败');
+                }
+
+                const result = await response.json();
+                alert(`导入成功！共导入 ${result.inserted_count} 个字段配置`);
+
+                importConfigModal.hide();
+                loadTemplates();
+            } catch (error) {
+                alert('导入失败: ' + error.message);
+            } finally {
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = originalText;
             }
         }
     </script>

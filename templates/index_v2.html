@@ -63,20 +63,28 @@
         <div class="tab-content mt-3" id="mainTabContent">
             <!-- 模板管理标签页 -->
             <div class="tab-pane fade show active" id="template" role="tabpanel">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> <strong>系统流程：</strong>
+                    1. 在检测指标管理中完成具体检测指标的编制 →
+                    2. 在样品类型管理中将各检测指标选中并汇总 →
+                    3. 在报告模板管理中录入Excel模板，最终形成报告模板
+                </div>
+
                 <!-- 管理入口卡片 -->
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <div class="card shadow-sm h-100 border-primary">
+                        <div class="card shadow-sm h-100 border-success">
                             <div class="card-body text-center p-5">
                                 <div class="mb-3">
-                                    <i class="bi bi-tags" style="font-size: 3rem; color: #667eea;"></i>
+                                    <i class="bi bi-list-check" style="font-size: 3rem; color: #11998e;"></i>
                                 </div>
-                                <h4 class="card-title mb-3">样品类型管理</h4>
+                                <div class="badge bg-success mb-3">步骤 1</div>
+                                <h4 class="card-title mb-3">检测指标管理</h4>
                                 <p class="card-text text-muted">
-                                    管理水质检测的样品类型、代码和备注信息<br>
-                                    支持搜索、分页和批量导入导出
+                                    编制具体检测指标、限值、检测方法和分组<br>
+                                    支持分组筛选、搜索和批量操作
                                 </p>
-                                <button class="btn btn-primary btn-lg mt-3" onclick="window.location.href='/sample-types-manager'">
+                                <button class="btn btn-success btn-lg mt-3" onclick="window.location.href='/indicators-manager'">
                                     <i class="bi bi-arrow-right-circle"></i> 进入管理
                                 </button>
                             </div>
@@ -84,17 +92,18 @@
                     </div>
 
                     <div class="col-md-6">
-                        <div class="card shadow-sm h-100 border-success">
+                        <div class="card shadow-sm h-100 border-primary">
                             <div class="card-body text-center p-5">
                                 <div class="mb-3">
-                                    <i class="bi bi-list-check" style="font-size: 3rem; color: #11998e;"></i>
+                                    <i class="bi bi-tags" style="font-size: 3rem; color: #667eea;"></i>
                                 </div>
-                                <h4 class="card-title mb-3">检测指标管理</h4>
+                                <div class="badge bg-primary mb-3">步骤 2</div>
+                                <h4 class="card-title mb-3">样品类型管理</h4>
                                 <p class="card-text text-muted">
-                                    管理检测指标、限值、检测方法和分组<br>
-                                    支持分组筛选、搜索和批量操作
+                                    管理样品类型，选中检测指标并汇总<br>
+                                    支持搜索、分页和批量导入导出
                                 </p>
-                                <button class="btn btn-success btn-lg mt-3" onclick="window.location.href='/indicators-manager'">
+                                <button class="btn btn-primary btn-lg mt-3" onclick="window.location.href='/sample-types-manager'">
                                     <i class="bi bi-arrow-right-circle"></i> 进入管理
                                 </button>
                             </div>
@@ -112,9 +121,10 @@
                                         <i class="bi bi-file-earmark-spreadsheet" style="font-size: 3rem; color: #f39c12;"></i>
                                     </div>
                                     <div class="col-md-7 text-start">
+                                        <div class="badge bg-warning text-dark mb-2">步骤 3</div>
                                         <h4 class="card-title mb-2">报告模版管理</h4>
                                         <p class="card-text text-muted mb-0">
-                                            导入和管理Excel报告模版，配置字段映射，支持按模版生成报告
+                                            导入Excel模板，配置字段映射，最终形成完整的报告模板
                                         </p>
                                     </div>
                                     <div class="col-md-3">
@@ -128,38 +138,6 @@
                     </div>
                 </div>
 
-                <div class="row mt-3">
-                    <div class="col-12">
-                        <div class="card">
-                            <div class="card-header bg-info text-white">
-                                <h5 class="mb-0"><i class="bi bi-gear"></i> 模板配置</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-4">
-                                        <label class="form-label">选择样品类型</label>
-                                        <select class="form-select" id="templateSampleType">
-                                            <option value="">请选择...</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-8">
-                                        <label class="form-label">操作</label><br>
-                                        <button class="btn btn-primary btn-sm" id="configTemplateBtn">
-                                            <i class="bi bi-wrench"></i> 配置检测项目
-                                        </button>
-                                        <button class="btn btn-warning btn-sm" id="exportTemplateBtn">
-                                            <i class="bi bi-download"></i> 导出模板
-                                        </button>
-                                        <button class="btn btn-info btn-sm" id="importTemplateBtn">
-                                            <i class="bi bi-upload"></i> 导入模板
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="mt-3" id="templateIndicatorsArea"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <!-- 报告填写标签页 -->

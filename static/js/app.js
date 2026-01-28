@@ -129,9 +129,9 @@ function bindEvents() {
     document.getElementById('exportIndicatorsBtn')?.addEventListener('click', exportIndicatorsExcel);
     document.getElementById('importIndicatorsBtn')?.addEventListener('click', showImportIndicatorsModal);
 
-    // 模板配置
-    document.getElementById('configTemplateBtn')?.addEventListener('click', configTemplate);
-    document.getElementById('exportTemplateBtn')?.addEventListener('click', exportTemplate);
+    // 模板配置（已禁用 - 功能已整合到样品类型管理中）
+    // document.getElementById('configTemplateBtn')?.addEventListener('click', configTemplate);
+    // document.getElementById('exportTemplateBtn')?.addEventListener('click', exportTemplate);
 
     // 报告填写
     document.getElementById('reportTemplate')?.addEventListener('change', onReportTemplateChange);
@@ -205,8 +205,8 @@ async function loadSampleTypes() {
         const data = await apiRequest('/api/sample-types');
         AppState.sampleTypes = data;
 
-        // 更新下拉框
-        const selects = ['templateSampleType', 'reportSampleType'];
+        // 更新下拉框（templateSampleType已移除，功能整合到样品类型管理中）
+        const selects = ['reportSampleType'];
         selects.forEach(selectId => {
             const select = document.getElementById(selectId);
             select.innerHTML = '<option value="">请选择...</option>';
@@ -811,7 +811,8 @@ async function loadCompanies() {
     }
 }
 
-// ==================== 模板配置 ====================
+// ==================== 模板配置（已禁用 - 功能已整合到样品类型管理中）====================
+/* 已禁用：模板配置功能已整合到样品类型管理模块中
 async function configTemplate() {
     const sampleTypeId = document.getElementById('templateSampleType').value;
     if (!sampleTypeId) {
@@ -1116,12 +1117,14 @@ async function exportTemplate() {
         showToast(error.message, 'error');
     }
 }
+*/
 
 // ==================== 报告填写 ====================
 async function onReportTemplateChange() {
     const templateId = document.getElementById('reportTemplate').value;
     const formContent = document.getElementById('reportFormContent');
     const templateFieldsArea = document.getElementById('templateFieldsArea');
+    const sampleTypeSelect = document.getElementById('reportSampleType');
 
     if (!templateId) {
         formContent.style.display = 'none';
@@ -1129,11 +1132,25 @@ async function onReportTemplateChange() {
     }
 
     try {
-        // 加载模板字段配置
-        const fields = await apiRequest(`/api/template-fields/${templateId}`);
+        // 先获取模板信息（包括关联的样品类型）
+        const templateInfo = await apiRequest(`/api/report-templates/${templateId}`);
+        const template = templateInfo.template;
 
         // 显示表单内容区域
         formContent.style.display = 'block';
+
+        // 如果模板有关联的样品类型，自动填充
+        if (template.sample_type_id) {
+            sampleTypeSelect.value = template.sample_type_id;
+            // 自动触发样品类型变更，加载检测项目
+            await onSampleTypeChange();
+        } else {
+            // 如果没有关联样品类型，提示用户选择
+            document.getElementById('reportDataArea').innerHTML = '<p class="text-warning">该模板未关联样品类型，请手动选择样品类型以加载检测项目</p>';
+        }
+
+        // 加载模板字段配置
+        const fields = await apiRequest(`/api/report-templates/${templateId}/fields`);
 
         // 生成模板字段表单
         if (fields && fields.length > 0) {
@@ -1177,10 +1194,10 @@ async function onReportTemplateChange() {
             templateFieldsArea.innerHTML = '<p class="text-muted">该模板没有配置待填字段</p>';
         }
 
-        showToast(`已加载模板字段配置 (${fields.length}个字段)`);
+        showToast('模板加载成功', 'success');
     } catch (error) {
-        console.error('加载模板字段失败:', error);
-        showToast('加载模板字段失败', 'error');
+        console.error('加载模板失败:', error);
+        showToast('加载模板失败: ' + error.message, 'error');
         formContent.style.display = 'none';
     }
 }

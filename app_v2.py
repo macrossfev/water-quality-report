@@ -201,6 +201,7 @@ def api_sample_types():
         code = data.get('code')
         description = data.get('description', '')
         remark = data.get('remark', '')
+        indicator_ids = data.get('indicator_ids', [])  # 检测项目ID列表
 
         if not name or not code:
             return jsonify({'error': '样品类型名称和代码不能为空'}), 400
@@ -211,11 +212,20 @@ def api_sample_types():
                 'INSERT INTO sample_types (name, code, description, remark) VALUES (?, ?, ?, ?)',
                 (name, code, description, remark)
             )
-            conn.commit()
             sample_type_id = cursor.lastrowid
+
+            # 添加检测项目关联
+            if indicator_ids:
+                for idx, indicator_id in enumerate(indicator_ids):
+                    cursor.execute(
+                        'INSERT INTO template_indicators (sample_type_id, indicator_id, sort_order) VALUES (?, ?, ?)',
+                        (sample_type_id, indicator_id, idx)
+                    )
+
+            conn.commit()
             conn.close()
 
-            log_operation('添加样品类型', f'添加样品类型: {name} ({code})')
+            log_operation('添加样品类型', f'添加样品类型: {name} ({code})，关联{len(indicator_ids)}个检测项目')
             return jsonify({'id': sample_type_id, 'message': '样品类型添加成功'}), 201
         except Exception as e:
             conn.close()
@@ -235,13 +245,36 @@ def api_sample_types():
 
     return jsonify([dict(st) for st in sample_types])
 
-@app.route('/api/sample-types/<int:id>', methods=['PUT', 'DELETE'])
-@admin_required
+@app.route('/api/sample-types/<int:id>', methods=['GET', 'PUT', 'DELETE'])
+@login_required
 def api_sample_type_detail(id):
     """样品类型详情操作"""
     conn = get_db_connection()
 
+    if request.method == 'GET':
+        # 获取样品类型基本信息
+        sample_type = conn.execute('SELECT * FROM sample_types WHERE id = ?', (id,)).fetchone()
+
+        if not sample_type:
+            conn.close()
+            return jsonify({'error': '样品类型不存在'}), 404
+
+        # 获取已关联的检测项目ID列表
+        indicator_ids = conn.execute(
+            'SELECT indicator_id FROM template_indicators WHERE sample_type_id = ? ORDER BY sort_order',
+            (id,)
+        ).fetchall()
+
+        result = dict(sample_type)
+        result['indicator_ids'] = [row['indicator_id'] for row in indicator_ids]
+
+        conn.close()
+        return jsonify(result)
+
     if request.method == 'DELETE':
+        # 仅管理员可删除
+        if session.get('role') != 'admin':
+            return jsonify({'error': '需要管理员权限'}), 403
         sample_type = conn.execute('SELECT name FROM sample_types WHERE id = ?', (id,)).fetchone()
 
         if not sample_type:
@@ -257,24 +290,41 @@ def api_sample_type_detail(id):
         return jsonify({'message': '样品类型删除成功'})
 
     if request.method == 'PUT':
+        # 仅管理员可更新
+        if session.get('role') != 'admin':
+            return jsonify({'error': '需要管理员权限'}), 403
+
         data = request.json
         name = data.get('name')
         code = data.get('code')
         description = data.get('description', '')
         remark = data.get('remark', '')
+        indicator_ids = data.get('indicator_ids', [])  # 检测项目ID列表
 
         if not name or not code:
             return jsonify({'error': '样品类型名称和代码不能为空'}), 400
 
         try:
-            conn.execute(
+            cursor = conn.cursor()
+            cursor.execute(
                 'UPDATE sample_types SET name = ?, code = ?, description = ?, remark = ? WHERE id = ?',
                 (name, code, description, remark, id)
             )
+
+            # 更新检测项目关联：先删除旧关联，再添加新关联
+            cursor.execute('DELETE FROM template_indicators WHERE sample_type_id = ?', (id,))
+
+            if indicator_ids:
+                for idx, indicator_id in enumerate(indicator_ids):
+                    cursor.execute(
+                        'INSERT INTO template_indicators (sample_type_id, indicator_id, sort_order) VALUES (?, ?, ?)',
+                        (id, indicator_id, idx)
+                    )
+
             conn.commit()
             conn.close()
 
-            log_operation('更新样品类型', f'更新样品类型: {name} ({code})')
+            log_operation('更新样品类型', f'更新样品类型: {name} ({code})，关联{len(indicator_ids)}个检测项目')
             return jsonify({'message': '样品类型更新成功'})
         except Exception as e:
             conn.close()
@@ -2016,6 +2066,7 @@ def api_report_template_detail(id):
 
         data = request.json
         name = data.get('name')
+        sample_type_id = data.get('sample_type_id')
         description = data.get('description', '')
 
         if not name:
@@ -2044,8 +2095,8 @@ def api_report_template_detail(id):
 
         try:
             conn.execute(
-                'UPDATE excel_report_templates SET name = ?, description = ? WHERE id = ?',
-                (name, description, id)
+                'UPDATE excel_report_templates SET name = ?, sample_type_id = ?, description = ? WHERE id = ?',
+                (name, sample_type_id, description, id)
             )
             conn.commit()
 
@@ -2168,6 +2219,169 @@ def api_template_fields(id):
 
     return jsonify([dict(f) for f in fields])
 
+@app.route('/api/template-fields/<int:field_id>', methods=['GET', 'PUT', 'DELETE'])
+@login_required
+def api_template_field_detail(field_id):
+    """获取、更新或删除单个模板字段"""
+    conn = get_db_connection()
+
+    if request.method == 'GET':
+        # 获取字段详情
+        field = conn.execute(
+            'SELECT * FROM template_field_mappings WHERE id = ?',
+            (field_id,)
+        ).fetchone()
+
+        conn.close()
+
+        if not field:
+            return jsonify({'error': '字段不存在'}), 404
+
+        return jsonify(dict(field))
+
+    if request.method == 'PUT':
+        # 仅管理员可修改
+        if session.get('role') != 'admin':
+            conn.close()
+            return jsonify({'error': '需要管理员权限'}), 403
+
+        # 检查字段是否存在
+        field = conn.execute(
+            'SELECT * FROM template_field_mappings WHERE id = ?',
+            (field_id,)
+        ).fetchone()
+
+        if not field:
+            conn.close()
+            return jsonify({'error': '字段不存在'}), 404
+
+        data = request.json
+        field_name = data.get('field_name')
+        field_display_name = data.get('field_display_name', '')
+        field_type = data.get('field_type')
+        sheet_name = data.get('sheet_name')
+        cell_address = data.get('cell_address', '')
+        placeholder = data.get('placeholder', '')
+        default_value = data.get('default_value', '')
+        is_required = data.get('is_required', 0)
+        description = data.get('description', '')
+
+        if not all([field_name, field_type, sheet_name]):
+            conn.close()
+            return jsonify({'error': '缺少必填字段'}), 400
+
+        try:
+            conn.execute(
+                '''UPDATE template_field_mappings
+                   SET field_name = ?, field_display_name = ?, field_type = ?,
+                       sheet_name = ?, cell_address = ?, placeholder = ?,
+                       default_value = ?, is_required = ?, description = ?
+                   WHERE id = ?''',
+                (field_name, field_display_name, field_type, sheet_name,
+                 cell_address, placeholder, default_value, is_required,
+                 description, field_id)
+            )
+            conn.commit()
+
+            log_operation('更新模板字段', f'字段ID: {field_id}, 字段名: {field_name}', conn=conn)
+            conn.close()
+
+            return jsonify({'message': '字段更新成功'})
+        except Exception as e:
+            conn.close()
+            return jsonify({'error': f'更新失败: {str(e)}'}), 500
+
+    if request.method == 'DELETE':
+        # 仅管理员可删除
+        if session.get('role') != 'admin':
+            conn.close()
+            return jsonify({'error': '需要管理员权限'}), 403
+
+        # 检查字段是否存在
+        field = conn.execute(
+            'SELECT * FROM template_field_mappings WHERE id = ?',
+            (field_id,)
+        ).fetchone()
+
+        if not field:
+            conn.close()
+            return jsonify({'error': '字段不存在'}), 404
+
+        try:
+            conn.execute('DELETE FROM template_field_mappings WHERE id = ?', (field_id,))
+            conn.commit()
+
+            log_operation('删除模板字段', f'字段ID: {field_id}, 字段名: {field["field_name"]}', conn=conn)
+            conn.close()
+
+            return jsonify({'message': '字段删除成功'})
+        except Exception as e:
+            conn.close()
+            return jsonify({'error': f'删除失败: {str(e)}'}), 500
+
+@app.route('/api/report-templates/<int:id>/export-config', methods=['GET'])
+@login_required
+def api_export_template_config(id):
+    """导出模板配置为Excel文件"""
+    from template_config_excel import TemplateConfigExcel
+
+    try:
+        output_path = TemplateConfigExcel.export_template_config(id)
+
+        log_operation('导出模板配置', f'导出模板ID: {id}的配置')
+
+        return send_file(
+            output_path,
+            as_attachment=True,
+            download_name=os.path.basename(output_path),
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        return jsonify({'error': f'导出失败: {str(e)}'}), 500
+
+@app.route('/api/report-templates/<int:id>/import-config', methods=['POST'])
+@admin_required
+def api_import_template_config(id):
+    """从Excel文件导入模板配置"""
+    if 'file' not in request.files:
+        return jsonify({'error': '未上传文件'}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': '文件名为空'}), 400
+
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        return jsonify({'error': '只支持Excel文件'}), 400
+
+    from template_config_excel import TemplateConfigExcel
+
+    try:
+        # 保存上传的文件到临时位置
+        os.makedirs('temp/config_imports', exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        temp_path = f'temp/config_imports/config_import_{timestamp}.xlsx'
+        file.save(temp_path)
+
+        # 导入配置
+        result = TemplateConfigExcel.import_template_config(id, temp_path)
+
+        # 删除临时文件
+        try:
+            os.remove(temp_path)
+        except:
+            pass
+
+        log_operation('导入模板配置', f'导入模板ID: {id}的配置，共{result["inserted_count"]}个字段')
+
+        return jsonify(result), 200
+
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': f'导入失败: {str(e)}'}), 500
+
 def identify_sheet_type(sheet_name):
     """识别工作表类型"""
     sheet_name_lower = sheet_name.lower()
@@ -2223,6 +2437,24 @@ def report_template_manager():
     if 'user_id' not in session:
         return render_template('login.html')
     return render_template('report_template_manager.html')
+
+@app.route('/report-templates')
+def report_templates_page():
+    """报告模版管理页面（新版，使用别名）"""
+    if 'user_id' not in session:
+        return render_template('login.html')
+    return render_template('report_template_manager.html')
+
+# ==================== 已禁用：模板配置编辑器页面路由 ====================
+# 模板配置编辑器已被禁用，因为模板配置功能已整合到样品类型管理中
+# 详见 REMOVED_FEATURES.md
+
+# @app.route('/template-config-editor')
+# def template_config_editor():
+#     """模板配置编辑器页面"""
+#     if 'user_id' not in session:
+#         return render_template('login.html')
+#     return render_template('template_config_editor.html')
 
 # ==================== 新增API接口 ====================
 
@@ -2714,7 +2946,7 @@ def api_batch_update_field_defaults():
         conn.close()
         return jsonify({'error': f'更新失败: {str(e)}'}), 500
 
-@app.route('/api/template-fields/<int:template_id>', methods=['GET'])
+@app.route('/api/report-templates/<int:template_id>/fields', methods=['GET'])
 @login_required
 def api_get_template_fields_list(template_id):
     """获取模板字段配置（用于报告填写）"""
