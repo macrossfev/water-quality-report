@@ -320,11 +320,16 @@
                                 </button>
                             </div>
                             <div class="btn-group mb-1" role="group">
+                                <button class="btn btn-sm btn-warning" onclick="exportReportTemplate(${template.id}, '${template.name}')" title="导出报告填写模板">
+                                    <i class="bi bi-file-earmark-excel"></i> 导出填写模板
+                                </button>
+                            </div>
+                            <div class="btn-group mb-1" role="group">
                                 <button class="btn btn-sm btn-outline-info" onclick="exportConfig(${template.id}, '${template.name}')">
-                                    <i class="bi bi-download"></i> 导出
+                                    <i class="bi bi-download"></i> 导出配置
                                 </button>
                                 <button class="btn btn-sm btn-outline-warning" onclick="showImportConfigModal(${template.id}, '${template.name}')">
-                                    <i class="bi bi-upload"></i> 导入
+                                    <i class="bi bi-upload"></i> 导入配置
                                 </button>
                                 <button class="btn btn-sm btn-outline-danger" onclick="deleteTemplate(${template.id}, '${template.name}')">
                                     <i class="bi bi-trash"></i> 删除
@@ -679,6 +684,18 @@
                 loadTemplates();
             } catch (error) {
                 alert('删除失败: ' + error.message);
+            }
+        }
+
+        // 导出填写模板
+        async function exportReportTemplate(id, name) {
+            try {
+                window.location.href = `/api/export-report-template/${id}`;
+                setTimeout(() => {
+                    alert('报告填写模板导出成功！\n\n请在报告填写页面使用此模板导入报告基本信息。');
+                }, 500);
+            } catch (error) {
+                alert('导出失败: ' + error.message);
             }
         }
 

@@ -2458,24 +2458,31 @@ def report_templates_page():
 
 # ==================== 新增API接口 ====================
 
-@app.route('/api/download-import-template', methods=['GET'])
+@app.route('/api/export-report-template/<int:template_id>', methods=['GET'])
 @login_required
-def api_download_import_template():
-    """下载导入模板"""
-    from import_template_generator import generate_import_template
-
-    template_id = request.args.get('template_id')
-    sample_type_id = request.args.get('sample_type_id')
-
-    template_id = int(template_id) if template_id else None
-    sample_type_id = int(sample_type_id) if sample_type_id else None
+def api_export_report_template(template_id):
+    """导出报告填写模板"""
+    from report_template_exporter import export_report_template
 
     try:
-        output_path = generate_import_template(template_id, sample_type_id)
-        log_operation('下载导入模板', f'模板ID: {template_id or "通用"}, 样品类型ID: {sample_type_id or "通用"}')
+        output_path = export_report_template(template_id)
+        log_operation('导出报告填写模板', f'模板ID: {template_id}')
         return send_file(output_path, as_attachment=True, download_name=os.path.basename(output_path))
     except Exception as e:
-        return jsonify({'error': f'生成导入模板失败: {str(e)}'}), 500
+        return jsonify({'error': f'导出失败: {str(e)}'}), 500
+
+@app.route('/api/export-sample-type-template/<int:sample_type_id>', methods=['GET'])
+@login_required
+def api_export_sample_type_template(sample_type_id):
+    """导出样品类型检测模板"""
+    from sample_type_exporter import export_sample_type_template
+
+    try:
+        output_path = export_sample_type_template(sample_type_id)
+        log_operation('导出检测项目模板', f'样品类型ID: {sample_type_id}')
+        return send_file(output_path, as_attachment=True, download_name=os.path.basename(output_path))
+    except Exception as e:
+        return jsonify({'error': f'导出失败: {str(e)}'}), 500
 
 @app.route('/api/import-reports', methods=['POST'])
 @login_required
@@ -2949,21 +2956,7 @@ def api_batch_update_field_defaults():
         conn.close()
         return jsonify({'error': f'更新失败: {str(e)}'}), 500
 
-@app.route('/api/report-templates/<int:template_id>/fields', methods=['GET'])
-@login_required
-def api_get_template_fields_list(template_id):
-    """获取模板字段配置（用于报告填写）"""
-    conn = get_db_connection()
-
-    fields = conn.execute('''
-        SELECT * FROM template_field_mappings
-        WHERE template_id = ?
-        ORDER BY id
-    ''', (template_id,)).fetchall()
-
-    conn.close()
-
-    return jsonify([dict(f) for f in fields])
+# 此路由已在第2172行定义，此处删除重复定义
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

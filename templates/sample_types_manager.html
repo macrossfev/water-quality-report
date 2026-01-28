@@ -316,6 +316,9 @@
                     <td><small class="text-muted">${item.description || '-'}</small></td>
                     <td><small class="text-muted">${item.remark || '-'}</small></td>
                     <td>
+                        <button class="btn btn-sm btn-warning" onclick="exportSampleTypeTemplate(${item.id}, '${item.name}')" title="导出检测项目模板">
+                            <i class="bi bi-file-earmark-excel"></i>
+                        </button>
                         <button class="btn btn-sm btn-outline-primary" onclick="editItem(${item.id})">
                             <i class="bi bi-pencil"></i>
                         </button>
@@ -494,6 +497,18 @@
                 alert(id ? '更新成功' : '添加成功');
             } catch (error) {
                 alert('保存失败: ' + error.message);
+            }
+        }
+
+        // 导出检测项目模板
+        async function exportSampleTypeTemplate(id, name) {
+            try {
+                window.location.href = `/api/export-sample-type-template/${id}`;
+                setTimeout(() => {
+                    alert('检测项目模板导出成功！\n\n请在报告填写页面使用此模板导入检测数据。');
+                }, 500);
+            } catch (error) {
+                alert('导出失败: ' + error.message);
             }
         }
 
