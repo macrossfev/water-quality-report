@@ -138,8 +138,8 @@ function bindEvents() {
     document.getElementById('reportSampleType').addEventListener('change', onSampleTypeChange);
     document.getElementById('reportForm').addEventListener('submit', submitReport);
     document.getElementById('saveDraftBtn')?.addEventListener('click', saveDraft);
-    document.getElementById('downloadImportTemplateBtn')?.addEventListener('click', downloadImportTemplate);
-    document.getElementById('importReportsBtn')?.addEventListener('click', showImportReportsModal);
+    document.getElementById('importReportInfoBtn')?.addEventListener('click', showImportReportInfoModal);
+    document.getElementById('importDetectionDataBtn')?.addEventListener('click', showImportDetectionDataModal);
 
     // 待提交报告
     document.getElementById('searchPendingBtn')?.addEventListener('click', loadPendingReports);
@@ -1213,26 +1213,163 @@ async function onReportTemplateChange() {
     }
 }
 
-async function downloadImportTemplate() {
-    const templateId = document.getElementById('reportTemplate').value;
-    const sampleTypeId = document.getElementById('reportSampleType').value;
+// 显示导入报告基本信息模态框
+function showImportReportInfoModal() {
+    const modalHTML = `
+        <div class="modal fade" id="importReportInfoModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-success text-white">
+                        <h5 class="modal-title"><i class="bi bi-file-earmark-arrow-up"></i> 导入报告基本信息</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">选择Excel文件</label>
+                            <input type="file" class="form-control" id="reportInfoFile" accept=".xlsx,.xls">
+                        </div>
+                        <div class="alert alert-info">
+                            <small>
+                                <strong>使用说明：</strong><br>
+                                1. 在【报告模板管理】页面选择报告模板，点击"导出填写模板"<br>
+                                2. 在导出的Excel中填写各样品的基本信息<br>
+                                3. 上传填写好的Excel文件进行导入<br>
+                                4. 系统将自动创建报告记录
+                            </small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-success" onclick="importReportInfo()">
+                            <i class="bi bi-upload"></i> 开始导入
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
 
-    if (!templateId) {
-        showToast('请先选择报告模板', 'warning');
+    const modalContainer = document.getElementById('modalContainer');
+    modalContainer.innerHTML = modalHTML;
+
+    const modal = new bootstrap.Modal(document.getElementById('importReportInfoModal'));
+    modal.show();
+}
+
+// 显示导入检测数据模态框
+function showImportDetectionDataModal() {
+    const modalHTML = `
+        <div class="modal fade" id="importDetectionDataModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-warning text-dark">
+                        <h5 class="modal-title"><i class="bi bi-clipboard-data"></i> 导入检测项目数据</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">选择Excel文件</label>
+                            <input type="file" class="form-control" id="detectionDataFile" accept=".xlsx,.xls">
+                        </div>
+                        <div class="alert alert-warning">
+                            <small>
+                                <strong>使用说明：</strong><br>
+                                1. 在【样品类型管理】页面选择样品类型，点击导出检测模板按钮<br>
+                                2. 在导出的Excel中填写各样品的检测结果<br>
+                                3. 上传填写好的Excel文件进行导入<br>
+                                4. 系统将根据样品编号匹配并更新检测数据
+                            </small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-warning" onclick="importDetectionData()">
+                            <i class="bi bi-upload"></i> 开始导入
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const modalContainer = document.getElementById('modalContainer');
+    modalContainer.innerHTML = modalHTML;
+
+    const modal = new bootstrap.Modal(document.getElementById('importDetectionDataModal'));
+    modal.show();
+}
+
+// 导入报告基本信息
+async function importReportInfo() {
+    const fileInput = document.getElementById('reportInfoFile');
+    const file = fileInput.files[0];
+
+    if (!file) {
+        showToast('请选择Excel文件', 'warning');
         return;
     }
 
-    if (!sampleTypeId) {
-        showToast('请先选择样品类型', 'warning');
-        return;
-    }
+    const formData = new FormData();
+    formData.append('file', file);
 
     try {
-        const url = `/api/download-import-template?template_id=${templateId}&sample_type_id=${sampleTypeId}`;
-        window.location.href = url;
-        showToast('导入模板下载中...');
+        const response = await fetch('/api/import-report-info', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || '导入失败');
+        }
+
+        showToast(`导入成功！共创建 ${result.created_count} 份报告`, 'success');
+
+        // 关闭模态框
+        bootstrap.Modal.getInstance(document.getElementById('importReportInfoModal')).hide();
+
+        // 刷新报告列表
+        loadPendingReports();
     } catch (error) {
-        showToast('下载失败', 'error');
+        showToast('导入失败: ' + error.message, 'error');
+    }
+}
+
+// 导入检测项目数据
+async function importDetectionData() {
+    const fileInput = document.getElementById('detectionDataFile');
+    const file = fileInput.files[0];
+
+    if (!file) {
+        showToast('请选择Excel文件', 'warning');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const response = await fetch('/api/import-detection-data', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || '导入失败');
+        }
+
+        showToast(`导入成功！共更新 ${result.updated_count} 份报告的检测数据`, 'success');
+
+        // 关闭模态框
+        bootstrap.Modal.getInstance(document.getElementById('importDetectionDataModal')).hide();
+
+        // 刷新报告列表
+        loadPendingReports();
+    } catch (error) {
+        showToast('导入失败: ' + error.message, 'error');
     }
 }
 

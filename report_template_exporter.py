@@ -151,12 +151,14 @@ class ReportTemplateExporter:
         ws.column_dimensions['A'].width = 100
 
     def _create_report_info_sheet(self, wb):
-        """创建报告基本信息sheet"""
+        """创建报告基本信息sheet（横向格式：字段为行，样品为列）"""
         ws = wb.create_sheet("报告基本信息")
 
         # 设置样式
         header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
         header_font = Font(color="FFFFFF", bold=True, size=11)
+        subheader_fill = PatternFill(start_color="B4C7E7", end_color="B4C7E7", fill_type="solid")
+        subheader_font = Font(bold=True, size=10)
         border = Border(
             left=Side(style='thin'),
             right=Side(style='thin'),
@@ -164,8 +166,48 @@ class ReportTemplateExporter:
             bottom=Side(style='thin')
         )
 
-        # 构建表头
-        headers = ['样品编号*']
+        # A1: 字段名称标题
+        cell = ws.cell(1, 1)
+        cell.value = "字段名称"
+        cell.fill = subheader_fill
+        cell.font = subheader_font
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = border
+
+        # 首行：样品编号列（3个示例）
+        sample_numbers = ['样品编号1*', '样品编号2', '样品编号3']
+        for col_idx, sample_number in enumerate(sample_numbers, start=2):
+            cell = ws.cell(1, col_idx)
+            cell.value = sample_number
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = border
+
+        # 第一列：字段名称
+        row_idx = 2
+
+        # 样品编号字段（必填）
+        cell = ws.cell(row_idx, 1)
+        cell.value = "样品编号*"
+        cell.fill = subheader_fill
+        cell.font = subheader_font
+        cell.alignment = Alignment(horizontal='left', vertical='center')
+        cell.border = border
+
+        # 示例样品编号
+        cell = ws.cell(row_idx, 2)
+        cell.value = "S20260128001"
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = border
+
+        # 其他样品列留空
+        for col_idx in range(3, 2 + len(sample_numbers)):
+            cell = ws.cell(row_idx, col_idx)
+            cell.border = border
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+
+        row_idx += 1
 
         # 添加模板字段
         for field in self.fields:
@@ -173,35 +215,41 @@ class ReportTemplateExporter:
             is_required = field.get('is_required', 0)
             if is_required:
                 field_name += '*'
-            headers.append(field_name)
 
-        # 写入表头
-        for col_idx, header in enumerate(headers, start=1):
-            cell = ws.cell(1, col_idx)
-            cell.value = header
-            cell.fill = header_fill
-            cell.font = header_font
-            cell.alignment = Alignment(horizontal='center', vertical='center')
+            # 字段名称
+            cell = ws.cell(row_idx, 1)
+            cell.value = field_name
+            cell.fill = subheader_fill
+            cell.font = subheader_font
+            cell.alignment = Alignment(horizontal='left', vertical='center')
             cell.border = border
 
-        # 写入示例数据行
-        example_data = ['S20260128001']
-
-        for field in self.fields:
+            # 第一个样品的示例值
             default_value = field.get('default_value', '')
             placeholder = field.get('placeholder', '')
             example_value = default_value if default_value else placeholder if placeholder else ''
-            example_data.append(example_value)
 
-        for col_idx, value in enumerate(example_data, start=1):
-            cell = ws.cell(2, col_idx)
-            cell.value = value
-            cell.alignment = Alignment(horizontal='center', vertical='center')
-            cell.border = border
+            if row_idx == 2:  # 仅第一个字段填示例
+                cell = ws.cell(row_idx, 2)
+                cell.value = example_value
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.border = border
+
+            # 其他样品列留空
+            for col_idx in range(2 if row_idx > 2 else 3, 2 + len(sample_numbers)):
+                cell = ws.cell(row_idx, col_idx)
+                cell.border = border
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+
+            row_idx += 1
 
         # 调整列宽
-        for col_idx in range(1, len(headers) + 1):
-            ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = 18
+        ws.column_dimensions['A'].width = 25  # 字段名称列
+        for col_letter in ['B', 'C', 'D', 'E', 'F']:
+            ws.column_dimensions[col_letter].width = 20  # 样品数据列
+
+        # 冻结首行首列
+        ws.freeze_panes = 'B2'
 
 
 def export_report_template(template_id, output_path=None):
