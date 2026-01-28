@@ -1128,11 +1128,25 @@ async function onReportTemplateChange() {
 
     if (!templateId) {
         formContent.style.display = 'none';
+        sampleTypeSelect.disabled = true;
+        sampleTypeSelect.innerHTML = '<option value="">请先选择报告模板...</option>';
         return;
     }
 
     try {
-        // 先获取模板信息（包括关联的样品类型）
+        // 启用样品类型选择框
+        sampleTypeSelect.disabled = false;
+        sampleTypeSelect.innerHTML = '<option value="">请选择样品类型...</option>';
+
+        // 加载样品类型列表
+        AppState.sampleTypes.forEach(st => {
+            const option = document.createElement('option');
+            option.value = st.id;
+            option.textContent = st.name;
+            sampleTypeSelect.appendChild(option);
+        });
+
+        // 先获取模板信息
         const templateInfo = await apiRequest(`/api/report-templates/${templateId}`);
         const template = templateInfo.template;
 
@@ -1144,9 +1158,6 @@ async function onReportTemplateChange() {
             sampleTypeSelect.value = template.sample_type_id;
             // 自动触发样品类型变更，加载检测项目
             await onSampleTypeChange();
-        } else {
-            // 如果没有关联样品类型，提示用户选择
-            document.getElementById('reportDataArea').innerHTML = '<p class="text-warning">该模板未关联样品类型，请手动选择样品类型以加载检测项目</p>';
         }
 
         // 加载模板字段配置
@@ -1204,13 +1215,20 @@ async function onReportTemplateChange() {
 
 async function downloadImportTemplate() {
     const templateId = document.getElementById('reportTemplate').value;
+    const sampleTypeId = document.getElementById('reportSampleType').value;
+
     if (!templateId) {
         showToast('请先选择报告模板', 'warning');
         return;
     }
 
+    if (!sampleTypeId) {
+        showToast('请先选择样品类型', 'warning');
+        return;
+    }
+
     try {
-        const url = `/api/download-import-template?template_id=${templateId}`;
+        const url = `/api/download-import-template?template_id=${templateId}&sample_type_id=${sampleTypeId}`;
         window.location.href = url;
         showToast('导入模板下载中...');
     } catch (error) {

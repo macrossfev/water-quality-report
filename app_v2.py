@@ -2465,11 +2465,14 @@ def api_download_import_template():
     from import_template_generator import generate_import_template
 
     template_id = request.args.get('template_id')
+    sample_type_id = request.args.get('sample_type_id')
+
     template_id = int(template_id) if template_id else None
+    sample_type_id = int(sample_type_id) if sample_type_id else None
 
     try:
-        output_path = generate_import_template(template_id)
-        log_operation('下载导入模板', f'模板ID: {template_id or "通用"}')
+        output_path = generate_import_template(template_id, sample_type_id)
+        log_operation('下载导入模板', f'模板ID: {template_id or "通用"}, 样品类型ID: {sample_type_id or "通用"}')
         return send_file(output_path, as_attachment=True, download_name=os.path.basename(output_path))
     except Exception as e:
         return jsonify({'error': f'生成导入模板失败: {str(e)}'}), 500

@@ -179,24 +179,31 @@
                             </div>
                             <div class="card-body">
                         <form id="reportForm">
-                            <!-- 步骤1: 选择报告模板 -->
+                            <!-- 步骤1: 选择报告模板和样品类型 -->
                             <div class="alert alert-info">
-                                <i class="bi bi-info-circle"></i> <strong>第一步：</strong>请先选择报告模板，系统将根据模板生成填写表单
+                                <i class="bi bi-info-circle"></i> <strong>填写步骤：</strong>
+                                <ol class="mb-0 mt-2">
+                                    <li>先选择报告模板</li>
+                                    <li>再选择样品类型</li>
+                                    <li>点击"下载导入模板"获取Excel模板</li>
+                                    <li>填写完成后点击"批量导入"上传数据</li>
+                                </ol>
                             </div>
 
                             <div class="row mb-4">
                                 <div class="col-md-6">
                                     <label class="form-label">报告模板 <span class="text-danger">*</span></label>
                                     <select class="form-select" id="reportTemplate" required>
-                                        <option value="">请选择报告模板...</option>
+                                        <option value="">请先选择报告模板...</option>
                                     </select>
-                                    <div class="form-text">选择后将自动加载模板的填写表单</div>
+                                    <div class="form-text">选择后可继续选择样品类型</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">样品类型 <span class="text-danger">*</span></label>
-                                    <select class="form-select" id="reportSampleType" required>
-                                        <option value="">请选择样品类型...</option>
+                                    <select class="form-select" id="reportSampleType" required disabled>
+                                        <option value="">请先选择报告模板...</option>
                                     </select>
+                                    <div class="form-text">选择后可下载导入模板</div>
                                 </div>
                             </div>
 
