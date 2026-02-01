@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客户管理 - 水质检测报告系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .page-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem 0; margin-bottom: 2rem; }
+        .search-box { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 1.5rem; }
+        .table-card { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .required-field::after { content: " *"; color: red; }
+    </style>
+</head>
+<body>
+    <!-- 页面标题 -->
+    <div class="page-header">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="bi bi-people"></i> 客户管理</h2>
+                    <p class="mb-0">管理客户信息，便于在生成报告时快速导入</p>
+                </div>
+                <button class="btn btn-light" onclick="window.location.href='/'">
+                    <i class="bi bi-arrow-left"></i> 返回主页
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="container">
+        <!-- 搜索和操作栏 -->
+        <div class="search-box">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" id="searchInput" placeholder="搜索被检单位、水厂、联系人...">
+                        <button class="btn btn-primary" id="searchBtn">搜索</button>
+                        <button class="btn btn-outline-secondary" id="resetBtn">重置</button>
+                    </div>
+                </div>
+                <div class="col-md-6 text-end">
+                    <button class="btn btn-success" id="addBtn">
+                        <i class="bi bi-plus-circle"></i> 添加客户
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据表格 -->
+        <div class="table-card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th width="5%">序号</th>
+                            <th width="15%">被检单位</th>
+                            <th width="12%">被检水厂</th>
+                            <th width="18%">被检单位地址</th>
+                            <th width="10%">联系人</th>
+                            <th width="10%">联系电话</th>
+                            <th width="12%">邮箱</th>
+                            <th width="18%">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataTable"></tbody>
+                </table>
+            </div>
+
+            <!-- 分页控件 -->
+            <div class="p-3 border-top">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <span class="text-muted">共 <strong id="totalCount">0</strong> 条记录</span>
+                    </div>
+                    <div class="col-md-6">
+                        <nav>
+                            <ul class="pagination justify-content-end mb-0" id="pagination"></ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑模态框 -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">添加客户</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editForm">
+                        <input type="hidden" id="editId">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="inspectedUnit" class="form-label required-field">被检单位</label>
+                                    <input type="text" class="form-control" id="inspectedUnit" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="waterPlant" class="form-label">被检水厂</label>
+                                    <input type="text" class="form-control" id="waterPlant">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="unitAddress" class="form-label">被检单位地址</label>
+                            <input type="text" class="form-control" id="unitAddress">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="contactPerson" class="form-label">联系人</label>
+                                    <input type="text" class="form-control" id="contactPerson">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="contactPhone" class="form-label">联系人电话</label>
+                                    <input type="text" class="form-control" id="contactPhone">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="email" class="form-label">邮箱地址</label>
+                                    <input type="email" class="form-control" id="email">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="remark" class="form-label">备注</label>
+                            <textarea class="form-control" id="remark" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="saveBtn">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentPage = 1;
+        let pageSize = 20;
+        let totalItems = 0;
+        let allData = [];
+        let filteredData = [];
+        let editModal;
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            editModal = new bootstrap.Modal(document.getElementById('editModal'));
+
+            // 绑定事件
+            document.getElementById('addBtn').addEventListener('click', () => openEditModal());
+            document.getElementById('saveBtn').addEventListener('click', saveItem);
+            document.getElementById('searchBtn').addEventListener('click', searchData);
+            document.getElementById('resetBtn').addEventListener('click', resetSearch);
+            document.getElementById('searchInput').addEventListener('keyup', function(e) {
+                if (e.key === 'Enter') searchData();
+            });
+
+            // 加载数据
+            loadData();
+        });
+
+        // 加载数据
+        async function loadData() {
+            try {
+                const response = await fetch('/api/customers');
+                if (!response.ok) throw new Error('加载数据失败');
+
+                allData = await response.json();
+                filteredData = [...allData];
+                totalItems = filteredData.length;
+
+                renderTable();
+                renderPagination();
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                alert('加载数据失败，请刷新页面重试');
+            }
+        }
+
+        // 搜索数据
+        function searchData() {
+            const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
+
+            if (!keyword) {
+                filteredData = [...allData];
+            } else {
+                filteredData = allData.filter(item =>
+                    (item.inspected_unit && item.inspected_unit.toLowerCase().includes(keyword)) ||
+                    (item.water_plant && item.water_plant.toLowerCase().includes(keyword)) ||
+                    (item.contact_person && item.contact_person.toLowerCase().includes(keyword)) ||
+                    (item.unit_address && item.unit_address.toLowerCase().includes(keyword))
+                );
+            }
+
+            totalItems = filteredData.length;
+            currentPage = 1;
+            renderTable();
+            renderPagination();
+        }
+
+        // 重置搜索
+        function resetSearch() {
+            document.getElementById('searchInput').value = '';
+            filteredData = [...allData];
+            totalItems = filteredData.length;
+            currentPage = 1;
+            renderTable();
+            renderPagination();
+        }
+
+        // 渲染表格
+        function renderTable() {
+            const tbody = document.getElementById('dataTable');
+            const start = (currentPage - 1) * pageSize;
+            const end = start + pageSize;
+            const pageData = filteredData.slice(start, end);
+
+            if (pageData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">暂无数据</td></tr>';
+                document.getElementById('totalCount').textContent = '0';
+                return;
+            }
+
+            tbody.innerHTML = pageData.map((item, index) => `
+                <tr>
+                    <td>${start + index + 1}</td>
+                    <td><strong>${item.inspected_unit || '-'}</strong></td>
+                    <td>${item.water_plant || '-'}</td>
+                    <td><small>${item.unit_address || '-'}</small></td>
+                    <td>${item.contact_person || '-'}</td>
+                    <td>${item.contact_phone || '-'}</td>
+                    <td><small>${item.email || '-'}</small></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="openEditModal(${item.id})" title="编辑">
+                            <i class="bi bi-pencil"></i> 编辑
+                        </button>
+                        <button class="btn btn-sm btn-outline-info" onclick="copyItem(${item.id})" title="复制">
+                            <i class="bi bi-copy"></i> 复制
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.id}, '${item.inspected_unit}')" title="删除">
+                            <i class="bi bi-trash"></i> 删除
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+
+            document.getElementById('totalCount').textContent = totalItems;
+        }
+
+        // 渲染分页
+        function renderPagination() {
+            const pagination = document.getElementById('pagination');
+            const totalPages = Math.ceil(totalItems / pageSize);
+
+            if (totalPages <= 1) {
+                pagination.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+
+            // 上一页
+            html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="changePage(${currentPage - 1}); return false;">上一页</a>
+            </li>`;
+
+            // 页码
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                    html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+                        <a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a>
+                    </li>`;
+                } else if (i === currentPage - 3 || i === currentPage + 3) {
+                    html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                }
+            }
+
+            // 下一页
+            html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="changePage(${currentPage + 1}); return false;">下一页</a>
+            </li>`;
+
+            pagination.innerHTML = html;
+        }
+
+        // 切换页码
+        function changePage(page) {
+            const totalPages = Math.ceil(totalItems / pageSize);
+            if (page < 1 || page > totalPages) return;
+            currentPage = page;
+            renderTable();
+            renderPagination();
+        }
+
+        // 打开编辑模态框
+        async function openEditModal(id = null) {
+            document.getElementById('editForm').reset();
+            document.getElementById('editId').value = id || '';
+
+            if (id) {
+                // 编辑模式
+                document.getElementById('modalTitle').textContent = '编辑客户';
+
+                try {
+                    const response = await fetch(`/api/customers/${id}`);
+                    if (!response.ok) throw new Error('加载客户信息失败');
+
+                    const data = await response.json();
+                    document.getElementById('inspectedUnit').value = data.inspected_unit || '';
+                    document.getElementById('waterPlant').value = data.water_plant || '';
+                    document.getElementById('unitAddress').value = data.unit_address || '';
+                    document.getElementById('contactPerson').value = data.contact_person || '';
+                    document.getElementById('contactPhone').value = data.contact_phone || '';
+                    document.getElementById('email').value = data.email || '';
+                    document.getElementById('remark').value = data.remark || '';
+                } catch (error) {
+                    console.error('加载客户信息失败:', error);
+                    alert('加载客户信息失败');
+                    return;
+                }
+            } else {
+                // 新增模式
+                document.getElementById('modalTitle').textContent = '添加客户';
+            }
+
+            editModal.show();
+        }
+
+        // 保存数据
+        async function saveItem() {
+            const id = document.getElementById('editId').value;
+            const inspectedUnit = document.getElementById('inspectedUnit').value.trim();
+
+            if (!inspectedUnit) {
+                alert('被检单位不能为空');
+                return;
+            }
+
+            const data = {
+                inspected_unit: inspectedUnit,
+                water_plant: document.getElementById('waterPlant').value.trim(),
+                unit_address: document.getElementById('unitAddress').value.trim(),
+                contact_person: document.getElementById('contactPerson').value.trim(),
+                contact_phone: document.getElementById('contactPhone').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                remark: document.getElementById('remark').value.trim()
+            };
+
+            try {
+                let response;
+                if (id) {
+                    // 更新
+                    response = await fetch(`/api/customers/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                } else {
+                    // 新增
+                    response = await fetch('/api/customers', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                }
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '保存失败');
+                }
+
+                const result = await response.json();
+                alert(result.message);
+                editModal.hide();
+                loadData();
+            } catch (error) {
+                console.error('保存失败:', error);
+                alert(error.message || '保存失败，请重试');
+            }
+        }
+
+        // 复制客户
+        async function copyItem(id) {
+            try {
+                const response = await fetch(`/api/customers/${id}`);
+                if (!response.ok) throw new Error('加载客户信息失败');
+
+                const data = await response.json();
+
+                // 打开模态框，标题设为"复制客户"
+                document.getElementById('modalTitle').textContent = '复制客户 - 请修改水厂等信息';
+                document.getElementById('editForm').reset();
+                document.getElementById('editId').value = ''; // 清空ID，表示新增
+
+                // 填充数据
+                document.getElementById('inspectedUnit').value = data.inspected_unit || '';
+                document.getElementById('waterPlant').value = (data.water_plant || '') + ' - 副本';
+                document.getElementById('unitAddress').value = data.unit_address || '';
+                document.getElementById('contactPerson').value = data.contact_person || '';
+                document.getElementById('contactPhone').value = data.contact_phone || '';
+                document.getElementById('email').value = data.email || '';
+                document.getElementById('remark').value = data.remark || '';
+
+                editModal.show();
+
+                // 自动聚焦到水厂字段，方便用户修改
+                setTimeout(() => {
+                    const waterPlantInput = document.getElementById('waterPlant');
+                    waterPlantInput.focus();
+                    waterPlantInput.select();
+                }, 500);
+            } catch (error) {
+                console.error('复制客户失败:', error);
+                alert('复制客户失败，请重试');
+            }
+        }
+
+        // 删除数据
+        async function deleteItem(id, name) {
+            if (!confirm(`确定要删除客户"${name}"吗？`)) return;
+
+            try {
+                const response = await fetch(`/api/customers/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) throw new Error('删除失败');
+
+                const result = await response.json();
+                alert(result.message);
+                loadData();
+            } catch (error) {
+                console.error('删除失败:', error);
+                alert('删除失败，请重试');
+            }
+        }
+    </script>
+</body>
+</html>

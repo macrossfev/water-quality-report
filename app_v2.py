@@ -13,7 +13,7 @@ import json
 import os
 import shutil
 import openpyxl
-from openpyxl.styles import Font, Alignment, Border, Side
+from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -183,6 +183,130 @@ def api_company_detail(id):
         except Exception as e:
             conn.close()
             return jsonify({'error': '公司名称已存在'}), 400
+
+# ==================== 客户管理 API ====================
+@app.route('/api/customers', methods=['GET', 'POST'])
+@login_required
+def api_customers():
+    """客户管理"""
+    conn = get_db_connection()
+
+    if request.method == 'POST':
+        data = request.json
+        inspected_unit = data.get('inspected_unit', '').strip()
+        water_plant = data.get('water_plant', '').strip()
+        unit_address = data.get('unit_address', '').strip()
+        contact_person = data.get('contact_person', '').strip()
+        contact_phone = data.get('contact_phone', '').strip()
+        email = data.get('email', '').strip()
+        remark = data.get('remark', '').strip()
+
+        if not inspected_unit:
+            conn.close()
+            return jsonify({'error': '被检单位不能为空'}), 400
+
+        try:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO customers (inspected_unit, water_plant, unit_address,
+                                      contact_person, contact_phone, email, remark)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (inspected_unit, water_plant, unit_address, contact_person,
+                  contact_phone, email, remark))
+            conn.commit()
+            customer_id = cursor.lastrowid
+
+            log_operation('添加客户', f'添加客户: {inspected_unit}', conn=conn)
+            conn.close()
+
+            return jsonify({'id': customer_id, 'message': '客户添加成功'}), 201
+        except Exception as e:
+            conn.close()
+            return jsonify({'error': f'添加客户失败: {str(e)}'}), 400
+
+    # GET请求
+    customers = conn.execute('''
+        SELECT id, inspected_unit, water_plant, unit_address,
+               contact_person, contact_phone, email, remark,
+               created_at, updated_at
+        FROM customers
+        ORDER BY created_at DESC
+    ''').fetchall()
+    conn.close()
+
+    return jsonify([dict(customer) for customer in customers])
+
+@app.route('/api/customers/<int:id>', methods=['GET', 'PUT', 'DELETE'])
+@login_required
+def api_customer_detail(id):
+    """客户详情操作"""
+    conn = get_db_connection()
+
+    # GET请求 - 获取单个客户详情
+    if request.method == 'GET':
+        customer = conn.execute('''
+            SELECT id, inspected_unit, water_plant, unit_address,
+                   contact_person, contact_phone, email, remark,
+                   created_at, updated_at
+            FROM customers WHERE id = ?
+        ''', (id,)).fetchone()
+
+        if not customer:
+            conn.close()
+            return jsonify({'error': '客户不存在'}), 404
+
+        conn.close()
+        return jsonify(dict(customer))
+
+    # DELETE请求
+    if request.method == 'DELETE':
+        customer = conn.execute('SELECT inspected_unit FROM customers WHERE id = ?', (id,)).fetchone()
+
+        if not customer:
+            conn.close()
+            return jsonify({'error': '客户不存在'}), 404
+
+        conn.execute('DELETE FROM customers WHERE id = ?', (id,))
+        conn.commit()
+
+        log_operation('删除客户', f'删除客户: {customer["inspected_unit"]}', conn=conn)
+        conn.close()
+
+        return jsonify({'message': '客户删除成功'})
+
+    # PUT请求
+    if request.method == 'PUT':
+        data = request.json
+        inspected_unit = data.get('inspected_unit', '').strip()
+        water_plant = data.get('water_plant', '').strip()
+        unit_address = data.get('unit_address', '').strip()
+        contact_person = data.get('contact_person', '').strip()
+        contact_phone = data.get('contact_phone', '').strip()
+        email = data.get('email', '').strip()
+        remark = data.get('remark', '').strip()
+
+        if not inspected_unit:
+            conn.close()
+            return jsonify({'error': '被检单位不能为空'}), 400
+
+        try:
+            conn.execute('''
+                UPDATE customers
+                SET inspected_unit = ?, water_plant = ?, unit_address = ?,
+                    contact_person = ?, contact_phone = ?, email = ?, remark = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (inspected_unit, water_plant, unit_address, contact_person,
+                  contact_phone, email, remark, id))
+            conn.commit()
+
+            log_operation('更新客户', f'更新客户: {inspected_unit}', conn=conn)
+            conn.close()
+
+            return jsonify({'message': '客户更新成功'})
+        except Exception as e:
+            conn.close()
+            return jsonify({'error': f'更新客户失败: {str(e)}'}), 400
 
 # ==================== 样品类型管理 API ====================
 @app.route('/api/sample-types', methods=['GET', 'POST'])
@@ -1425,24 +1549,38 @@ def api_import_indicators_excel():
     except Exception as e:
         return jsonify({'error': f'导入失败: {str(e)}'}), 500
 
-# ==================== 样品类型导入导出 API ====================
-@app.route('/api/sample-types/export/excel', methods=['GET'])
+# ==================== 单个样品类型的检测项目导入导出 API ====================
+@app.route('/api/sample-types/<int:sample_type_id>/indicators/export', methods=['GET'])
 @admin_required
-def api_export_sample_types_excel():
-    """导出样品类型到Excel"""
+def api_export_sample_type_indicators(sample_type_id):
+    """导出单个样品类型的检测项目到Excel"""
     conn = get_db_connection()
 
-    sample_types = conn.execute('SELECT * FROM sample_types ORDER BY created_at DESC').fetchall()
+    # 获取样品类型信息
+    sample_type = conn.execute('SELECT * FROM sample_types WHERE id = ?', (sample_type_id,)).fetchone()
+    if not sample_type:
+        conn.close()
+        return jsonify({'error': '样品类型不存在'}), 404
 
-    conn.close()
+    # 获取该样品类型关联的检测项目（包含完整信息）
+    indicators = conn.execute('''
+        SELECT i.name, i.unit, ig.name as group_name, i.limit_value,
+               i.detection_method, i.default_value, i.remark
+        FROM template_indicators ti
+        JOIN indicators i ON ti.indicator_id = i.id
+        LEFT JOIN indicator_groups ig ON i.group_id = ig.id
+        WHERE ti.sample_type_id = ?
+        ORDER BY ti.sort_order, i.name
+    ''', (sample_type_id,)).fetchall()
 
     # 创建Excel工作簿
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "样品类型"
+    ws.title = "检测项目"
 
     # 设置样式
-    header_font = Font(name='宋体', size=11, bold=True)
+    header_font = Font(name='宋体', size=11, bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
     normal_font = Font(name='宋体', size=10)
     border = Border(
         left=Side(style='thin'),
@@ -1452,45 +1590,176 @@ def api_export_sample_types_excel():
     )
 
     # 表头
-    headers = ['样品类型名称', '样品代码', '说明']
+    headers = ['检测项目名称', '单位', '所属分组', '限值', '检测方法', '默认值', '备注']
     for col, header in enumerate(headers, start=1):
         cell = ws.cell(row=1, column=col)
         cell.value = header
         cell.font = header_font
+        cell.fill = header_fill
         cell.alignment = Alignment(horizontal='center', vertical='center')
         cell.border = border
 
     # 数据行
-    for row_idx, sample_type in enumerate(sample_types, start=2):
+    for row_idx, indicator in enumerate(indicators, start=2):
         row_data = [
-            sample_type['name'],
-            sample_type['code'],
-            sample_type['description'] or ''
+            indicator['name'] or '',
+            indicator['unit'] or '',
+            indicator['group_name'] or '',
+            indicator['limit_value'] or '',
+            indicator['detection_method'] or '',
+            indicator['default_value'] or '',
+            indicator['remark'] or ''
         ]
-
         for col, value in enumerate(row_data, start=1):
             cell = ws.cell(row=row_idx, column=col)
             cell.value = value
             cell.font = normal_font
             cell.border = border
 
+    conn.close()
+
     # 调整列宽
-    ws.column_dimensions['A'].width = 25
-    ws.column_dimensions['B'].width = 15
-    ws.column_dimensions['C'].width = 40
+    ws.column_dimensions['A'].width = 25  # 检测项目名称
+    ws.column_dimensions['B'].width = 12  # 单位
+    ws.column_dimensions['C'].width = 15  # 所属分组
+    ws.column_dimensions['D'].width = 20  # 限值
+    ws.column_dimensions['E'].width = 35  # 检测方法
+    ws.column_dimensions['F'].width = 12  # 默认值
+    ws.column_dimensions['G'].width = 30  # 备注
 
     # 保存文件
     os.makedirs('exports', exist_ok=True)
-    filename = f"exports/sample_types_{datetime.now().strftime('%Y%m%d%H%M%S')}.xlsx"
+    safe_name = sample_type['name'].replace('/', '_').replace('\\', '_')
+    filename = f"exports/{safe_name}_检测项目_{datetime.now().strftime('%Y%m%d%H%M%S')}.xlsx"
     wb.save(filename)
 
-    log_operation('导出样品类型', f'导出 {len(sample_types)} 个样品类型')
-    return send_file(filename, as_attachment=True, download_name='样品类型.xlsx')
+    log_operation('导出样品类型检测项目', f'导出样品类型"{sample_type["name"]}"的 {len(indicators)} 个检测项目')
+    return send_file(filename, as_attachment=True, download_name=f'{safe_name}_检测项目.xlsx')
+
+@app.route('/api/sample-types/<int:sample_type_id>/indicators/import', methods=['POST'])
+@admin_required
+def api_import_sample_type_indicators(sample_type_id):
+    """为单个样品类型导入检测项目 - 严格校验所有字段"""
+    if 'file' not in request.files:
+        return jsonify({'error': '未上传文件'}), 400
+
+    file = request.files['file']
+
+    if file.filename == '':
+        return jsonify({'error': '未选择文件'}), 400
+
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        return jsonify({'error': '请上传Excel文件(.xlsx 或 .xls)'}), 400
+
+    try:
+        # 验证样品类型是否存在
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        sample_type = cursor.execute('SELECT * FROM sample_types WHERE id = ?', (sample_type_id,)).fetchone()
+        if not sample_type:
+            conn.close()
+            return jsonify({'error': '样品类型不存在'}), 404
+
+        # 读取Excel文件
+        wb = openpyxl.load_workbook(file)
+        ws = wb.active
+
+        skipped_indicators = []
+        matched_count = 0
+
+        # 先删除该样品类型的所有检测项目关联
+        cursor.execute('DELETE FROM template_indicators WHERE sample_type_id = ?', (sample_type_id,))
+
+        # 从第2行开始读取（第1行是表头）
+        sort_order = 1
+        for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+            if not row or not row[0]:  # 跳过空行
+                continue
+
+            # 解析检测项目信息
+            indicator_name = row[0] if row[0] else None
+            indicator_unit = row[1] if len(row) > 1 else ''
+            indicator_group = row[2] if len(row) > 2 else ''
+            indicator_limit = row[3] if len(row) > 3 else ''
+            indicator_method = row[4] if len(row) > 4 else ''
+            indicator_default = row[5] if len(row) > 5 else ''
+            indicator_remark = row[6] if len(row) > 6 else ''
+
+            if not indicator_name:
+                continue
+
+            # 查找检测项目
+            indicator = cursor.execute(
+                'SELECT i.*, ig.name as group_name FROM indicators i LEFT JOIN indicator_groups ig ON i.group_id = ig.id WHERE i.name = ?',
+                (indicator_name,)
+            ).fetchone()
+
+            if not indicator:
+                skipped_indicators.append(f"第{row_idx}行: 检测项目\"{indicator_name}\"不存在")
+                continue
+
+            # 严格匹配所有字段
+            def normalize(val):
+                if val is None:
+                    return ''
+                return str(val).strip()
+
+            mismatches = []
+
+            if normalize(indicator['unit']) != normalize(indicator_unit):
+                mismatches.append(f"单位不匹配(系统:{normalize(indicator['unit'])} vs 导入:{normalize(indicator_unit)})")
+
+            if normalize(indicator['group_name']) != normalize(indicator_group):
+                mismatches.append(f"分组不匹配(系统:{normalize(indicator['group_name'])} vs 导入:{normalize(indicator_group)})")
+
+            if normalize(indicator['limit_value']) != normalize(indicator_limit):
+                mismatches.append(f"限值不匹配(系统:{normalize(indicator['limit_value'])} vs 导入:{normalize(indicator_limit)})")
+
+            if normalize(indicator['detection_method']) != normalize(indicator_method):
+                mismatches.append(f"检测方法不匹配(系统:{normalize(indicator['detection_method'])} vs 导入:{normalize(indicator_method)})")
+
+            if normalize(indicator['default_value']) != normalize(indicator_default):
+                mismatches.append(f"默认值不匹配(系统:{normalize(indicator['default_value'])} vs 导入:{normalize(indicator_default)})")
+
+            if normalize(indicator['remark']) != normalize(indicator_remark):
+                mismatches.append(f"备注不匹配(系统:{normalize(indicator['remark'])} vs 导入:{normalize(indicator_remark)})")
+
+            if mismatches:
+                skipped_msg = f"第{row_idx}行: 检测项目\"{indicator_name}\"字段不匹配 - {'; '.join(mismatches[:2])}"
+                if len(mismatches) > 2:
+                    skipped_msg += f" 等{len(mismatches)}个字段"
+                skipped_indicators.append(skipped_msg)
+                continue
+
+            # 完全匹配，创建关联
+            cursor.execute(
+                'INSERT INTO template_indicators (sample_type_id, indicator_id, sort_order) VALUES (?, ?, ?)',
+                (sample_type_id, indicator['id'], sort_order)
+            )
+            matched_count += 1
+            sort_order += 1
+
+        conn.commit()
+        conn.close()
+
+        log_operation('导入样品类型检测项目', f'样品类型"{sample_type["name"]}"导入 {matched_count} 个检测项目')
+
+        result = {
+            'message': f'导入完成！成功关联 {matched_count} 个检测项目',
+            'matched_count': matched_count,
+            'skipped_indicators': skipped_indicators
+        }
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({'error': f'导入失败: {str(e)}'}), 500
 
 @app.route('/api/sample-types/import/excel', methods=['POST'])
 @admin_required
 def api_import_sample_types_excel():
-    """从Excel导入样品类型"""
+    """从Excel导入样品类型 - 严格校验检测项目信息"""
     if 'file' not in request.files:
         return jsonify({'error': '未上传文件'}), 400
 
@@ -1513,50 +1782,155 @@ def api_import_sample_types_excel():
         imported_count = 0
         updated_count = 0
         error_rows = []
+        skipped_indicators = []  # 记录被跳过的检测项目
+
+        # 按样品代码分组数据
+        sample_data = {}  # {code: {'name': ..., 'description': ..., 'indicators': [...]}}
 
         # 从第2行开始读取（第1行是表头）
         for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
-            if not row[0]:  # 跳过空行
+            if not row or not row[0]:  # 跳过完全空行
                 continue
 
-            name = row[0]
-            code = row[1]
-            description = row[2] or ''
+            # 解析行数据
+            sample_name = row[0] if row[0] else None
+            sample_code = row[1] if len(row) > 1 and row[1] else None
+            sample_desc = row[2] if len(row) > 2 and row[2] else ''
 
-            if not code:
-                error_rows.append(f'第{row_idx}行: 样品代码不能为空')
+            # 检测项目信息
+            indicator_name = row[3] if len(row) > 3 and row[3] else None
+            indicator_unit = row[4] if len(row) > 4 else ''
+            indicator_group = row[5] if len(row) > 5 else ''
+            indicator_limit = row[6] if len(row) > 6 else ''
+            indicator_method = row[7] if len(row) > 7 else ''
+            indicator_default = row[8] if len(row) > 8 else ''
+            indicator_remark = row[9] if len(row) > 9 else ''
+
+            # 如果有样品代码，记录或更新样品信息
+            if sample_code:
+                if sample_code not in sample_data:
+                    if not sample_name:
+                        error_rows.append(f'第{row_idx}行: 样品代码"{sample_code}"缺少样品名称')
+                        continue
+                    sample_data[sample_code] = {
+                        'name': sample_name,
+                        'description': sample_desc,
+                        'indicators': []
+                    }
+            elif not sample_data:
+                # 如果没有样品代码且还没有任何样品数据
+                error_rows.append(f'第{row_idx}行: 缺少样品代码')
                 continue
 
+            # 获取当前处理的样品代码（如果当前行没有，使用最后一个）
+            current_code = sample_code if sample_code else list(sample_data.keys())[-1]
+
+            # 添加检测项目信息
+            if indicator_name:
+                sample_data[current_code]['indicators'].append({
+                    'name': indicator_name,
+                    'unit': str(indicator_unit) if indicator_unit else '',
+                    'group': str(indicator_group) if indicator_group else '',
+                    'limit_value': str(indicator_limit) if indicator_limit else '',
+                    'method': str(indicator_method) if indicator_method else '',
+                    'default_value': str(indicator_default) if indicator_default else '',
+                    'remark': str(indicator_remark) if indicator_remark else '',
+                    'row_idx': row_idx
+                })
+
+        # 处理每个样品类型
+        for code, data in sample_data.items():
             try:
-                # 检查样品类型是否已存在（通过代码）
+                # 检查样品类型是否已存在
                 existing = cursor.execute('SELECT id FROM sample_types WHERE code = ?', (code,)).fetchone()
 
                 if existing:
                     # 更新现有样品类型
                     cursor.execute(
                         'UPDATE sample_types SET name = ?, description = ? WHERE code = ?',
-                        (name, description, code)
+                        (data['name'], data['description'], code)
                     )
+                    sample_type_id = existing['id']
                     updated_count += 1
                 else:
                     # 插入新样品类型
                     cursor.execute(
                         'INSERT INTO sample_types (name, code, description) VALUES (?, ?, ?)',
-                        (name, code, description)
+                        (data['name'], code, data['description'])
                     )
+                    sample_type_id = cursor.lastrowid
                     imported_count += 1
+
+                # 先删除该样品类型的所有检测项目关联
+                cursor.execute('DELETE FROM template_indicators WHERE sample_type_id = ?', (sample_type_id,))
+
+                # 严格匹配并关联检测项目
+                sort_order = 1
+                for ind_data in data['indicators']:
+                    # 查找完全匹配的检测项目
+                    # 先通过名称查找
+                    indicator = cursor.execute(
+                        'SELECT i.*, ig.name as group_name FROM indicators i LEFT JOIN indicator_groups ig ON i.group_id = ig.id WHERE i.name = ?',
+                        (ind_data['name'],)
+                    ).fetchone()
+
+                    if not indicator:
+                        skipped_indicators.append(f"第{ind_data['row_idx']}行: 检测项目\"{ind_data['name']}\"不存在")
+                        continue
+
+                    # 严格匹配所有字段
+                    def normalize(val):
+                        """标准化字段值用于比较"""
+                        if val is None:
+                            return ''
+                        return str(val).strip()
+
+                    mismatches = []
+
+                    if normalize(indicator['unit']) != normalize(ind_data['unit']):
+                        mismatches.append(f"单位不匹配(系统:{normalize(indicator['unit'])} vs 导入:{normalize(ind_data['unit'])})")
+
+                    if normalize(indicator['group_name']) != normalize(ind_data['group']):
+                        mismatches.append(f"分组不匹配(系统:{normalize(indicator['group_name'])} vs 导入:{normalize(ind_data['group'])})")
+
+                    if normalize(indicator['limit_value']) != normalize(ind_data['limit_value']):
+                        mismatches.append(f"限值不匹配(系统:{normalize(indicator['limit_value'])} vs 导入:{normalize(ind_data['limit_value'])})")
+
+                    if normalize(indicator['detection_method']) != normalize(ind_data['method']):
+                        mismatches.append(f"检测方法不匹配(系统:{normalize(indicator['detection_method'])} vs 导入:{normalize(ind_data['method'])})")
+
+                    if normalize(indicator['default_value']) != normalize(ind_data['default_value']):
+                        mismatches.append(f"默认值不匹配(系统:{normalize(indicator['default_value'])} vs 导入:{normalize(ind_data['default_value'])})")
+
+                    if normalize(indicator['description']) != normalize(ind_data['remark']):
+                        mismatches.append(f"备注不匹配(系统:{normalize(indicator['description'])} vs 导入:{normalize(ind_data['remark'])})")
+
+                    if mismatches:
+                        # 字段不匹配，跳过此检测项目
+                        skipped_msg = f"第{ind_data['row_idx']}行: 检测项目\"{ind_data['name']}\"字段不匹配 - {'; '.join(mismatches)}"
+                        skipped_indicators.append(skipped_msg)
+                        continue
+
+                    # 完全匹配，创建关联
+                    cursor.execute(
+                        'INSERT INTO template_indicators (sample_type_id, indicator_id, sort_order) VALUES (?, ?, ?)',
+                        (sample_type_id, indicator['id'], sort_order)
+                    )
+                    sort_order += 1
+
             except Exception as e:
-                error_rows.append(f'第{row_idx}行: {str(e)}')
+                error_rows.append(f'样品代码"{code}": {str(e)}')
 
         conn.commit()
         conn.close()
 
-        log_operation('导入样品类型', f'新增 {imported_count} 个，更新 {updated_count} 个')
+        log_operation('导入样品类型', f'新增 {imported_count} 个，更新 {updated_count} 个，跳过 {len(skipped_indicators)} 个检测项目')
 
         result = {
-            'message': f'导入成功！新增 {imported_count} 个样品类型，更新 {updated_count} 个样品类型',
-            'imported': imported_count,
-            'updated': updated_count
+            'message': f'导入完成！新增 {imported_count} 个样品类型，更新 {updated_count} 个样品类型',
+            'success_count': imported_count,
+            'updated_count': updated_count,
+            'skipped_indicators': skipped_indicators
         }
 
         if error_rows:
@@ -1752,10 +2126,13 @@ def api_export_reports_template():
     # 创建Excel工作簿
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "报告导入模板"
+    ws.title = "检测数据"
 
     # 设置样式
-    header_font = Font(name='宋体', size=11, bold=True)
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True, size=11)
+    subheader_fill = PatternFill(start_color="B4C7E7", end_color="B4C7E7", fill_type="solid")
+    subheader_font = Font(name='宋体', size=11, bold=True)
     border = Border(
         left=Side(style='thin'),
         right=Side(style='thin'),
@@ -1763,34 +2140,50 @@ def api_export_reports_template():
         bottom=Side(style='thin')
     )
 
-    # 表头
-    headers = ['样品编号', '样品类型', '委托单位', '检测日期', '检测人员', '审核人员', '备注']
+    # 简化格式表头：检测项目、单位、样品数据列
+    headers = ['检测项目', '单位']
+    sample_numbers = ['样品编号1*', '样品编号2', '样品编号3']
 
-    # 添加检测指标列
-    for indicator in indicators:
-        unit = f"({indicator['unit']})" if indicator['unit'] else ''
-        headers.append(f"{indicator['name']}{unit}")
-
-    for col, header in enumerate(headers, start=1):
+    for col, header in enumerate(headers + sample_numbers, start=1):
         cell = ws.cell(row=1, column=col)
         cell.value = header
-        cell.font = header_font
+        if col <= len(headers):
+            cell.fill = subheader_fill
+            cell.font = subheader_font
+        else:
+            cell.fill = header_fill
+            cell.font = header_font
         cell.alignment = Alignment(horizontal='center', vertical='center')
         cell.border = border
 
-    # 添加示例数据行
-    example_row = ['SMP001', sample_type['name'], '示例公司', '2026-01-01', '张三', '李四', '']
-    for indicator in indicators:
-        example_row.append('')  # 空白检测值
-
-    for col, value in enumerate(example_row, start=1):
-        cell = ws.cell(row=2, column=col)
-        cell.value = value
+    # 添加检测指标行
+    for row_idx, indicator in enumerate(indicators, start=2):
+        # 检测项目（A列）
+        cell = ws.cell(row=row_idx, column=1)
+        cell.value = indicator['name']
+        cell.alignment = Alignment(horizontal='left', vertical='center')
         cell.border = border
 
+        # 单位（B列）
+        cell = ws.cell(row=row_idx, column=2)
+        cell.value = indicator['unit'] or ''
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = border
+
+        # 样品数据列（C列起）留空
+        for col_idx in range(3, 3 + len(sample_numbers)):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            cell.border = border
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+
     # 调整列宽
-    for col in range(1, len(headers) + 1):
-        ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 15
+    ws.column_dimensions['A'].width = 20  # 检测项目
+    ws.column_dimensions['B'].width = 12  # 单位
+    for col_letter in ['C', 'D', 'E', 'F', 'G']:
+        ws.column_dimensions[col_letter].width = 15
+
+    # 冻结首行和前2列
+    ws.freeze_panes = 'C2'
 
     # 保存文件
     os.makedirs('exports', exist_ok=True)
@@ -2438,6 +2831,20 @@ def report_template_manager():
         return render_template('login.html')
     return render_template('report_template_manager.html')
 
+@app.route('/raw-data-manager')
+def raw_data_manager():
+    """原始数据管理专项页面"""
+    if 'user_id' not in session:
+        return render_template('login.html')
+    return render_template('raw_data_manager.html')
+
+@app.route('/customers-manager')
+def customers_manager():
+    """客户管理专项页面"""
+    if 'user_id' not in session:
+        return render_template('login.html')
+    return render_template('customers_manager.html')
+
 @app.route('/report-templates')
 def report_templates_page():
     """报告模版管理页面（新版，使用别名）"""
@@ -2656,6 +3063,317 @@ def api_import_detection_data():
 
     except Exception as e:
         return jsonify({'error': f'导入失败: {str(e)}'}), 500
+
+@app.route('/api/validate-report-excel', methods=['POST'])
+@login_required
+def api_validate_report_excel():
+    """验证上传的Excel文件格式"""
+    try:
+        # 获取参数
+        template_id = request.form.get('template_id')
+        sample_type_id = request.form.get('sample_type_id')
+
+        if not template_id or not sample_type_id:
+            return jsonify({'valid': False, 'errors': ['缺少必要参数：template_id 或 sample_type_id']}), 400
+
+        # 获取上传的文件
+        if 'template_excel' not in request.files or 'detection_excel' not in request.files:
+            return jsonify({'valid': False, 'errors': ['缺少Excel文件']}), 400
+
+        template_file = request.files['template_excel']
+        detection_file = request.files['detection_excel']
+
+        if not template_file.filename or not detection_file.filename:
+            return jsonify({'valid': False, 'errors': ['文件名为空']}), 400
+
+        validation_errors = []
+        validation_warnings = []
+
+        # 保存临时文件
+        os.makedirs('temp/validate', exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+        template_path = f'temp/validate/template_{timestamp}.xlsx'
+        detection_path = f'temp/validate/detection_{timestamp}.xlsx'
+
+        template_file.save(template_path)
+        detection_file.save(detection_path)
+
+        # 验证报告模板Excel
+        try:
+            template_wb = openpyxl.load_workbook(template_path, data_only=True)
+
+            # 检查是否有"报告基本信息"工作表
+            if '报告基本信息' not in template_wb.sheetnames:
+                validation_warnings.append('报告模板Excel中没有找到"报告基本信息"工作表，将无法自动填充基本信息')
+            else:
+                info_ws = template_wb['报告基本信息']
+                # 验证基本信息格式
+                expected_fields = ['样品编号', '委托单位', '检测日期', '检测人员', '审核人员', '备注']
+                found_fields = []
+                for row_idx in range(2, min(20, info_ws.max_row + 1)):
+                    field_name = info_ws.cell(row_idx, 1).value
+                    if field_name:
+                        found_fields.append(str(field_name).strip())
+
+                missing_fields = [f for f in expected_fields if f not in found_fields]
+                if missing_fields:
+                    validation_warnings.append(f'报告基本信息中缺少以下字段：{", ".join(missing_fields)}')
+
+            template_wb.close()
+
+        except Exception as e:
+            validation_errors.append(f'报告模板Excel格式错误：{str(e)}')
+
+        # 验证检测数据Excel
+        try:
+            detection_wb = openpyxl.load_workbook(detection_path, data_only=True)
+            detection_ws = detection_wb.active
+
+            # 检查是否有数据
+            if detection_ws.max_row < 2:
+                validation_errors.append('检测数据Excel中没有数据行')
+
+            # 检查A列（第1列）是否有指标名称（简化格式）
+            indicator_count = 0
+            for row_idx in range(2, min(100, detection_ws.max_row + 1)):
+                indicator_name = detection_ws.cell(row_idx, 1).value
+                if indicator_name and str(indicator_name).strip():
+                    indicator_count += 1
+
+            if indicator_count == 0:
+                validation_errors.append('检测数据Excel的A列（检测项目列）没有找到任何指标')
+
+            # 检查C列（第3列）是否有样品编号
+            sample_number = detection_ws.cell(1, 3).value
+            if not sample_number or str(sample_number).strip() == '':
+                validation_warnings.append('检测数据Excel的C列（样品数据列）标题为空，请在首行C列填写样品编号')
+
+            detection_wb.close()
+
+        except Exception as e:
+            validation_errors.append(f'检测数据Excel格式错误：{str(e)}')
+
+        # 清理临时文件
+        try:
+            os.remove(template_path)
+            os.remove(detection_path)
+        except:
+            pass
+
+        # 返回验证结果
+        is_valid = len(validation_errors) == 0
+
+        return jsonify({
+            'valid': is_valid,
+            'errors': validation_errors,
+            'warnings': validation_warnings
+        }), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'valid': False,
+            'errors': [f'验证失败：{str(e)}']
+        }), 500
+
+@app.route('/api/parse-report-excel', methods=['POST'])
+@login_required
+def api_parse_report_excel():
+    """解析上传的报告模板Excel和检测数据Excel"""
+    try:
+        # 获取参数
+        template_id = request.form.get('template_id')
+        sample_type_id = request.form.get('sample_type_id')
+
+        if not template_id or not sample_type_id:
+            return jsonify({'error': '缺少必要参数'}), 400
+
+        # 获取上传的文件
+        if 'template_excel' not in request.files or 'detection_excel' not in request.files:
+            return jsonify({'error': '缺少Excel文件'}), 400
+
+        template_file = request.files['template_excel']
+        detection_file = request.files['detection_excel']
+
+        if not template_file.filename or not detection_file.filename:
+            return jsonify({'error': '文件名为空'}), 400
+
+        # 保存临时文件
+        os.makedirs('temp/parse', exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+        template_path = f'temp/parse/template_{timestamp}.xlsx'
+        detection_path = f'temp/parse/detection_{timestamp}.xlsx'
+
+        template_file.save(template_path)
+        detection_file.save(detection_path)
+
+        # 解析报告模板Excel
+        template_wb = openpyxl.load_workbook(template_path, data_only=True)
+
+        # 解析检测数据Excel
+        detection_wb = openpyxl.load_workbook(detection_path, data_only=True)
+        detection_ws = detection_wb.active
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 解析基本信息（从报告模板Excel中提取）
+        basic_info = {}
+
+        # 定义基本信息字段，避免与模板字段混淆
+        basic_info_fields = {
+            '样品编号': 'sample_number',
+            '委托单位': 'company_name',
+            '检测日期': 'detection_date',
+            '检测人员': 'detection_person',
+            '审核人员': 'review_person',
+            '备注': 'remark'
+        }
+
+        # 尝试从第一个工作表读取基本信息
+        if '报告基本信息' in template_wb.sheetnames:
+            info_ws = template_wb['报告基本信息']
+            # 读取字段名和值（假设格式：列A是字段名，列B是值）
+            row_idx = 2
+            while row_idx <= info_ws.max_row:
+                field_name = info_ws.cell(row_idx, 1).value
+                field_value = info_ws.cell(row_idx, 2).value
+
+                if not field_name:
+                    break
+
+                field_name_str = str(field_name).strip()
+
+                # 只处理基本信息字段
+                if field_name_str in basic_info_fields:
+                    standard_field = basic_info_fields[field_name_str]
+                    basic_info[standard_field] = str(field_value) if field_value else ''
+
+                row_idx += 1
+
+        # 解析模板字段
+        template_fields = []
+        fields_result = cursor.execute('''
+            SELECT fm.id, fm.field_name, fm.field_name as field_display_name, fm.field_type,
+                   fm.is_required, fm.sheet_name, fm.cell_address
+            FROM template_field_mappings fm
+            WHERE fm.template_id = ?
+            ORDER BY fm.id
+        ''', (template_id,)).fetchall()
+
+        for field in fields_result:
+            field_data = {
+                'field_mapping_id': field[0],
+                'field_name': field[2] or field[1],
+                'field_type': field[3],
+                'is_required': field[4],
+                'field_value': ''
+            }
+
+            # 尝试从Excel中读取字段值
+            if field[5] and field[6]:  # sheet_name 和 cell_address
+                try:
+                    if field[5] in template_wb.sheetnames:
+                        ws = template_wb[field[5]]
+                        cell_value = ws[field[6]].value
+                        if cell_value:
+                            field_data['field_value'] = str(cell_value)
+                except:
+                    pass
+
+            template_fields.append(field_data)
+
+        # 解析检测数据
+        detection_data = []
+
+        # 获取该样品类型的指标列表
+        indicators_result = cursor.execute('''
+            SELECT i.id, i.name, i.unit, i.default_value, i.limit_value,
+                   ig.name as group_name, ti.sort_order
+            FROM template_indicators ti
+            JOIN indicators i ON ti.indicator_id = i.id
+            LEFT JOIN indicator_groups ig ON i.group_id = ig.id
+            WHERE ti.sample_type_id = ?
+            ORDER BY ti.sort_order
+        ''', (sample_type_id,)).fetchall()
+
+        # 从检测数据Excel中读取数据
+        # 简化格式：第1列检测项目，第2列单位（参考），第3列及以后为样品检测数据
+        indicator_name_col = 1  # 指标名称列（A列）
+        unit_col = 2            # 单位列（B列，参考用）
+        value_col = 3           # 检测值列（C列，第一个样品的数据）
+
+        for indicator in indicators_result:
+            indicator_id = indicator[0]
+            indicator_name = indicator[1]
+            unit = indicator[2]
+            default_value = indicator[3]
+            limit_value = indicator[4]
+            group_name = indicator[5]
+
+            # 在Excel中查找该指标
+            measured_value = ''
+            for row_idx in range(2, detection_ws.max_row + 1):
+                cell_indicator = detection_ws.cell(row_idx, indicator_name_col).value
+                if cell_indicator and str(cell_indicator).strip() == indicator_name:
+                    # 读取检测值（C列，第3列）
+                    cell_value = detection_ws.cell(row_idx, value_col).value
+                    if cell_value is not None:
+                        measured_value = str(cell_value).strip()
+                    break
+
+            detection_data.append({
+                'indicator_id': indicator_id,
+                'indicator_name': indicator_name,
+                'unit': unit,
+                'measured_value': measured_value or default_value or '',
+                'limit_value': limit_value,
+                'group_name': group_name
+            })
+
+        conn.close()
+
+        # 清理临时文件
+        try:
+            os.remove(template_path)
+            os.remove(detection_path)
+        except:
+            pass
+
+        # 返回解析结果
+        result = {
+            'basic_info': basic_info,
+            'template_fields': template_fields,
+            'detection_data': detection_data
+        }
+
+        log_operation('解析报告Excel', f'模板ID: {template_id}, 样品类型ID: {sample_type_id}')
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print("解析Excel错误详情:")
+        print(error_trace)
+
+        # 提供更详细的错误信息
+        error_msg = str(e)
+        if 'no such table' in error_msg:
+            table_name = error_msg.split('no such table:')[-1].strip()
+            error_msg = f'数据库表不存在：{table_name}。请检查数据库是否已正确初始化。'
+        elif 'no such column' in error_msg:
+            error_msg = f'数据库字段不存在：{error_msg}。请检查数据库结构是否正确。'
+        elif 'Worksheet' in error_msg and 'does not exist' in error_msg:
+            error_msg = f'Excel工作表不存在：{error_msg}。请检查Excel文件格式。'
+
+        return jsonify({
+            'error': f'解析失败: {error_msg}',
+            'details': error_trace if app.debug else None
+        }), 500
 
 @app.route('/api/import-reports', methods=['POST'])
 @login_required
@@ -3053,8 +3771,8 @@ def api_generate_report(id):
             ]
         }
 
-        # 生成报告
-        generator = ReportGenerator(template_id, report_data)
+        # 生成报告（传递report_id以从数据库加载完整数据）
+        generator = ReportGenerator(template_id, report_data, report_id=id)
         output_path = generator.generate()
 
         # 更新报告记录
@@ -3130,6 +3848,648 @@ def api_batch_update_field_defaults():
         return jsonify({'error': f'更新失败: {str(e)}'}), 500
 
 # 此路由已在第2172行定义，此处删除重复定义
+
+# ==================== 原始数据管理 API ====================
+from raw_data_importer import RawDataImporter
+from raw_data_template_generator import generate_raw_data_template
+from werkzeug.utils import secure_filename
+
+UPLOAD_FOLDER = 'temp/uploads'
+ALLOWED_EXTENSIONS = {'xlsx', 'xls'}
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    """检查文件扩展名是否允许"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/api/raw-data/upload', methods=['POST'])
+@login_required
+def api_raw_data_upload():
+    """上传并导入Excel原始数据"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': '未选择文件'}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': '未选择文件'}), 400
+
+        if not allowed_file(file.filename):
+            return jsonify({'error': '文件格式不支持，仅支持.xlsx和.xls格式'}), 400
+
+        # 保存上传的文件
+        filename = secure_filename(file.filename)
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        saved_filename = f"{timestamp}_{filename}"
+        filepath = os.path.join(UPLOAD_FOLDER, saved_filename)
+        file.save(filepath)
+
+        # 获取处理选项
+        on_duplicate = request.form.get('on_duplicate', 'skip')  # skip, overwrite, abort
+
+        # 导入数据
+        importer = RawDataImporter()
+        result = importer.import_excel(filepath, on_duplicate=on_duplicate)
+
+        # 删除临时文件
+        try:
+            os.remove(filepath)
+        except:
+            pass
+
+        # 记录操作日志
+        if result['success']:
+            log_operation(
+                '导入原始数据',
+                f"导入成功: {result['success_count']}条，跳过: {result['skip_count']}条"
+            )
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({'error': f'上传失败: {str(e)}'}), 500
+
+@app.route('/api/raw-data/columns', methods=['GET'])
+@login_required
+def api_raw_data_columns():
+    """获取当前系统的列名配置"""
+    try:
+        importer = RawDataImporter()
+        columns = importer.get_column_list()
+
+        if columns is None:
+            return jsonify({'columns': None, 'message': '系统尚未初始化，请先导入数据'})
+
+        return jsonify({'columns': columns})
+
+    except Exception as e:
+        return jsonify({'error': f'获取列名失败: {str(e)}'}), 500
+
+@app.route('/api/raw-data/download-template', methods=['GET'])
+@login_required
+def api_raw_data_download_template():
+    """下载原始数据导入模板"""
+    try:
+        # 生成模板
+        template_path = generate_raw_data_template()
+
+        # 生成下载文件名
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        download_name = f'原始数据导入模板_{timestamp}.xlsx'
+
+        # 记录操作日志
+        log_operation('下载导入模板', '下载原始数据导入模板')
+
+        # 发送文件
+        return send_file(
+            template_path,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
+    except Exception as e:
+        return jsonify({'error': f'生成模板失败: {str(e)}'}), 500
+
+@app.route('/api/raw-data/search', methods=['POST'])
+@login_required
+def api_raw_data_search():
+    """根据样品编号精确查询原始数据"""
+    try:
+        data = request.json
+        sample_number = data.get('sample_number', '').strip()
+
+        if not sample_number:
+            return jsonify({'error': '样品编号不能为空'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 查询主记录
+        cursor.execute('''
+            SELECT id, sample_number, company_name, plant_name, sample_type, sampling_date,
+                   created_at, updated_at
+            FROM raw_data_records
+            WHERE sample_number = ?
+        ''', (sample_number,))
+
+        record = cursor.fetchone()
+
+        if not record:
+            conn.close()
+            return jsonify({'found': False, 'message': '未找到该样品编号的数据'})
+
+        record_id = record[0]
+        record_data = {
+            'id': record[0],
+            'sample_number': record[1],
+            'company_name': record[2],
+            'plant_name': record[3],
+            'sample_type': record[4],
+            'sampling_date': record[5],
+            'created_at': record[6],
+            'updated_at': record[7]
+        }
+
+        # 查询检测指标数据
+        cursor.execute('''
+            SELECT column_name, value
+            FROM raw_data_values
+            WHERE record_id = ?
+            ORDER BY id
+        ''', (record_id,))
+
+        indicators = {}
+        for row in cursor.fetchall():
+            indicators[row[0]] = row[1]
+
+        conn.close()
+
+        return jsonify({
+            'found': True,
+            'data': record_data,
+            'indicators': indicators
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'查询失败: {str(e)}'}), 500
+
+@app.route('/api/raw-data/export-single', methods=['POST'])
+@login_required
+def api_raw_data_export_single():
+    """导出单条原始数据记录"""
+    try:
+        data = request.json
+        sample_number = data.get('sample_number', '').strip()
+        export_format = data.get('format', 'excel')  # excel 或 csv
+
+        if not sample_number:
+            return jsonify({'error': '样品编号不能为空'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 查询数据
+        cursor.execute('''
+            SELECT id, sample_number, company_name, plant_name, sample_type, sampling_date
+            FROM raw_data_records
+            WHERE sample_number = ?
+        ''', (sample_number,))
+
+        record = cursor.fetchone()
+
+        if not record:
+            conn.close()
+            return jsonify({'error': '未找到该样品编号的数据'}), 404
+
+        record_id = record[0]
+
+        # 获取列名顺序
+        cursor.execute('''
+            SELECT column_name
+            FROM raw_data_column_schema
+            ORDER BY column_order
+        ''')
+        columns = [row[0] for row in cursor.fetchall()]
+
+        # 构建数据行
+        data_row = {
+            '样品编号': record[1],
+            '所属公司': record[2],
+            '所属水厂': record[3],
+            '水样类型': record[4],
+            '采样时间': record[5]
+        }
+
+        # 获取检测指标值
+        cursor.execute('''
+            SELECT column_name, value
+            FROM raw_data_values
+            WHERE record_id = ?
+        ''', (record_id,))
+
+        for row in cursor.fetchall():
+            data_row[row[0]] = row[1]
+
+        conn.close()
+
+        # 创建DataFrame
+        df = pd.DataFrame([data_row], columns=columns)
+
+        # 生成文件
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        if export_format == 'csv':
+            filename = f'{sample_number}_{timestamp}.csv'
+            filepath = os.path.join('exports', filename)
+            df.to_csv(filepath, index=False, encoding='utf-8-sig')
+        else:
+            filename = f'{sample_number}_{timestamp}.xlsx'
+            filepath = os.path.join('exports', filename)
+            df.to_excel(filepath, index=False, engine='openpyxl')
+
+        log_operation('导出单条原始数据', f'样品编号: {sample_number}')
+
+        return send_file(filepath, as_attachment=True, download_name=filename)
+
+    except Exception as e:
+        return jsonify({'error': f'导出失败: {str(e)}'}), 500
+
+# ==================== 导出模板管理 API ====================
+
+@app.route('/api/export-templates/categories', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def api_export_template_categories():
+    """导出模板分类管理"""
+    conn = get_db_connection()
+
+    try:
+        if request.method == 'GET':
+            # 获取所有分类
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, name, sort_order, created_at
+                FROM export_template_categories
+                ORDER BY sort_order, id
+            ''')
+            categories = []
+            for row in cursor.fetchall():
+                categories.append({
+                    'id': row[0],
+                    'name': row[1],
+                    'sort_order': row[2],
+                    'created_at': row[3]
+                })
+            conn.close()
+            return jsonify({'categories': categories})
+
+        elif request.method == 'POST':
+            # 创建新分类
+            data = request.json
+            name = data.get('name', '').strip()
+
+            if not name:
+                conn.close()
+                return jsonify({'error': '分类名称不能为空'}), 400
+
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO export_template_categories (name, sort_order)
+                VALUES (?, ?)
+            ''', (name, data.get('sort_order', 0)))
+
+            category_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+
+            log_operation('创建导出模板分类', f'分类名称: {name}')
+
+            return jsonify({'message': '分类创建成功', 'category_id': category_id})
+
+        elif request.method == 'DELETE':
+            # 删除分类
+            data = request.json
+            category_id = data.get('category_id')
+
+            if not category_id:
+                conn.close()
+                return jsonify({'error': '分类ID不能为空'}), 400
+
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM export_template_categories WHERE id = ?', (category_id,))
+            conn.commit()
+            conn.close()
+
+            log_operation('删除导出模板分类', f'分类ID: {category_id}')
+
+            return jsonify({'message': '分类删除成功'})
+
+    except Exception as e:
+        conn.close()
+        return jsonify({'error': f'操作失败: {str(e)}'}), 500
+
+@app.route('/api/export-templates', methods=['GET', 'POST'])
+@login_required
+def api_export_templates_list():
+    """获取或创建导出模板"""
+    conn = get_db_connection()
+
+    try:
+        if request.method == 'GET':
+            # 获取所有模板
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT et.id, et.category_id, etc.name as category_name,
+                       et.name, et.description, et.created_at, et.updated_at
+                FROM export_templates et
+                LEFT JOIN export_template_categories etc ON et.category_id = etc.id
+                ORDER BY etc.sort_order, et.id
+            ''')
+
+            templates = []
+            for row in cursor.fetchall():
+                template_id = row[0]
+
+                # 获取模板包含的列
+                cursor.execute('''
+                    SELECT column_name, column_order
+                    FROM export_template_columns
+                    WHERE template_id = ?
+                    ORDER BY column_order
+                ''', (template_id,))
+
+                columns = [col[0] for col in cursor.fetchall()]
+
+                templates.append({
+                    'id': row[0],
+                    'category_id': row[1],
+                    'category_name': row[2],
+                    'name': row[3],
+                    'description': row[4],
+                    'columns': columns,
+                    'created_at': row[5],
+                    'updated_at': row[6]
+                })
+
+            conn.close()
+            return jsonify({'templates': templates})
+
+        elif request.method == 'POST':
+            # 创建新模板
+            data = request.json
+            category_id = data.get('category_id')
+            name = data.get('name', '').strip()
+            description = data.get('description', '').strip()
+            columns = data.get('columns', [])
+
+            if not name:
+                conn.close()
+                return jsonify({'error': '模板名称不能为空'}), 400
+
+            if not columns:
+                conn.close()
+                return jsonify({'error': '至少选择一个检测指标'}), 400
+
+            cursor = conn.cursor()
+
+            # 插入模板
+            cursor.execute('''
+                INSERT INTO export_templates (category_id, name, description)
+                VALUES (?, ?, ?)
+            ''', (category_id, name, description))
+
+            template_id = cursor.lastrowid
+
+            # 插入模板列
+            for idx, col_name in enumerate(columns):
+                cursor.execute('''
+                    INSERT INTO export_template_columns (template_id, column_name, column_order)
+                    VALUES (?, ?, ?)
+                ''', (template_id, col_name, idx))
+
+            conn.commit()
+            conn.close()
+
+            log_operation('创建导出模板', f'模板名称: {name}，包含{len(columns)}个指标')
+
+            return jsonify({'message': '模板创建成功', 'template_id': template_id})
+
+    except Exception as e:
+        conn.close()
+        return jsonify({'error': f'操作失败: {str(e)}'}), 500
+
+@app.route('/api/export-templates/<int:template_id>', methods=['PUT', 'DELETE'])
+@login_required
+def api_export_template_detail(template_id):
+    """修改或删除导出模板"""
+    conn = get_db_connection()
+
+    try:
+        if request.method == 'PUT':
+            # 修改模板
+            data = request.json
+            name = data.get('name', '').strip()
+            description = data.get('description', '').strip()
+            columns = data.get('columns', [])
+
+            if not name:
+                conn.close()
+                return jsonify({'error': '模板名称不能为空'}), 400
+
+            cursor = conn.cursor()
+
+            # 更新模板基本信息
+            cursor.execute('''
+                UPDATE export_templates
+                SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (name, description, template_id))
+
+            # 删除旧的列配置
+            cursor.execute('DELETE FROM export_template_columns WHERE template_id = ?', (template_id,))
+
+            # 插入新的列配置
+            for idx, col_name in enumerate(columns):
+                cursor.execute('''
+                    INSERT INTO export_template_columns (template_id, column_name, column_order)
+                    VALUES (?, ?, ?)
+                ''', (template_id, col_name, idx))
+
+            conn.commit()
+            conn.close()
+
+            log_operation('修改导出模板', f'模板ID: {template_id}')
+
+            return jsonify({'message': '模板修改成功'})
+
+        elif request.method == 'DELETE':
+            # 删除模板
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM export_templates WHERE id = ?', (template_id,))
+            conn.commit()
+            conn.close()
+
+            log_operation('删除导出模板', f'模板ID: {template_id}')
+
+            return jsonify({'message': '模板删除成功'})
+
+    except Exception as e:
+        conn.close()
+        return jsonify({'error': f'操作失败: {str(e)}'}), 500
+
+@app.route('/api/raw-data/filter-export', methods=['POST'])
+@login_required
+def api_raw_data_filter_export():
+    """筛选并导出原始数据"""
+    try:
+        data = request.json
+        template_id = data.get('template_id')
+        filter_field = data.get('filter_field')  # company_name, plant_name, sample_type, date_range
+        filter_value = data.get('filter_value', '').strip()
+        date_start = data.get('date_start')
+        date_end = data.get('date_end')
+        selected_samples = data.get('selected_samples', [])  # 手动选择的样品编号列表
+        sort_order = data.get('sort_order', 'asc')  # asc 或 desc
+
+        if not template_id:
+            return jsonify({'error': '请选择导出模板'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 获取模板配置
+        cursor.execute('''
+            SELECT column_name
+            FROM export_template_columns
+            WHERE template_id = ?
+            ORDER BY column_order
+        ''', (template_id,))
+
+        template_columns = [row[0] for row in cursor.fetchall()]
+
+        if not template_columns:
+            conn.close()
+            return jsonify({'error': '模板配置错误：未包含任何列'}), 400
+
+        # 构建查询条件
+        query = 'SELECT id, sample_number, company_name, plant_name, sample_type, sampling_date FROM raw_data_records WHERE 1=1'
+        params = []
+
+        if filter_field == 'company_name' and filter_value:
+            query += ' AND company_name LIKE ?'
+            params.append(f'%{filter_value}%')
+        elif filter_field == 'plant_name' and filter_value:
+            query += ' AND plant_name LIKE ?'
+            params.append(f'%{filter_value}%')
+        elif filter_field == 'sample_type' and filter_value:
+            query += ' AND sample_type LIKE ?'
+            params.append(f'%{filter_value}%')
+        elif filter_field == 'date_range' and date_start and date_end:
+            query += ' AND sampling_date BETWEEN ? AND ?'
+            params.append(date_start)
+            params.append(date_end)
+
+        # 如果有手动选择的样品，添加过滤
+        if selected_samples:
+            placeholders = ','.join(['?'] * len(selected_samples))
+            query += f' AND sample_number IN ({placeholders})'
+            params.extend(selected_samples)
+
+        # 排序
+        if sort_order == 'desc':
+            query += ' ORDER BY sampling_date DESC'
+        else:
+            query += ' ORDER BY sampling_date ASC'
+
+        cursor.execute(query, params)
+        records = cursor.fetchall()
+
+        if not records:
+            conn.close()
+            return jsonify({'error': '未找到符合条件的数据'}), 404
+
+        # 准备导出数据
+        export_data = []
+
+        for record in records:
+            record_id = record[0]
+            row_data = {
+                '样品编号': record[1],
+                '所属公司': record[2],
+                '所属水厂': record[3],
+                '水样类型': record[4],
+                '采样时间': record[5]
+            }
+
+            # 获取检测指标值
+            cursor.execute('''
+                SELECT column_name, value
+                FROM raw_data_values
+                WHERE record_id = ?
+            ''', (record_id,))
+
+            for col_row in cursor.fetchall():
+                row_data[col_row[0]] = col_row[1]
+
+            export_data.append(row_data)
+
+        conn.close()
+
+        # 确保基础字段在模板列中
+        base_fields = ['样品编号', '采样时间']
+        final_columns = base_fields + [col for col in template_columns if col not in base_fields]
+
+        # 创建DataFrame
+        df = pd.DataFrame(export_data, columns=final_columns)
+
+        # 生成文件
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        filename = f'{timestamp}.xlsx'
+        filepath = os.path.join('exports', filename)
+        df.to_excel(filepath, index=False, engine='openpyxl')
+
+        log_operation('筛选导出原始数据', f'导出{len(records)}条记录')
+
+        return send_file(filepath, as_attachment=True, download_name=filename)
+
+    except Exception as e:
+        return jsonify({'error': f'导出失败: {str(e)}'}), 500
+
+@app.route('/api/raw-data/filter-preview', methods=['POST'])
+@login_required
+def api_raw_data_filter_preview():
+    """预览筛选结果（返回符合条件的样品编号列表）"""
+    try:
+        data = request.json
+        filter_field = data.get('filter_field')
+        filter_value = data.get('filter_value', '').strip()
+        date_start = data.get('date_start')
+        date_end = data.get('date_end')
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 构建查询
+        query = 'SELECT sample_number, company_name, plant_name, sample_type, sampling_date FROM raw_data_records WHERE 1=1'
+        params = []
+
+        if filter_field == 'company_name' and filter_value:
+            query += ' AND company_name LIKE ?'
+            params.append(f'%{filter_value}%')
+        elif filter_field == 'plant_name' and filter_value:
+            query += ' AND plant_name LIKE ?'
+            params.append(f'%{filter_value}%')
+        elif filter_field == 'sample_type' and filter_value:
+            query += ' AND sample_type LIKE ?'
+            params.append(f'%{filter_value}%')
+        elif filter_field == 'date_range' and date_start and date_end:
+            query += ' AND sampling_date BETWEEN ? AND ?'
+            params.append(date_start)
+            params.append(date_end)
+
+        query += ' ORDER BY sampling_date DESC'
+
+        cursor.execute(query, params)
+        results = []
+
+        for row in cursor.fetchall():
+            results.append({
+                'sample_number': row[0],
+                'company_name': row[1],
+                'plant_name': row[2],
+                'sample_type': row[3],
+                'sampling_date': row[4]
+            })
+
+        conn.close()
+
+        return jsonify({
+            'total': len(results),
+            'results': results
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'查询失败: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

@@ -12,26 +12,18 @@ import shutil
 class ReportGenerator:
     """按模版生成Excel报告"""
 
-    def __init__(self, template_id, report_data):
+    def __init__(self, template_id, report_data, report_id=None):
         """
         初始化报告生成器
 
         Args:
             template_id: 报告模版ID
-            report_data: 报告数据字典，包含：
-                - report_number: 报告编号
-                - sample_number: 样品编号
-                - sample_name: 样品名称
-                - sample_type: 样品类型
-                - company_name: 委托单位
-                - detection_date: 检测日期
-                - detection_person: 检测人
-                - review_person: 审核人
-                - detection_items: 检测项目列表 [{name, unit, result, limit, method}, ...]
-                - etc.
+            report_data: 报告数据字典，包含基本信息和检测数据
+            report_id: 报告ID（用于从数据库加载完整数据）
         """
         self.template_id = template_id
         self.report_data = report_data
+        self.report_id = report_id
         self.template_info = None
         self.workbook = None
 
@@ -48,7 +40,10 @@ class ReportGenerator:
         # 1. 加载模版信息
         self._load_template_info()
 
-        # 2. 复制模版文件
+        # 2. 从数据库加载完整数据（包括report_field_values）
+        self._load_complete_data()
+
+        # 3. 复制模版文件
         if output_path is None:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             report_number = self.report_data.get('report_number', 'report')
@@ -57,17 +52,86 @@ class ReportGenerator:
         os.makedirs('exports', exist_ok=True)
         shutil.copy2(self.template_info['template_file_path'], output_path)
 
-        # 3. 打开工作簿
+        # 4. 打开工作簿
         self.workbook = openpyxl.load_workbook(output_path)
 
-        # 4. 填充数据
+        # 5. 填充数据
         self._fill_data()
 
-        # 5. 保存文件
+        # 6. 保存文件
         self.workbook.save(output_path)
         self.workbook.close()
 
         return output_path
+
+    def _load_complete_data(self):
+        """从数据库加载完整的报告数据（包括report_field_values）"""
+        if not self.report_id:
+            return
+
+        conn = get_db_connection()
+
+        # 1. 加载报告基本信息
+        report = conn.execute('''
+            SELECT r.*, st.name as sample_type_name, st.code as sample_type_code,
+                   c.name as company_name
+            FROM reports r
+            LEFT JOIN sample_types st ON r.sample_type_id = st.id
+            LEFT JOIN companies c ON r.company_id = c.id
+            WHERE r.id = ?
+        ''', (self.report_id,)).fetchone()
+
+        if report:
+            # 合并基本信息到report_data
+            self.report_data['report_number'] = report['report_number']
+            self.report_data['sample_number'] = report['sample_number']
+            self.report_data['sample_type'] = report['sample_type_name']
+            self.report_data['sample_type_name'] = report['sample_type_name']
+            self.report_data['company_name'] = report['company_name'] or ''
+            self.report_data['detection_date'] = report['detection_date'] or ''
+            self.report_data['detection_person'] = report['detection_person'] or ''
+            self.report_data['review_person'] = report['review_person'] or ''
+            self.report_data['remark'] = report['remark'] or ''
+
+        # 2. 加载模板字段值（关键！之前缺失的部分）
+        field_values = conn.execute('''
+            SELECT rfv.field_value, tfm.field_name, tfm.field_display_name
+            FROM report_field_values rfv
+            JOIN template_field_mappings tfm ON rfv.field_mapping_id = tfm.id
+            WHERE rfv.report_id = ?
+        ''', (self.report_id,)).fetchall()
+
+        for fv in field_values:
+            # 使用field_name作为键
+            field_key = fv['field_name']
+            self.report_data[field_key] = fv['field_value']
+            # 同时使用display_name作为备用键
+            if fv['field_display_name']:
+                self.report_data[fv['field_display_name']] = fv['field_value']
+
+        # 3. 加载检测数据
+        if 'detection_items' not in self.report_data or not self.report_data['detection_items']:
+            detection_items = conn.execute('''
+                SELECT rd.measured_value, i.name, i.unit, i.limit_value, i.detection_method
+                FROM report_data rd
+                JOIN indicators i ON rd.indicator_id = i.id
+                LEFT JOIN indicator_groups g ON i.group_id = g.id
+                WHERE rd.report_id = ?
+                ORDER BY g.sort_order, i.sort_order, i.name
+            ''', (self.report_id,)).fetchall()
+
+            self.report_data['detection_items'] = [
+                {
+                    'name': item['name'],
+                    'unit': item['unit'] or '',
+                    'result': item['measured_value'] or '',
+                    'limit': item['limit_value'] or '',
+                    'method': item['detection_method'] or ''
+                }
+                for item in detection_items
+            ]
+
+        conn.close()
 
     def _load_template_info(self):
         """加载模版信息"""

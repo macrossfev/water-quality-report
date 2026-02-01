@@ -46,12 +46,6 @@
                     <button class="btn btn-success" id="addBtn">
                         <i class="bi bi-plus-circle"></i> 添加样品类型
                     </button>
-                    <button class="btn btn-primary" id="exportBtn">
-                        <i class="bi bi-download"></i> 导出Excel
-                    </button>
-                    <button class="btn btn-warning" id="importBtn">
-                        <i class="bi bi-upload"></i> 导入Excel
-                    </button>
                 </div>
             </div>
         </div>
@@ -64,10 +58,10 @@
                         <tr>
                             <th width="5%">序号</th>
                             <th width="20%">名称</th>
-                            <th width="15%">代码</th>
-                            <th width="25%">说明</th>
-                            <th width="20%">备注</th>
-                            <th width="15%">操作</th>
+                            <th width="12%">代码</th>
+                            <th width="20%">说明</th>
+                            <th width="15%">备注</th>
+                            <th width="28%">操作</th>
                         </tr>
                     </thead>
                     <tbody id="dataTable"></tbody>
@@ -154,6 +148,66 @@
 
     <!-- 导入文件选择 -->
     <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none">
+
+    <!-- 导入警告模态框 -->
+    <div class="modal fade" id="importWarningModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle-fill"></i> 导入功能严格受限 - 请谨慎使用
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger">
+                        <h6 class="alert-heading"><i class="bi bi-shield-exclamation"></i> 重要警告</h6>
+                        <p class="mb-0">此功能仅用于特殊情况下的批量导入，不建议日常使用！</p>
+                    </div>
+
+                    <h6 class="mt-3"><i class="bi bi-list-check"></i> 严格校验规则：</h6>
+                    <div class="alert alert-info">
+                        <p class="mb-2">导入的Excel必须<strong>严格遵守</strong>以下规则，否则将导入失败：</p>
+                        <ol class="mb-0">
+                            <li><strong>样品类型信息</strong>：样品类型名称、样品代码、说明必须填写</li>
+                            <li><strong>检测项目完整匹配</strong>：每个检测项目必须包含以下<strong>所有字段</strong>：
+                                <ul class="mt-2">
+                                    <li>检测项目名称（必填）</li>
+                                    <li>单位</li>
+                                    <li>所属分组</li>
+                                    <li>限值</li>
+                                    <li>检测方法</li>
+                                    <li>默认值</li>
+                                    <li>备注</li>
+                                </ul>
+                            </li>
+                            <li><strong>严格匹配</strong>：导入的检测项目信息必须与"检测指标管理"中已存在的检测项目<strong>完全一致</strong>（包括名称、单位、分组、限值、检测方法、默认值、备注）</li>
+                            <li><strong>不一致则跳过</strong>：任何字段不匹配的检测项目都会被跳过，不会创建关联</li>
+                        </ol>
+                    </div>
+
+                    <h6 class="mt-3"><i class="bi bi-download"></i> 推荐操作流程：</h6>
+                    <ol>
+                        <li>点击"导出Excel"按钮，获取标准格式的模板文件</li>
+                        <li>参照导出的文件格式填写新数据</li>
+                        <li>确保所有检测项目信息与系统中已存在的检测指标<strong>完全一致</strong></li>
+                        <li>上传文件进行导入</li>
+                    </ol>
+
+                    <div class="alert alert-warning mt-3">
+                        <strong><i class="bi bi-info-circle"></i> 建议：</strong>
+                        <p class="mb-0">如果只是添加少量样品类型，建议使用"添加样品类型"按钮手动创建，通过勾选的方式关联检测项目更安全可靠！</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-danger" id="confirmImportBtn">
+                        <i class="bi bi-upload"></i> 我已了解风险，继续导入
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -254,14 +308,15 @@
                     </div>
                     <div class="ps-3">
                         ${group.indicators.map(ind => `
-                            <div class="form-check">
+                            <div class="form-check mb-2">
                                 <input class="form-check-input indicator-checkbox" type="checkbox"
                                        value="${ind.id}" id="indicator_${ind.id}"
                                        ${selectedIds.includes(ind.id) ? 'checked' : ''}
                                        onchange="updateSelectedCount()">
                                 <label class="form-check-label" for="indicator_${ind.id}">
-                                    ${ind.name}
-                                    ${ind.unit ? `<span class="text-muted small">(${ind.unit})</span>` : ''}
+                                    <strong>${ind.name}</strong>
+                                    ${ind.unit ? `<span class="text-muted small"> (${ind.unit})</span>` : ''}
+                                    ${ind.remark ? `<br><small class="text-muted"><i class="bi bi-info-circle"></i> ${ind.remark}</small>` : ''}
                                 </label>
                             </div>
                         `).join('')}
@@ -316,13 +371,16 @@
                     <td><small class="text-muted">${item.description || '-'}</small></td>
                     <td><small class="text-muted">${item.remark || '-'}</small></td>
                     <td>
-                        <button class="btn btn-sm btn-warning" onclick="exportSampleTypeTemplate(${item.id}, '${item.name}')" title="导出检测项目模板">
-                            <i class="bi bi-file-earmark-excel"></i>
+                        <button class="btn btn-sm btn-outline-primary" onclick="editItem(${item.id})" title="编辑">
+                            <i class="bi bi-pencil"></i> 编辑
                         </button>
-                        <button class="btn btn-sm btn-outline-primary" onclick="editItem(${item.id})">
-                            <i class="bi bi-pencil"></i>
+                        <button class="btn btn-sm btn-success" onclick="exportIndicators(${item.id}, '${item.name}')" title="导出检测项目">
+                            <i class="bi bi-download"></i> 导出
                         </button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.id}, '${item.name}')">
+                        <button class="btn btn-sm btn-warning" onclick="showImportIndicatorsModal(${item.id}, '${item.name}')" title="导入检测项目">
+                            <i class="bi bi-upload"></i> 导入
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.id}, '${item.name}')" title="删除">
                             <i class="bi bi-trash"></i>
                         </button>
                     </td>
@@ -410,18 +468,6 @@
 
             // 保存
             document.getElementById('saveBtn').addEventListener('click', saveItem);
-
-            // 导出
-            document.getElementById('exportBtn').addEventListener('click', () => {
-                window.location.href = '/api/sample-types/export/excel';
-            });
-
-            // 导入
-            document.getElementById('importBtn').addEventListener('click', () => {
-                document.getElementById('importFileInput').click();
-            });
-
-            document.getElementById('importFileInput').addEventListener('change', importFile);
         }
 
         // 编辑项目
@@ -533,16 +579,57 @@
             }
         }
 
-        // 导入文件
-        async function importFile(e) {
+        // 导出单个样品类型的检测项目
+        async function exportIndicators(sampleTypeId, sampleTypeName) {
+            try {
+                window.location.href = `/api/sample-types/${sampleTypeId}/indicators/export`;
+                setTimeout(() => {
+                    alert(`样品类型"${sampleTypeName}"的检测项目已导出！`);
+                }, 500);
+            } catch (error) {
+                alert('导出失败: ' + error.message);
+            }
+        }
+
+        // 显示导入检测项目的模态框
+        let currentImportSampleTypeId = null;
+        let currentImportSampleTypeName = null;
+
+        function showImportIndicatorsModal(sampleTypeId, sampleTypeName) {
+            currentImportSampleTypeId = sampleTypeId;
+            currentImportSampleTypeName = sampleTypeName;
+
+            const warningModal = new bootstrap.Modal(document.getElementById('importWarningModal'));
+            warningModal.show();
+        }
+
+        // 确认导入
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('confirmImportBtn').addEventListener('click', () => {
+                const warningModal = bootstrap.Modal.getInstance(document.getElementById('importWarningModal'));
+                warningModal.hide();
+                document.getElementById('importFileInput').click();
+            });
+
+            document.getElementById('importFileInput').addEventListener('change', importIndicatorsFile);
+        });
+
+        // 导入检测项目文件
+        async function importIndicatorsFile(e) {
             const file = e.target.files[0];
             if (!file) return;
+
+            if (!currentImportSampleTypeId) {
+                alert('错误：未指定样品类型');
+                e.target.value = '';
+                return;
+            }
 
             const formData = new FormData();
             formData.append('file', file);
 
             try {
-                const response = await fetch('/api/sample-types/import/excel', {
+                const response = await fetch(`/api/sample-types/${currentImportSampleTypeId}/indicators/import`, {
                     method: 'POST',
                     body: formData
                 });
@@ -553,14 +640,39 @@
                 }
 
                 const result = await response.json();
-                alert(`导入成功！成功: ${result.success_count}条, 失败: ${result.fail_count}条`);
+
+                // 显示详细的导入结果
+                let message = `样品类型"${currentImportSampleTypeName}"的检测项目导入完成！\n\n`;
+                message += `✓ 成功关联: ${result.matched_count || 0} 个检测项目\n`;
+
+                if (result.skipped_indicators && result.skipped_indicators.length > 0) {
+                    message += `\n⚠ 以下检测项目因信息不匹配被跳过 (${result.skipped_indicators.length}个):\n`;
+                    result.skipped_indicators.slice(0, 5).forEach(item => {
+                        message += `  - ${item}\n`;
+                    });
+                    if (result.skipped_indicators.length > 5) {
+                        message += `  ... 还有 ${result.skipped_indicators.length - 5} 项\n`;
+                    }
+                }
+
+                if (result.errors && result.errors.length > 0) {
+                    message += `\n❌ 错误信息:\n`;
+                    result.errors.slice(0, 3).forEach(err => {
+                        message += `  - ${err}\n`;
+                    });
+                }
+
+                alert(message);
                 loadData();
             } catch (error) {
                 alert('导入失败: ' + error.message);
             } finally {
                 e.target.value = '';
+                currentImportSampleTypeId = null;
+                currentImportSampleTypeName = null;
             }
         }
+
     </script>
 </body>
 </html>

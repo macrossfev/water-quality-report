@@ -146,7 +146,7 @@ class ImportProcessor:
         return basic_info_list
 
     def _parse_detection_data(self):
-        """解析检测数据sheet（横向格式：首行样品编号，首列检测项目）"""
+        """解析检测数据sheet（简化格式：A列检测项目，B列单位，C列起样品数据）"""
         if '检测数据' not in self.workbook.sheetnames:
             self.results['warnings'].append({
                 'sheet': '检测数据',
@@ -157,13 +157,17 @@ class ImportProcessor:
         ws = self.workbook['检测数据']
         detection_data_dict = {}
 
-        # 读取首行的样品编号（从B列开始，A1是"检测项目\样品编号"）
+        # 读取首行的样品编号（从C列/第3列开始，A列是检测项目，B列是单位）
         sample_numbers = []
-        for col in range(2, ws.max_column + 1):
+        sample_col_start = 3  # C列开始
+        for col in range(sample_col_start, ws.max_column + 1):
             cell_value = ws.cell(1, col).value
             if cell_value:
                 sample_number = str(cell_value).strip()
-                sample_numbers.append(sample_number)
+                # 跳过"单位"列（如果B列标题是"单位"）
+                if sample_number.lower() in ['单位', 'unit']:
+                    continue
+                sample_numbers.append((col, sample_number))
                 # 初始化样品的数据列表
                 if sample_number not in detection_data_dict:
                     detection_data_dict[sample_number] = []
@@ -173,21 +177,21 @@ class ImportProcessor:
         if not sample_numbers:
             self.results['warnings'].append({
                 'sheet': '检测数据',
-                'message': '未找到样品编号（首行应包含样品编号）'
+                'message': '未找到样品编号（首行C列起应包含样品编号）'
             })
             return {}
 
         # 读取数据（从第2行开始）
         for row in range(2, ws.max_row + 1):
-            # 读取检测项目名称（第1列）
+            # 读取检测项目名称（A列/第1列）
             indicator_name = ws.cell(row, 1).value
             if not indicator_name:
                 continue  # 跳过空行
 
             indicator_name = str(indicator_name).strip()
 
-            # 读取每个样品的检测值（从第2列开始）
-            for col_idx, sample_number in enumerate(sample_numbers, start=2):
+            # 读取每个样品的检测值
+            for col_idx, sample_number in sample_numbers:
                 measured_value = ws.cell(row, col_idx).value
 
                 # 只有当检测值不为空时才添加

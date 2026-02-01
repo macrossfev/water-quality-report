@@ -166,119 +166,146 @@
                     <!-- 新建检测报告 -->
                     <div class="tab-pane fade show active" id="new-report" role="tabpanel">
                         <div class="card">
-                            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                            <div class="card-header bg-primary text-white">
                                 <h5 class="mb-0"><i class="bi bi-file-earmark-plus"></i> 创建检测报告</h5>
-                                <div>
-                                    <button class="btn btn-sm btn-success" id="importReportInfoBtn" title="导入报告基本信息">
-                                        <i class="bi bi-file-earmark-arrow-up"></i> 导入报告信息
-                                    </button>
-                                    <button class="btn btn-sm btn-warning" id="importDetectionDataBtn" title="导入检测项目数据">
-                                        <i class="bi bi-clipboard-data"></i> 导入检测数据
-                                    </button>
-                                </div>
                             </div>
                             <div class="card-body">
-                        <form id="reportForm">
-                            <!-- 步骤1: 选择报告模板和样品类型 -->
-                            <div class="alert alert-info">
-                                <i class="bi bi-info-circle"></i> <strong>填写步骤：</strong>
-                                <ol class="mb-0 mt-2">
-                                    <li>先选择报告模板</li>
-                                    <li>再选择样品类型</li>
-                                    <li>点击"下载导入模板"获取Excel模板</li>
-                                    <li>填写完成后点击"批量导入"上传数据</li>
-                                </ol>
-                            </div>
-
-                            <div class="row mb-4">
-                                <div class="col-md-6">
-                                    <label class="form-label">报告模板 <span class="text-danger">*</span></label>
-                                    <select class="form-select" id="reportTemplate" required>
-                                        <option value="">请先选择报告模板...</option>
-                                    </select>
-                                    <div class="form-text">选择后可继续选择样品类型</div>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">样品类型 <span class="text-danger">*</span></label>
-                                    <select class="form-select" id="reportSampleType" required disabled>
-                                        <option value="">请先选择报告模板...</option>
-                                    </select>
-                                    <div class="form-text">选择后可下载导入模板</div>
-                                </div>
-                            </div>
-
-                            <hr class="my-4">
-
-                            <!-- 步骤2: 填写表单（选择模板后显示） -->
-                            <div id="reportFormContent" style="display:none;">
-                                <div class="alert alert-success">
-                                    <i class="bi bi-check-circle"></i> <strong>第二步：</strong>填写报告内容
+                                <!-- 流程提示 -->
+                                <div class="alert alert-info">
+                                    <i class="bi bi-info-circle"></i> <strong>操作流程：</strong>
+                                    <ol class="mb-0 mt-2">
+                                        <li>选择报告模板，下载并填写报告模板Excel，然后上传</li>
+                                        <li>选择样品类型，下载并填写检测数据Excel，然后上传</li>
+                                        <li>系统解析Excel数据并生成预览页面，可在线修订或直接生成报告</li>
+                                    </ol>
                                 </div>
 
-                                <!-- 基本信息 -->
-                                <h6 class="mb-3"><i class="bi bi-card-list"></i> 基本信息</h6>
-                                <div class="row">
-                                    <div class="col-md-3">
-                                        <label class="form-label">样品编号 <span class="text-danger">*</span></label>
-                                        <input type="text" class="form-control" id="sampleNumber" required>
+                                <!-- 步骤1: 报告模板 -->
+                                <div class="card mb-3" id="step1Card">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">
+                                            <i class="bi bi-1-circle-fill text-primary"></i>
+                                            <strong>步骤1：报告模板</strong>
+                                        </h6>
                                     </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">委托单位</label>
-                                        <select class="form-select" id="reportCompany">
-                                            <option value="">请选择...</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">检测日期</label>
-                                        <input type="date" class="form-control" id="detectionDate">
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">检测人员</label>
-                                        <input type="text" class="form-control" id="detectionPerson">
+                                    <div class="card-body">
+                                        <div class="row align-items-end">
+                                            <div class="col-md-4">
+                                                <label class="form-label">选择报告模板 <span class="text-danger">*</span></label>
+                                                <select class="form-select" id="reportTemplate">
+                                                    <option value="">请选择报告模板...</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <button class="btn btn-success" id="downloadTemplateExcelBtn" disabled>
+                                                    <i class="bi bi-download"></i> 下载报告模板Excel
+                                                </button>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">上传填写好的Excel</label>
+                                                <input type="file" class="form-control" id="templateExcelFile" accept=".xlsx,.xls" disabled>
+                                            </div>
+                                        </div>
+                                        <div class="mt-2" id="step1Status">
+                                            <small class="text-muted">请先选择报告模板</small>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div class="row mt-3">
-                                    <div class="col-md-4">
-                                        <label class="form-label">审核人员</label>
-                                        <input type="text" class="form-control" id="reviewPerson">
+                                <!-- 步骤2: 样品类型 -->
+                                <div class="card mb-3" id="step2Card" style="opacity: 0.6; pointer-events: none;">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">
+                                            <i class="bi bi-2-circle-fill text-primary"></i>
+                                            <strong>步骤2：样品类型及检测数据</strong>
+                                        </h6>
                                     </div>
-                                    <div class="col-md-8">
-                                        <label class="form-label">备注</label>
-                                        <input type="text" class="form-control" id="reportRemark">
+                                    <div class="card-body">
+                                        <div class="row align-items-end">
+                                            <div class="col-md-4">
+                                                <label class="form-label">选择样品类型 <span class="text-danger">*</span></label>
+                                                <select class="form-select" id="reportSampleType" disabled>
+                                                    <option value="">请先完成步骤1...</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <button class="btn btn-success" id="downloadDetectionExcelBtn" disabled>
+                                                    <i class="bi bi-download"></i> 下载检测数据Excel
+                                                </button>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">上传填写好的Excel</label>
+                                                <input type="file" class="form-control" id="detectionExcelFile" accept=".xlsx,.xls" disabled>
+                                            </div>
+                                        </div>
+                                        <div class="mt-2" id="step2Status">
+                                            <small class="text-muted">请先完成步骤1</small>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <hr class="my-4">
-
-                                <!-- 模板动态字段 -->
-                                <h6 class="mb-3"><i class="bi bi-file-text"></i> 模板字段</h6>
-                                <div id="templateFieldsArea">
-                                    <!-- 动态生成的模板字段 -->
+                                <!-- 步骤3: 解析和预览 -->
+                                <div class="card mb-3" id="step3Card" style="opacity: 0.6; pointer-events: none;">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">
+                                            <i class="bi bi-3-circle-fill text-primary"></i>
+                                            <strong>步骤3：解析数据并预览</strong>
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <button class="btn btn-primary btn-lg" id="parseAndPreviewBtn" disabled>
+                                            <i class="bi bi-gear-fill"></i> 解析Excel并生成预览
+                                        </button>
+                                        <div class="mt-2" id="step3Status">
+                                            <small class="text-muted">请先完成步骤1和步骤2</small>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <hr class="my-4">
+                                <!-- 数据预览区域 -->
+                                <div id="dataPreviewArea" style="display: none;">
+                                    <hr class="my-4">
+                                    <div class="card">
+                                        <div class="card-header bg-success text-white">
+                                            <h5 class="mb-0"><i class="bi bi-eye-fill"></i> 数据预览与编辑</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <form id="reportPreviewForm">
+                                                <!-- 基本信息 -->
+                                                <h6 class="mb-3"><i class="bi bi-card-list"></i> 基本信息</h6>
+                                                <div id="basicInfoArea"></div>
 
-                                <!-- 检测项目数据 -->
-                                <h6 class="mb-3"><i class="bi bi-clipboard-data"></i> 检测项目数据</h6>
-                                <div id="reportDataArea">
-                                    <p class="text-muted">请先选择样品类型</p>
-                                </div>
+                                                <hr class="my-4">
 
-                                <!-- 操作按钮 -->
-                                <div class="mt-4">
-                                    <button type="button" class="btn btn-outline-secondary" id="saveDraftBtn">
-                                        <i class="bi bi-save"></i> 保存草稿
-                                    </button>
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="bi bi-check-circle"></i> 提交审核
-                                    </button>
-                                    <button type="reset" class="btn btn-secondary">
-                                        <i class="bi bi-x-circle"></i> 重置
-                                    </button>
+                                                <!-- 模板字段 -->
+                                                <h6 class="mb-3"><i class="bi bi-file-text"></i> 模板字段</h6>
+                                                <div id="templateFieldsPreviewArea"></div>
+
+                                                <hr class="my-4">
+
+                                                <!-- 检测项目数据 -->
+                                                <h6 class="mb-3"><i class="bi bi-clipboard-data"></i> 检测项目数据</h6>
+                                                <div id="detectionDataPreviewArea"></div>
+
+                                                <!-- 操作按钮 -->
+                                                <div class="mt-4">
+                                                    <button type="button" class="btn btn-outline-secondary" id="saveDraftBtn">
+                                                        <i class="bi bi-save"></i> 保存草稿
+                                                    </button>
+                                                    <button type="button" class="btn btn-primary" id="submitReportBtn">
+                                                        <i class="bi bi-check-circle"></i> 提交审核
+                                                    </button>
+                                                    <button type="button" class="btn btn-success" id="generateDirectBtn">
+                                                        <i class="bi bi-file-earmark-pdf"></i> 直接生成报告
+                                                    </button>
+                                                    <button type="button" class="btn btn-secondary" id="resetFormBtn">
+                                                        <i class="bi bi-x-circle"></i> 重置并重新开始
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        </form>
                             </div>
                         </div>
                     </div>
@@ -523,6 +550,66 @@
 
             <!-- 数据管理标签页 -->
             <div class="tab-pane fade" id="data" role="tabpanel">
+                <!-- 原始数据管理入口 -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card shadow-sm border-primary">
+                            <div class="card-body text-center p-4">
+                                <div class="row align-items-center">
+                                    <div class="col-md-8 text-start">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-database-fill-add" style="font-size: 3rem; color: #0d6efd;"></i>
+                                            <div class="ms-4">
+                                                <h4 class="card-title mb-2">
+                                                    <i class="bi bi-star-fill text-warning"></i> 原始数据管理
+                                                </h4>
+                                                <p class="card-text text-muted mb-0">
+                                                    Excel数据自动化入库、样品编号精准查询、定制化指标模板导出<br>
+                                                    支持数据录入、查询、筛选、导出全流程管理
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <button class="btn btn-primary btn-lg" onclick="window.location.href='/raw-data-manager'">
+                                            <i class="bi bi-arrow-right-circle"></i> 进入管理
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 客户管理入口 -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card shadow-sm border-info">
+                            <div class="card-body text-center p-4">
+                                <div class="row align-items-center">
+                                    <div class="col-md-8 text-start">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-people-fill" style="font-size: 3rem; color: #0dcaf0;"></i>
+                                            <div class="ms-4">
+                                                <h4 class="card-title mb-2">客户管理</h4>
+                                                <p class="card-text text-muted mb-0">
+                                                    预先录入客户信息（被检单位、水厂、地址、联系人等）<br>
+                                                    在生成检测报告时可快速导入相关信息
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <button class="btn btn-info btn-lg" onclick="window.location.href='/customers-manager'">
+                                            <i class="bi bi-arrow-right-circle"></i> 进入管理
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="row">
                     <div class="col-md-6">
                         <div class="card">

@@ -108,44 +108,37 @@ class SampleTypeExporter:
             ("", ""),
             ("二、填写说明", ""),
             ("", "【检测数据】sheet 说明:"),
-            ("", "  - 格式: 横向表格，前5列为检测项目信息，后续列为各样品的检测结果"),
-            ("", "  - 第1列: 项目序号（自动生成，请勿修改）"),
-            ("", "  - 第2列: 检测项目名称（请勿修改）"),
-            ("", "  - 第3列: 单位（参考用，请勿修改）"),
-            ("", "  - 第4列: 标准限值（参考用，请勿修改）"),
-            ("", "  - 第5列: 检测方法（参考用，请勿修改）"),
-            ("", "  - 第6列起: 样品编号及检测结果"),
+            ("", "  - 格式: 简化横向表格"),
+            ("", "  - A列: 检测项目名称（请勿修改）"),
+            ("", "  - B列: 单位（参考用）"),
+            ("", "  - C列起: 样品编号（首行）及其检测结果"),
             ("", ""),
             ("", "【填写步骤】:"),
-            ("", "  1. 在首行第6列起填写样品编号（如 S20260128001, S20260128002...）"),
-            ("", "     注意：样品编号必须与报告基本信息中的样品编号一致"),
+            ("", "  1. 在首行C列起修改样品编号（如 W260105C08, S20260128001...）"),
+            ("", "     注意：第一个样品列（C列）为必填"),
             ("", "  2. 在对应列下方填写该样品各检测项目的检测结果"),
             ("", "  3. 如需增加样品，直接在右侧添加新列即可"),
-            ("", "  4. 可以删除示例数据列，但请保留表头行"),
-            ("", "  5. 前5列（序号、项目、单位、限值、方法）请勿修改"),
+            ("", "  4. 可以删除示例数据，但请保留表头行"),
             ("", ""),
             ("三、注意事项", ""),
-            ("", "1. 样品编号必须与报告基本信息中的样品编号完全一致"),
-            ("", "2. 检测结果列直接填写数值或文本（如：7.2、未检出、<1）"),
-            ("", "3. 可参考标准限值列的要求填写检测结果"),
-            ("", "4. 不需要的检测项目可以留空，但不要删除该行"),
-            ("", "5. 不要修改前5列的内容（序号、项目、单位、限值、方法）"),
-            ("", "6. 如果是特殊结果（如未检出、无等），直接输入文本即可"),
-            ("", "7. 表格已冻结首行和前5列，方便浏览大量数据"),
+            ("", "1. 样品编号必须唯一"),
+            ("", "2. 检测结果直接填写数值或文本（如：7.2、未检出、<1）"),
+            ("", "3. 不需要的检测项目可以留空，但不要删除该行"),
+            ("", "4. 不要修改A列的检测项目名称"),
+            ("", "5. 如果是特殊结果（如未检出、无等），直接输入文本即可"),
+            ("", "6. 表格已冻结首行和前2列，方便浏览大量数据"),
             ("", ""),
             ("四、导入步骤", ""),
-            ("", "1. 先导入报告基本信息（使用报告模板导出的Excel）"),
-            ("", "2. 填写完成此Excel文件"),
-            ("", "3. 在系统【报告填写】页面点击【导入检测数据】"),
-            ("", "4. 选择此文件上传"),
-            ("", "5. 系统将自动匹配样品编号并填充检测数据"),
+            ("", "1. 填写完成此Excel文件"),
+            ("", "2. 在系统中点击【解析Excel】上传"),
+            ("", "3. 系统将自动解析检测数据"),
             ("", ""),
             ("五、示例", ""),
             ("", "表格格式示例："),
-            ("", "序号 | 项目   | 单位    | 限值      | 方法         | S001  | S002  | S003"),
-            ("", " 1   | pH     | 无量纲  | 6.5-8.5  | GB5750.4    | 7.2   | 7.3   | 7.1"),
-            ("", " 2   | 浊度   | NTU     | ≤1       | GB5750.4    | 0.5   | 0.6   | 0.4"),
-            ("", " 3   | 余氯   | mg/L    | ≥0.05    | GB5750.11   | 0.3   | 0.35  | 0.28"),
+            ("", "检测项目  | 单位      | W260105C08 | W260105C09 | W260105C10"),
+            ("", "pH        | 无量纲    | 7.2        | 7.3        | 7.1"),
+            ("", "浊度      | NTU       | 0.5        | 0.6        | 0.4"),
+            ("", "余氯      | mg/L      | 0.3        | 0.35       | 0.28"),
         ]
 
         for title, content in instructions:
@@ -163,7 +156,7 @@ class SampleTypeExporter:
         ws.column_dimensions['A'].width = 100
 
     def _create_detection_data_sheet(self, wb):
-        """创建检测数据sheet"""
+        """创建检测数据sheet（简化格式）"""
         ws = wb.create_sheet("检测数据")
 
         # 设置样式
@@ -178,8 +171,8 @@ class SampleTypeExporter:
             bottom=Side(style='thin')
         )
 
-        # 第一行：表头
-        headers = ['序号', '检测项目', '单位', '标准限值', '检测方法']
+        # 第一行：表头（简化格式：检测项目、单位、样品数据）
+        headers = ['检测项目', '单位']
 
         # 添加示例样品编号列（3个样品）
         sample_numbers = ['样品编号1*', '样品编号2', '样品编号3']
@@ -202,63 +195,42 @@ class SampleTypeExporter:
 
         # 填充检测项目信息
         for row_idx, indicator in enumerate(self.indicators, start=2):
-            # 序号
+            # 检测项目（A列）
             cell = ws.cell(row_idx, 1)
-            cell.value = row_idx - 1
-            cell.alignment = Alignment(horizontal='center', vertical='center')
-            cell.border = border
-
-            # 检测项目
-            cell = ws.cell(row_idx, 2)
             cell.value = indicator['name']
             cell.alignment = Alignment(horizontal='left', vertical='center')
             cell.border = border
 
-            # 单位
-            cell = ws.cell(row_idx, 3)
+            # 单位（B列）
+            cell = ws.cell(row_idx, 2)
             cell.value = indicator.get('unit', '')
             cell.alignment = Alignment(horizontal='center', vertical='center')
             cell.border = border
 
-            # 标准限值
-            cell = ws.cell(row_idx, 4)
-            cell.value = indicator.get('limit_value', '')
-            cell.alignment = Alignment(horizontal='center', vertical='center')
-            cell.border = border
-
-            # 检测方法
-            cell = ws.cell(row_idx, 5)
-            cell.value = indicator.get('detection_method', '')
-            cell.alignment = Alignment(horizontal='left', vertical='center')
-            cell.border = border
-
-            # 样品结果列（第一个样品填写示例数据）
+            # 样品结果列（C列起，第一个样品填写示例数据）
             if row_idx == 2:
                 # 仅第一行第一个样品填写示例数据
-                cell = ws.cell(row_idx, 6)
+                cell = ws.cell(row_idx, 3)
                 cell.value = indicator.get('default_value', '')
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 cell.border = border
 
             # 其他样品列留空但设置边框
-            for col_idx in range(6 if row_idx > 2 else 7, 6 + len(sample_numbers)):
+            for col_idx in range(3 if row_idx > 2 else 4, 3 + len(sample_numbers)):
                 cell = ws.cell(row_idx, col_idx)
                 cell.border = border
                 cell.alignment = Alignment(horizontal='center', vertical='center')
 
         # 调整列宽
-        ws.column_dimensions['A'].width = 8   # 序号
-        ws.column_dimensions['B'].width = 20  # 检测项目
-        ws.column_dimensions['C'].width = 12  # 单位
-        ws.column_dimensions['D'].width = 18  # 标准限值
-        ws.column_dimensions['E'].width = 25  # 检测方法
+        ws.column_dimensions['A'].width = 20  # 检测项目
+        ws.column_dimensions['B'].width = 12  # 单位
 
         # 样品列
-        for col_letter in ['F', 'G', 'H', 'I', 'J']:
+        for col_letter in ['C', 'D', 'E', 'F', 'G']:
             ws.column_dimensions[col_letter].width = 15
 
-        # 冻结首行和前5列
-        ws.freeze_panes = 'F2'
+        # 冻结首行和前2列
+        ws.freeze_panes = 'C2'
 
 
 def export_sample_type_template(sample_type_id, output_path=None):

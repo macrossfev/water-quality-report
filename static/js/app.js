@@ -133,13 +133,18 @@ function bindEvents() {
     // document.getElementById('configTemplateBtn')?.addEventListener('click', configTemplate);
     // document.getElementById('exportTemplateBtn')?.addEventListener('click', exportTemplate);
 
-    // 报告填写
-    document.getElementById('reportTemplate')?.addEventListener('change', onReportTemplateChange);
-    document.getElementById('reportSampleType').addEventListener('change', onSampleTypeChange);
-    document.getElementById('reportForm').addEventListener('submit', submitReport);
-    document.getElementById('saveDraftBtn')?.addEventListener('click', saveDraft);
-    document.getElementById('importReportInfoBtn')?.addEventListener('click', showImportReportInfoModal);
-    document.getElementById('importDetectionDataBtn')?.addEventListener('click', showImportDetectionDataModal);
+    // 新建报告流程
+    document.getElementById('reportTemplate')?.addEventListener('change', onNewReportTemplateChange);
+    document.getElementById('downloadTemplateExcelBtn')?.addEventListener('click', downloadTemplateExcel);
+    document.getElementById('templateExcelFile')?.addEventListener('change', onTemplateExcelUploaded);
+    document.getElementById('reportSampleType')?.addEventListener('change', onNewSampleTypeChange);
+    document.getElementById('downloadDetectionExcelBtn')?.addEventListener('click', downloadDetectionExcel);
+    document.getElementById('detectionExcelFile')?.addEventListener('change', onDetectionExcelUploaded);
+    document.getElementById('parseAndPreviewBtn')?.addEventListener('click', parseAndPreview);
+    document.getElementById('saveDraftBtn')?.addEventListener('click', saveDraftFromPreview);
+    document.getElementById('submitReportBtn')?.addEventListener('click', submitReportFromPreview);
+    document.getElementById('generateDirectBtn')?.addEventListener('click', generateReportDirect);
+    document.getElementById('resetFormBtn')?.addEventListener('click', resetNewReportForm);
 
     // 待提交报告
     document.getElementById('searchPendingBtn')?.addEventListener('click', loadPendingReports);
@@ -1329,8 +1334,12 @@ async function importReportInfo() {
         // 关闭模态框
         bootstrap.Modal.getInstance(document.getElementById('importReportInfoModal')).hide();
 
-        // 刷新报告列表
-        loadPendingReports();
+        // 刷新相关数据
+        await Promise.all([
+            loadPendingReports(),
+            loadCompanies(),
+            loadReportTemplates()
+        ]);
     } catch (error) {
         showToast('导入失败: ' + error.message, 'error');
     }
@@ -1366,8 +1375,12 @@ async function importDetectionData() {
         // 关闭模态框
         bootstrap.Modal.getInstance(document.getElementById('importDetectionDataModal')).hide();
 
-        // 刷新报告列表
-        loadPendingReports();
+        // 刷新相关数据
+        await Promise.all([
+            loadPendingReports(),
+            loadIndicators(),
+            loadSampleTypes()
+        ]);
     } catch (error) {
         showToast('导入失败: ' + error.message, 'error');
     }
@@ -1601,6 +1614,546 @@ function showImportReportsModal() {
     document.getElementById('modalContainer').innerHTML = modalHTML;
     const modal = new bootstrap.Modal(document.getElementById('importReportsModal'));
     modal.show();
+}
+
+// ==================== 新建报告流程（新版本） ====================
+// 流程状态
+const NewReportState = {
+    selectedTemplateId: null,
+    templateExcelFile: null,
+    templateExcelData: null,
+    selectedSampleTypeId: null,
+    detectionExcelFile: null,
+    detectionExcelData: null,
+    parsedData: null
+};
+
+// 步骤1: 选择报告模板
+function onNewReportTemplateChange() {
+    const templateId = document.getElementById('reportTemplate').value;
+    const downloadBtn = document.getElementById('downloadTemplateExcelBtn');
+    const fileInput = document.getElementById('templateExcelFile');
+    const step1Status = document.getElementById('step1Status');
+
+    if (templateId) {
+        NewReportState.selectedTemplateId = templateId;
+        downloadBtn.disabled = false;
+        fileInput.disabled = false;
+        step1Status.innerHTML = '<small class="text-success"><i class="bi bi-check-circle"></i> 已选择模板，请下载并填写Excel模板</small>';
+    } else {
+        NewReportState.selectedTemplateId = null;
+        downloadBtn.disabled = true;
+        fileInput.disabled = true;
+        fileInput.value = '';
+        step1Status.innerHTML = '<small class="text-muted">请先选择报告模板</small>';
+
+        // 重置步骤2和3
+        resetStep2();
+        resetStep3();
+    }
+}
+
+// 下载报告模板Excel
+async function downloadTemplateExcel() {
+    if (!NewReportState.selectedTemplateId) {
+        showToast('请先选择报告模板', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/export-report-template/${NewReportState.selectedTemplateId}`);
+        if (!response.ok) throw new Error('下载失败');
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `报告模板_${Date.now()}.xlsx`;
+        a.click();
+
+        showToast('模板下载成功，请填写后上传', 'success');
+    } catch (error) {
+        showToast('下载失败: ' + error.message, 'error');
+    }
+}
+
+// 上传报告模板Excel
+function onTemplateExcelUploaded(event) {
+    const file = event.target.files[0];
+    const step1Status = document.getElementById('step1Status');
+    const step2Card = document.getElementById('step2Card');
+    const sampleTypeSelect = document.getElementById('reportSampleType');
+
+    if (file) {
+        NewReportState.templateExcelFile = file;
+        step1Status.innerHTML = `<small class="text-success"><i class="bi bi-check-circle-fill"></i> 已上传: ${file.name}</small>`;
+
+        // 启用步骤2
+        step2Card.style.opacity = '1';
+        step2Card.style.pointerEvents = 'auto';
+        sampleTypeSelect.disabled = false;
+        sampleTypeSelect.innerHTML = '<option value="">请选择样品类型...</option>';
+
+        // 加载样品类型列表
+        AppState.sampleTypes.forEach(st => {
+            const option = document.createElement('option');
+            option.value = st.id;
+            option.textContent = st.name;
+            sampleTypeSelect.appendChild(option);
+        });
+
+        document.getElementById('step2Status').innerHTML = '<small class="text-primary">请选择样品类型</small>';
+    } else {
+        NewReportState.templateExcelFile = null;
+        step1Status.innerHTML = '<small class="text-warning">请上传填写好的Excel</small>';
+        resetStep2();
+    }
+}
+
+// 步骤2: 选择样品类型
+function onNewSampleTypeChange() {
+    const sampleTypeId = document.getElementById('reportSampleType').value;
+    const downloadBtn = document.getElementById('downloadDetectionExcelBtn');
+    const fileInput = document.getElementById('detectionExcelFile');
+    const step2Status = document.getElementById('step2Status');
+
+    if (sampleTypeId) {
+        NewReportState.selectedSampleTypeId = sampleTypeId;
+        downloadBtn.disabled = false;
+        fileInput.disabled = false;
+        step2Status.innerHTML = '<small class="text-success"><i class="bi bi-check-circle"></i> 已选择样品类型，请下载并填写检测数据Excel</small>';
+    } else {
+        NewReportState.selectedSampleTypeId = null;
+        downloadBtn.disabled = true;
+        fileInput.disabled = true;
+        fileInput.value = '';
+        step2Status.innerHTML = '<small class="text-muted">请选择样品类型</small>';
+        resetStep3();
+    }
+}
+
+// 下载检测数据Excel
+async function downloadDetectionExcel() {
+    if (!NewReportState.selectedSampleTypeId) {
+        showToast('请先选择样品类型', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/export-sample-type-template/${NewReportState.selectedSampleTypeId}`);
+        if (!response.ok) throw new Error('下载失败');
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `检测数据模板_${Date.now()}.xlsx`;
+        a.click();
+
+        showToast('模板下载成功，请填写后上传', 'success');
+    } catch (error) {
+        showToast('下载失败: ' + error.message, 'error');
+    }
+}
+
+// 上传检测数据Excel
+function onDetectionExcelUploaded(event) {
+    const file = event.target.files[0];
+    const step2Status = document.getElementById('step2Status');
+    const step3Card = document.getElementById('step3Card');
+    const parseBtn = document.getElementById('parseAndPreviewBtn');
+
+    if (file) {
+        NewReportState.detectionExcelFile = file;
+        step2Status.innerHTML = `<small class="text-success"><i class="bi bi-check-circle-fill"></i> 已上传: ${file.name}</small>`;
+
+        // 启用步骤3
+        step3Card.style.opacity = '1';
+        step3Card.style.pointerEvents = 'auto';
+        parseBtn.disabled = false;
+        document.getElementById('step3Status').innerHTML = '<small class="text-primary">可以开始解析数据了</small>';
+    } else {
+        NewReportState.detectionExcelFile = null;
+        step2Status.innerHTML = '<small class="text-warning">请上传填写好的Excel</small>';
+        resetStep3();
+    }
+}
+
+// 解析Excel并生成预览
+async function parseAndPreview() {
+    if (!NewReportState.templateExcelFile || !NewReportState.detectionExcelFile) {
+        showToast('请先上传报告模板和检测数据Excel', 'warning');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('template_id', NewReportState.selectedTemplateId);
+    formData.append('sample_type_id', NewReportState.selectedSampleTypeId);
+    formData.append('template_excel', NewReportState.templateExcelFile);
+    formData.append('detection_excel', NewReportState.detectionExcelFile);
+
+    try {
+        // 步骤1: 验证Excel文件
+        document.getElementById('step3Status').innerHTML = '<small class="text-info"><i class="bi bi-hourglass-split"></i> 正在验证Excel文件格式...</small>';
+
+        const validateResponse = await fetch('/api/validate-report-excel', {
+            method: 'POST',
+            body: formData
+        });
+
+        const validateResult = await validateResponse.json();
+
+        if (!validateResponse.ok || !validateResult.valid) {
+            // 验证失败，显示错误信息
+            let errorMsg = '<div class="alert alert-danger"><strong>Excel文件验证失败！</strong><br><br>';
+
+            if (validateResult.errors && validateResult.errors.length > 0) {
+                errorMsg += '<strong>错误：</strong><ul>';
+                validateResult.errors.forEach(err => {
+                    errorMsg += `<li>${err}</li>`;
+                });
+                errorMsg += '</ul>';
+            }
+
+            if (validateResult.warnings && validateResult.warnings.length > 0) {
+                errorMsg += '<strong>警告：</strong><ul>';
+                validateResult.warnings.forEach(warn => {
+                    errorMsg += `<li>${warn}</li>`;
+                });
+                errorMsg += '</ul>';
+            }
+
+            errorMsg += '</div>';
+
+            document.getElementById('step3Status').innerHTML = '<small class="text-danger"><i class="bi bi-x-circle"></i> 验证失败</small>';
+
+            // 使用模态框显示详细错误
+            showValidationErrorModal(errorMsg);
+            return;
+        }
+
+        // 如果有警告，显示但继续
+        if (validateResult.warnings && validateResult.warnings.length > 0) {
+            let warnMsg = '发现以下警告，但可以继续：\n\n';
+            validateResult.warnings.forEach(warn => {
+                warnMsg += `• ${warn}\n`;
+            });
+
+            if (!confirm(warnMsg + '\n是否继续解析？')) {
+                document.getElementById('step3Status').innerHTML = '<small class="text-warning"><i class="bi bi-exclamation-triangle"></i> 已取消</small>';
+                return;
+            }
+        }
+
+        // 步骤2: 解析Excel数据
+        document.getElementById('step3Status').innerHTML = '<small class="text-info"><i class="bi bi-hourglass-split"></i> 正在解析Excel数据...</small>';
+
+        const parseResponse = await fetch('/api/parse-report-excel', {
+            method: 'POST',
+            body: formData
+        });
+
+        const parseResult = await parseResponse.json();
+
+        if (!parseResponse.ok) {
+            throw new Error(parseResult.error || '解析失败');
+        }
+
+        NewReportState.parsedData = parseResult;
+
+        // 显示预览区域
+        renderPreviewData(parseResult);
+
+        document.getElementById('step3Status').innerHTML = '<small class="text-success"><i class="bi bi-check-circle-fill"></i> 解析成功！</small>';
+        showToast('Excel数据解析成功，请查看预览并编辑', 'success');
+
+        // 滚动到预览区域
+        document.getElementById('dataPreviewArea').scrollIntoView({ behavior: 'smooth' });
+
+    } catch (error) {
+        document.getElementById('step3Status').innerHTML = '<small class="text-danger"><i class="bi bi-x-circle"></i> 解析失败</small>';
+        showToast('解析失败: ' + error.message, 'error');
+    }
+}
+
+// 显示验证错误模态框
+function showValidationErrorModal(errorHtml) {
+    const modalHTML = `
+        <div class="modal fade" id="validationErrorModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill"></i> Excel文件验证失败</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        ${errorHtml}
+                        <div class="mt-3">
+                            <strong>建议：</strong>
+                            <ul>
+                                <li>检查上传的Excel文件是否是从系统下载的模板</li>
+                                <li>确保Excel文件格式正确，没有删除或修改关键列</li>
+                                <li>确保所有必填字段都已填写</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('modalContainer').innerHTML = modalHTML;
+    const modal = new bootstrap.Modal(document.getElementById('validationErrorModal'));
+    modal.show();
+}
+
+// 渲染预览数据
+function renderPreviewData(data) {
+    const previewArea = document.getElementById('dataPreviewArea');
+    previewArea.style.display = 'block';
+
+    // 渲染基本信息
+    const basicInfoArea = document.getElementById('basicInfoArea');
+    let basicHtml = '<div class="row">';
+
+    const basicFields = [
+        { key: 'sample_number', label: '样品编号', required: true },
+        { key: 'company_name', label: '委托单位', required: false },
+        { key: 'detection_date', label: '检测日期', type: 'date', required: false },
+        { key: 'detection_person', label: '检测人员', required: false },
+        { key: 'review_person', label: '审核人员', required: false },
+        { key: 'remark', label: '备注', required: false }
+    ];
+
+    basicFields.forEach(field => {
+        const value = data.basic_info ? data.basic_info[field.key] || '' : '';
+        const type = field.type || 'text';
+        const required = field.required ? 'required' : '';
+        const requiredMark = field.required ? '<span class="text-danger">*</span>' : '';
+
+        basicHtml += `
+            <div class="col-md-4 mb-3">
+                <label class="form-label">${field.label} ${requiredMark}</label>
+                <input type="${type}" class="form-control" id="preview_${field.key}" value="${value}" ${required}>
+            </div>
+        `;
+    });
+
+    basicHtml += '</div>';
+    basicInfoArea.innerHTML = basicHtml;
+
+    // 渲染模板字段
+    const templateFieldsArea = document.getElementById('templateFieldsPreviewArea');
+    if (data.template_fields && data.template_fields.length > 0) {
+        let fieldsHtml = '<div class="row">';
+        data.template_fields.forEach(field => {
+            const requiredMark = field.is_required ? '<span class="text-danger">*</span>' : '';
+            const required = field.is_required ? 'required' : '';
+            const type = field.field_type === 'date' ? 'date' : field.field_type === 'number' ? 'number' : 'text';
+
+            fieldsHtml += `
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">${field.field_name} ${requiredMark}</label>
+                    <input type="${type}" class="form-control" id="preview_field_${field.field_mapping_id}"
+                           value="${field.field_value || ''}" ${required}>
+                </div>
+            `;
+        });
+        fieldsHtml += '</div>';
+        templateFieldsArea.innerHTML = fieldsHtml;
+    } else {
+        templateFieldsArea.innerHTML = '<p class="text-muted">无模板字段</p>';
+    }
+
+    // 渲染检测数据
+    const detectionDataArea = document.getElementById('detectionDataPreviewArea');
+    if (data.detection_data && data.detection_data.length > 0) {
+        // 按分组组织数据
+        const groups = {};
+        data.detection_data.forEach(item => {
+            const groupName = item.group_name || '其他';
+            if (!groups[groupName]) groups[groupName] = [];
+            groups[groupName].push(item);
+        });
+
+        let dataHtml = '';
+        for (const [groupName, items] of Object.entries(groups)) {
+            dataHtml += `<div class="mb-3"><h6 class="border-bottom pb-2">${groupName}</h6><div class="row">`;
+
+            items.forEach(item => {
+                dataHtml += `
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">${item.indicator_name}</label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" id="preview_indicator_${item.indicator_id}"
+                                   value="${item.measured_value || ''}" placeholder="检测值">
+                            <span class="input-group-text">${item.unit || ''}</span>
+                        </div>
+                        ${item.limit_value ? `<small class="text-muted">限值: ${item.limit_value}</small>` : ''}
+                    </div>
+                `;
+            });
+
+            dataHtml += '</div></div>';
+        }
+        detectionDataArea.innerHTML = dataHtml;
+    } else {
+        detectionDataArea.innerHTML = '<p class="text-muted">无检测数据</p>';
+    }
+}
+
+// 从预览保存草稿
+async function saveDraftFromPreview() {
+    await submitReportFromPreview('draft');
+}
+
+// 从预览提交报告
+async function submitReportFromPreview(reviewStatus = 'pending') {
+    try {
+        // 查找公司ID
+        const companyName = document.getElementById('preview_company_name').value;
+        let companyId = null;
+
+        if (companyName) {
+            const company = AppState.companies.find(c => c.name === companyName);
+            if (company) {
+                companyId = company.id;
+            }
+        }
+
+        // 收集数据
+        const reportData = {
+            template_id: parseInt(NewReportState.selectedTemplateId),
+            sample_type_id: parseInt(NewReportState.selectedSampleTypeId),
+            sample_number: document.getElementById('preview_sample_number').value,
+            company_id: companyId,
+            detection_date: document.getElementById('preview_detection_date').value || null,
+            detection_person: document.getElementById('preview_detection_person').value || null,
+            review_person: document.getElementById('preview_review_person').value || null,
+            remark: document.getElementById('preview_remark').value || null,
+            review_status: reviewStatus,
+            template_fields: [],
+            data: []  // 后端期望的字段名是 'data'，不是 'detection_data'
+        };
+
+        // 收集模板字段
+        document.querySelectorAll('[id^="preview_field_"]').forEach(input => {
+            const fieldMappingId = input.id.replace('preview_field_', '');
+            if (input.value) {
+                reportData.template_fields.push({
+                    field_mapping_id: parseInt(fieldMappingId),
+                    field_value: input.value
+                });
+            }
+        });
+
+        // 收集检测数据
+        document.querySelectorAll('[id^="preview_indicator_"]').forEach(input => {
+            const indicatorId = input.id.replace('preview_indicator_', '');
+            const value = input.value.trim();
+            if (value) {
+                reportData.data.push({
+                    indicator_id: parseInt(indicatorId),
+                    measured_value: value,
+                    remark: ''
+                });
+            }
+        });
+
+        const response = await fetch('/api/reports', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(reportData)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || '提交失败');
+        }
+
+        const statusText = reviewStatus === 'draft' ? '草稿保存' : '报告提交';
+        showToast(`${statusText}成功！报告编号: ${result.report_number}`, 'success');
+
+        // 刷新列表并重置表单
+        await loadPendingReports();
+        resetNewReportForm();
+
+    } catch (error) {
+        showToast('操作失败: ' + error.message, 'error');
+    }
+}
+
+// 直接生成报告
+async function generateReportDirect() {
+    if (!confirm('确定要直接生成报告吗？生成后将无法修改。')) {
+        return;
+    }
+
+    try {
+        // 先提交报告
+        await submitReportFromPreview('approved');
+
+        // TODO: 调用生成报告的API
+        showToast('报告已生成，请在报告生成页面查看', 'success');
+
+    } catch (error) {
+        showToast('生成报告失败: ' + error.message, 'error');
+    }
+}
+
+// 重置表单
+function resetNewReportForm() {
+    // 重置状态
+    NewReportState.selectedTemplateId = null;
+    NewReportState.templateExcelFile = null;
+    NewReportState.selectedSampleTypeId = null;
+    NewReportState.detectionExcelFile = null;
+    NewReportState.parsedData = null;
+
+    // 重置UI
+    document.getElementById('reportTemplate').value = '';
+    document.getElementById('templateExcelFile').value = '';
+    document.getElementById('reportSampleType').value = '';
+    document.getElementById('detectionExcelFile').value = '';
+
+    resetStep1();
+    resetStep2();
+    resetStep3();
+
+    document.getElementById('dataPreviewArea').style.display = 'none';
+}
+
+function resetStep1() {
+    document.getElementById('downloadTemplateExcelBtn').disabled = true;
+    document.getElementById('templateExcelFile').disabled = true;
+    document.getElementById('templateExcelFile').value = '';
+    document.getElementById('step1Status').innerHTML = '<small class="text-muted">请先选择报告模板</small>';
+}
+
+function resetStep2() {
+    const step2Card = document.getElementById('step2Card');
+    step2Card.style.opacity = '0.6';
+    step2Card.style.pointerEvents = 'none';
+
+    document.getElementById('reportSampleType').disabled = true;
+    document.getElementById('reportSampleType').value = '';
+    document.getElementById('downloadDetectionExcelBtn').disabled = true;
+    document.getElementById('detectionExcelFile').disabled = true;
+    document.getElementById('detectionExcelFile').value = '';
+    document.getElementById('step2Status').innerHTML = '<small class="text-muted">请先完成步骤1</small>';
+}
+
+function resetStep3() {
+    const step3Card = document.getElementById('step3Card');
+    step3Card.style.opacity = '0.6';
+    step3Card.style.pointerEvents = 'none';
+
+    document.getElementById('parseAndPreviewBtn').disabled = true;
+    document.getElementById('step3Status').innerHTML = '<small class="text-muted">请先完成步骤1和步骤2</small>';
 }
 
 async function importReportsExcel() {

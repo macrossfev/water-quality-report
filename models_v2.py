@@ -58,6 +58,22 @@ def init_database():
         )
     ''')
 
+    # ==================== 客户管理表 ====================
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS customers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            inspected_unit TEXT NOT NULL,
+            water_plant TEXT,
+            unit_address TEXT,
+            contact_person TEXT,
+            contact_phone TEXT,
+            email TEXT,
+            remark TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     # ==================== 样品类型表 ====================
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS sample_types (
@@ -171,6 +187,80 @@ def init_database():
         )
     ''')
 
+    # ==================== 原始数据列名配置表 ====================
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS raw_data_column_schema (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            column_name TEXT NOT NULL UNIQUE,
+            column_order INTEGER NOT NULL,
+            data_type TEXT NOT NULL CHECK(data_type IN ('text', 'numeric', 'date')),
+            is_base_field BOOLEAN DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # ==================== 原始数据记录表 ====================
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS raw_data_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sample_number TEXT NOT NULL UNIQUE,
+            company_name TEXT,
+            plant_name TEXT,
+            sample_type TEXT,
+            sampling_date DATE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # ==================== 原始数据检测值表 ====================
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS raw_data_values (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            record_id INTEGER NOT NULL,
+            column_name TEXT NOT NULL,
+            value TEXT,
+            FOREIGN KEY (record_id) REFERENCES raw_data_records (id) ON DELETE CASCADE,
+            UNIQUE(record_id, column_name)
+        )
+    ''')
+
+    # ==================== 导出模板分类表 ====================
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS export_template_categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # ==================== 导出模板表 ====================
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS export_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category_id INTEGER,
+            name TEXT NOT NULL,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (category_id) REFERENCES export_template_categories (id) ON DELETE SET NULL,
+            UNIQUE(category_id, name)
+        )
+    ''')
+
+    # ==================== 导出模板-列关联表 ====================
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS export_template_columns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            template_id INTEGER NOT NULL,
+            column_name TEXT NOT NULL,
+            column_order INTEGER DEFAULT 0,
+            FOREIGN KEY (template_id) REFERENCES export_templates (id) ON DELETE CASCADE,
+            UNIQUE(template_id, column_name)
+        )
+    ''')
+
     conn.commit()
 
     # ==================== 初始化默认数据 ====================
@@ -232,6 +322,15 @@ def create_indexes():
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_reports_created_at ON reports(created_at)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_operation_logs_created_at ON operation_logs(created_at)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_indicators_group_id ON indicators(group_id)')
+
+    # 原始数据相关索引
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_raw_data_records_sample_number ON raw_data_records(sample_number)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_raw_data_records_sampling_date ON raw_data_records(sampling_date)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_raw_data_records_company_name ON raw_data_records(company_name)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_raw_data_records_plant_name ON raw_data_records(plant_name)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_raw_data_records_sample_type ON raw_data_records(sample_type)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_raw_data_values_record_id ON raw_data_values(record_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_export_template_columns_template_id ON export_template_columns(template_id)')
 
     conn.commit()
     conn.close()
