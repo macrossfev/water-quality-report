@@ -1283,17 +1283,16 @@
 
         // 创建模板
         document.getElementById('createTemplateBtn').addEventListener('click', function() {
-            const categoryId = document.getElementById('templateCategory').value;
             const sampleTypeId = document.getElementById('templateSampleType').value;
             const name = document.getElementById('templateName').value.trim();
 
-            if (!sampleTypeId) {
-                alert('请选择样品类型');
+            if (!name) {
+                alert('请先输入模板名称');
                 return;
             }
 
-            if (!name) {
-                alert('请输入模板名称');
+            if (!sampleTypeId) {
+                alert('请选择水样类型');
                 return;
             }
 
@@ -1301,7 +1300,7 @@
             const columns = Array.from(checkboxes).map(cb => cb.value);
 
             if (columns.length === 0) {
-                alert('请至少选择一个检测指标');
+                alert('请至少勾选一个检测项目');
                 return;
             }
 
@@ -1309,7 +1308,7 @@
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    category_id: categoryId || null,
+                    category_id: null,
                     sample_type_id: parseInt(sampleTypeId),
                     name: name,
                     columns: columns
@@ -1318,14 +1317,18 @@
             .then(response => response.json())
             .then(data => {
                 if (data.message) {
-                    alert(data.message);
+                    alert('模板创建成功！');
                     document.getElementById('templateName').value = '';
                     document.getElementById('templateSampleType').value = '';
-                    document.getElementById('indicatorCheckboxes').innerHTML = '<p class="text-muted">请先选择样品类型</p>';
+                    document.getElementById('indicatorCheckboxes').innerHTML = '<p class="text-muted">请先选择水样类型</p>';
                     loadTemplates();
                 } else {
-                    alert(data.error);
+                    alert('创建失败：' + data.error);
                 }
+            })
+            .catch(error => {
+                console.error('创建模板失败:', error);
+                alert('创建失败，请查看浏览器控制台了解详情');
             });
         });
 
