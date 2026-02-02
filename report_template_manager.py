@@ -171,24 +171,29 @@ class ReportTemplateManager:
                 # 检查是否为引用字段
                 is_reference = field.get('is_reference', False)
 
+                # 获取字段类型和列映射
+                field_type = field.get('field_type', 'text')
+                column_mapping = field.get('column_mapping', None)
+
                 # 保存字段映射
                 cursor.execute('''
                     INSERT INTO template_field_mappings
                     (template_id, field_name, field_display_name, field_type,
                      sheet_name, cell_address, placeholder, default_value,
-                     is_required, is_reference, description)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     is_required, is_reference, column_mapping, description)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     template_id,
                     field['field_name'],
                     field.get('display_name', field['field_name']),
-                    'text',  # 默认类型
+                    field_type,
                     field['sheet_name'],
                     field['cell_address'],
                     field.get('placeholder', ''),
                     field.get('default_value', ''),
                     1 if field.get('is_required', False) else 0,
                     1 if is_reference else 0,
+                    column_mapping,
                     f"工作表: {field['sheet_name']}, 位置: {field['cell_address']}"
                 ))
 
@@ -196,6 +201,8 @@ class ReportTemplateManager:
                 if is_reference:
                     reference_count += 1
                     print(f"  ✓ 引用字段: [*{field['field_name']}] 在 {field['sheet_name']}!{field['cell_address']}")
+                elif field_type == 'detection_column':
+                    print(f"  ✓ 检测数据列: [{field['field_name']}] -> {column_mapping} 在 {field['sheet_name']}!{field['cell_address']}")
 
             except Exception as e:
                 print(f"  ✗ 保存字段失败 {field.get('field_name', 'unknown')}: {e}")

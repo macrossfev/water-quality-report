@@ -8,6 +8,7 @@
 3. [字段名](占位符说明) - 必填字段（简化格式）
 4. [字段名] - 必填字段（最简格式）
 5. [*字段名] - 引用字段，从已审核报告中查找数据（不可编辑）
+6. [#代号] - 标准字段代号，如 [#report_no], [#dt_name]（推荐使用）
 
 示例:
 - [报告编号];(请输入报告编号) - 必填
@@ -15,9 +16,13 @@
 - [检测人]张三;() - 默认值为张三，可编辑
 - [*被检单位] - 从已审核报告中引用被检单位数据
 - [*采样日期] - 从已审核报告中引用采样日期
+- [#report_no] - 报告编号（使用标准代号）
+- [#dt_name] - 检测项目名称列（检测数据）
+- [#dt_end] - 数据区结束标记
 """
 import re
 from typing import Dict, List, Optional, Tuple
+from field_code_mapping import FieldCodeMapping
 
 class TemplateFieldParser:
     """模板字段解析器"""
@@ -48,7 +53,9 @@ class TemplateFieldParser:
             'placeholder': '',
             'is_required': True,
             'is_editable': True,
-            'is_reference': False  # 新增：标记是否为引用字段
+            'is_reference': False,  # 新增：标记是否为引用字段
+            'field_code': None,     # 字段代号（如果使用代号）
+            'field_type': 'text'    # 字段类型
         }
 
         if not field_text:
@@ -59,8 +66,46 @@ class TemplateFieldParser:
         if field_name_match:
             raw_field_name = field_name_match.group(1).strip()
 
+            # 检查是否为字段代号（以 # 开头）
+            if raw_field_name.startswith('#'):
+                code_info = FieldCodeMapping.get_field_info(f'[{raw_field_name}]')
+                if code_info:
+                    result['field_code'] = raw_field_name
+                    result['display_name'] = code_info['display_name']
+                    result['placeholder'] = code_info['description']
+                    result['is_editable'] = False  # 代号字段由系统填充
+                    result['is_required'] = False
+
+                    # 根据代号类型设置字段信息
+                    if code_info['type'] == 'basic_field':
+                        # 基本字段
+                        result['field_name'] = code_info['db_field']
+                        result['field_type'] = 'text'
+                    elif code_info['type'] == 'detection_column':
+                        # 检测数据列
+                        result['field_name'] = code_info['display_name']
+                        result['field_type'] = 'detection_column'
+                        result['column_mapping'] = code_info['column_mapping']
+                    elif code_info['type'] == 'data_region_end':
+                        # 数据区结束标记
+                        result['field_name'] = 'data_region_end'
+                        result['field_type'] = 'control_mark'
+                        result['control_type'] = 'data_region_end'
+                    else:
+                        # 其他控制标记
+                        result['field_name'] = code_info.get('type', 'unknown')
+                        result['field_type'] = 'control_mark'
+                        result['control_type'] = code_info.get('type', 'unknown')
+
+                    return result
+                else:
+                    # 未知代号，当作普通字段处理
+                    result['field_name'] = raw_field_name
+                    result['display_name'] = raw_field_name
+                    return result
+
             # 检查是否为引用字段（以 * 开头）
-            if raw_field_name.startswith('*'):
+            elif raw_field_name.startswith('*'):
                 result['is_reference'] = True
                 result['is_editable'] = False  # 引用字段不可编辑
                 result['is_required'] = False  # 引用字段由系统自动填充
@@ -209,12 +254,33 @@ class TemplateFieldParser:
         """
         form_config = []
 
+        # 兼容性映射：对于没有使用代号的旧模板，仍然支持中文字段名识别
+        legacy_detection_columns = {
+            '序号': 'index',
+            '检测项目': 'name',
+            '项目名称': 'name',
+            '检测项': 'name',
+            '单位': 'unit',
+            '检测值': 'result',
+            '检测结果': 'result',
+            '测定值': 'result',
+            '结果': 'result',
+            '限值': 'limit',
+            '标准限值': 'limit',
+            '限定值': 'limit',
+            '检测方法': 'method',
+            '方法': 'method',
+            '检测依据': 'method',
+            '单项判定': 'judgment',
+            '判定': 'judgment',
+        }
+
         for field in fields:
             config = {
                 'template_id': template_id,
                 'field_name': field['field_name'],
                 'field_display_name': field['display_name'],
-                'field_type': 'text',  # 默认为文本类型
+                'field_type': field.get('field_type', 'text'),  # 使用解析出的类型
                 'sheet_name': field['sheet_name'],
                 'cell_address': field['cell_address'],
                 'placeholder': field['placeholder'],
@@ -223,16 +289,30 @@ class TemplateFieldParser:
                 'description': f"工作表:{field['sheet_name']}, 位置:{field['cell_address']}"
             }
 
-            # 根据字段名判断类型
-            field_name_lower = field['field_name'].lower()
-            if '日期' in field['field_name'] or 'date' in field_name_lower:
-                config['field_type'] = 'date'
-            elif '时间' in field['field_name'] or 'time' in field_name_lower:
-                config['field_type'] = 'datetime'
-            elif '数量' in field['field_name'] or '编号' in field['field_name']:
-                config['field_type'] = 'number'
-            elif '备注' in field['field_name'] or '说明' in field['field_name']:
-                config['field_type'] = 'textarea'
+            # 如果字段已经在解析阶段确定了类型（如使用代号），直接使用
+            if field.get('field_type') == 'detection_column':
+                config['column_mapping'] = field.get('column_mapping')
+                config['description'] = f"检测数据列: {field['display_name']} -> {field.get('column_mapping')}"
+            elif field.get('field_type') == 'control_mark':
+                config['control_type'] = field.get('control_type')
+                config['description'] = f"控制标记: {field.get('control_type')}"
+            # 兼容旧模板：检查是否为检测数据列标记（中文字段名）
+            elif field['field_name'] in legacy_detection_columns:
+                config['field_type'] = 'detection_column'
+                config['column_mapping'] = legacy_detection_columns[field['field_name']]
+                config['description'] = f"检测数据列: {field['field_name']} -> {legacy_detection_columns[field['field_name']]}"
+            else:
+                # 根据字段名判断类型（对于普通字段）
+                if config['field_type'] == 'text':  # 只有当类型还是默认的text时才判断
+                    field_name_lower = field['field_name'].lower()
+                    if '日期' in field['field_name'] or 'date' in field_name_lower:
+                        config['field_type'] = 'date'
+                    elif '时间' in field['field_name'] or 'time' in field_name_lower:
+                        config['field_type'] = 'datetime'
+                    elif '数量' in field['field_name'] or '编号' in field['field_name']:
+                        config['field_type'] = 'number'
+                    elif '备注' in field['field_name'] or '说明' in field['field_name']:
+                        config['field_type'] = 'textarea'
 
             form_config.append(config)
 

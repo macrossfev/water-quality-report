@@ -2882,6 +2882,7 @@ async function editPendingReport(reportId) {
         document.getElementById('editSamplingBasis').value = report.sampling_basis || '';
         document.getElementById('editProductStandard').value = report.product_standard || '';
         document.getElementById('editTestConclusion').value = report.test_conclusion || '';
+        document.getElementById('editDetectionItems').value = report.detection_items_description || '';
         document.getElementById('editAdditionalInfo').value = report.additional_info || '';
 
         // 解析并填充客户信息
@@ -3026,6 +3027,7 @@ async function saveEditReport(submitAfterSave = false) {
         const detectionDate = document.getElementById('editDetectionDate').value || new Date().toISOString().split('T')[0];
         const productStandard = document.getElementById('editProductStandard').value.trim();
         const testConclusion = document.getElementById('editTestConclusion').value;
+        const detectionItems = document.getElementById('editDetectionItems').value.trim();
         const additionalInfo = document.getElementById('editAdditionalInfo').value.trim();
 
         // 收集客户信息
@@ -3051,6 +3053,7 @@ async function saveEditReport(submitAfterSave = false) {
             detection_date: detectionDate,
             product_standard: productStandard,
             test_conclusion: testConclusion,
+            detection_items_description: detectionItems,
             additional_info: additionalInfo,
             detection_person: '',
             review_person: '',
@@ -3328,6 +3331,11 @@ async function showReviewDetailModal(reportId) {
                             ${data.report.test_conclusion ? `
                                 <div class="row mb-2">
                                     <div class="col-md-12"><strong>检测结论：</strong><br><div class="p-2 bg-light rounded">${data.report.test_conclusion}</div></div>
+                                </div>
+                            ` : ''}
+                            ${data.report.detection_items_description ? `
+                                <div class="row mb-2">
+                                    <div class="col-md-12"><strong>检测项目：</strong><br><div class="p-2 bg-light rounded">${data.report.detection_items_description}</div></div>
                                 </div>
                             ` : ''}
                             ${data.report.additional_info ? `
@@ -4317,6 +4325,7 @@ async function saveNewReport() {
     const sampleStatus = document.getElementById('newSampleStatus').value.trim();
     const detectionDate = document.getElementById('newDetectionDate').value || new Date().toISOString().split('T')[0];
     const productStandard = document.getElementById('newProductStandard').value.trim();
+    const testItems = document.getElementById('newTestItems').value.trim();
     const testConclusion = document.getElementById('newTestConclusion').value;
     const additionalInfo = document.getElementById('newAdditionalInfo').value.trim();
 
@@ -4346,6 +4355,7 @@ async function saveNewReport() {
         detection_date: detectionDate,
         product_standard: productStandard,
         test_conclusion: testConclusion,
+        detection_items_description: testItems,
         additional_info: additionalInfo,
         detection_person: '',
         review_person: '',

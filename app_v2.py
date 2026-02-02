@@ -796,6 +796,7 @@ def api_reports():
         sample_status = data.get('sample_status', '')
         product_standard = data.get('product_standard', '')
         test_conclusion = data.get('test_conclusion', '')
+        detection_items_description = data.get('detection_items_description', '')
         additional_info = data.get('additional_info', '')
 
         # 获取用户输入的报告编号
@@ -821,13 +822,13 @@ def api_reports():
                 'detection_person, review_person, detection_date, remark, template_id, review_status, created_by, '
                 'report_date, sample_source, sampler, sampling_date, sampling_basis, '
                 'sample_received_date, sampling_location, sample_status, product_standard, '
-                'test_conclusion, additional_info) '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'test_conclusion, detection_items_description, additional_info) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 (report_number, sample_number, company_id, sample_type_id, detection_person,
                  review_person, detection_date, remark, template_id, review_status, session['user_id'],
                  report_date, sample_source, sampler, sampling_date, sampling_basis,
                  sample_received_date, sampling_location, sample_status, product_standard,
-                 test_conclusion, additional_info)
+                 test_conclusion, detection_items_description, additional_info)
             )
             conn.commit()
             report_id = cursor.lastrowid
@@ -958,6 +959,7 @@ def api_report_detail(id):
         sample_status = data.get('sample_status', '')
         product_standard = data.get('product_standard', '')
         test_conclusion = data.get('test_conclusion', '')
+        detection_items_description = data.get('detection_items_description', '')
         additional_info = data.get('additional_info', '')
 
         try:
@@ -967,11 +969,12 @@ def api_report_detail(id):
                 'UPDATE reports SET sample_number = ?, company_id = ?, detection_person = ?, review_person = ?, '
                 'detection_date = ?, remark = ?, report_date = ?, sample_source = ?, sampler = ?, '
                 'sampling_date = ?, sampling_basis = ?, sample_received_date = ?, sampling_location = ?, '
-                'sample_status = ?, product_standard = ?, test_conclusion = ?, additional_info = ? WHERE id = ?',
+                'sample_status = ?, product_standard = ?, test_conclusion = ?, detection_items_description = ?, '
+                'additional_info = ? WHERE id = ?',
                 (sample_number, company_id, detection_person, review_person, detection_date, remark,
                  report_date, sample_source, sampler, sampling_date, sampling_basis,
                  sample_received_date, sampling_location, sample_status, product_standard,
-                 test_conclusion, additional_info, id)
+                 test_conclusion, detection_items_description, additional_info, id)
             )
 
             # 删除旧的报告数据
@@ -2444,17 +2447,22 @@ def api_import_report_template():
                 cursor.execute(
                     '''INSERT INTO template_field_mappings
                        (template_id, field_name, field_display_name, field_type,
-                        sheet_name, cell_address, placeholder, default_value, is_required)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                        sheet_name, cell_address, placeholder, default_value, is_required,
+                        original_cell_text, field_code, is_reference, column_mapping)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                     (template_id,
                      field['field_name'],
                      field['display_name'],
-                     'text',  # 默认文本类型
+                     field.get('field_type', 'text'),  # 使用解析得到的字段类型
                      field['sheet_name'],
                      field['cell_address'],
                      field.get('placeholder', ''),
                      field.get('default_value', ''),
-                     1 if field.get('is_required', True) else 0)
+                     1 if field.get('is_required', True) else 0,
+                     field.get('original_value', ''),  # 保存原始单元格文本
+                     field.get('field_code'),  # 保存字段代号（如 #report_no）
+                     1 if field.get('is_reference', False) else 0,  # 是否为引用字段
+                     field.get('column_mapping', ''))  # 检测数据列映射
                 )
                 field_count += 1
         except Exception as e:
@@ -2894,6 +2902,56 @@ def report_templates_page():
 #     return render_template('template_config_editor.html')
 
 # ==================== 新增API接口 ====================
+
+@app.route('/api/field-code-reference', methods=['GET'])
+@login_required
+def api_download_field_code_reference():
+    """下载字段代号使用说明文档"""
+    from field_code_mapping import FieldCodeMapping
+    import io
+
+    try:
+        # 生成文档内容
+        doc_content = FieldCodeMapping.generate_documentation()
+
+        # 创建文本文件
+        output = io.BytesIO()
+        output.write(doc_content.encode('utf-8'))
+        output.seek(0)
+
+        log_operation('下载字段代号文档', '字段代号使用说明')
+
+        return send_file(
+            output,
+            mimetype='text/plain; charset=utf-8',
+            as_attachment=True,
+            download_name='Excel模板字段代号使用说明.txt'
+        )
+    except Exception as e:
+        return jsonify({'error': f'下载失败: {str(e)}'}), 500
+
+@app.route('/api/download-example-template', methods=['GET'])
+@login_required
+def api_download_example_template():
+    """下载Excel模板示例文件"""
+    try:
+        template_path = 'template_examples/水质检测报告模板示例.xlsx'
+
+        # 如果文件不存在，先生成
+        if not os.path.exists(template_path):
+            from generate_example_template import create_example_template
+            create_example_template()
+
+        log_operation('下载模板示例', 'Excel模板示例文件')
+
+        return send_file(
+            template_path,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name='水质检测报告模板示例.xlsx'
+        )
+    except Exception as e:
+        return jsonify({'error': f'下载失败: {str(e)}'}), 500
 
 @app.route('/api/export-report-template/<int:template_id>', methods=['GET'])
 @login_required
@@ -3926,6 +3984,8 @@ def api_preview_report(id):
                 remark_data = json.loads(report['remark'])
                 report_data['customer_unit'] = remark_data.get('customer_unit', '')
                 report_data['customer_plant'] = remark_data.get('customer_plant', '')
+                # 注意：remark JSON中的键名是 customer_address，需要映射到 unit_address
+                report_data['unit_address'] = remark_data.get('customer_address', '') or remark_data.get('unit_address', '')
             except:
                 pass
 
@@ -3933,6 +3993,36 @@ def api_preview_report(id):
         generator = ReportGenerator(template_id, report_data, report_id=id)
         generator._load_template_info()
         generator._load_complete_data()
+
+        # 字段名映射表（中文名 -> 英文数据库字段名）
+        field_mapping = {
+            '报告编号': 'report_number',
+            '样品编号': 'sample_number',
+            '样品类型': 'sample_type_name',
+            '被检单位': 'customer_unit',
+            '被检水厂': 'customer_plant',
+            '单位地址': 'unit_address',
+            '委托单位': 'company_name',
+            '采样人': 'sampler',
+            '采样日期': 'sampling_date',
+            '采样地点': 'sampling_location',
+            '采样依据': 'sampling_basis',
+            '样品来源': 'sample_source',
+            '样品状态': 'sample_status',
+            '收样日期': 'sample_received_date',
+            '检测日期': 'detection_date',
+            '检测人': 'detection_person',
+            '检测人员': 'detection_person',
+            '审核人': 'review_person',
+            '审核人员': 'review_person',
+            '报告编制日期': 'report_date',
+            '产品标准': 'product_standard',
+            '检测项目': 'detection_items_description',
+            '检测结论': 'test_conclusion',
+            '附加信息': 'additional_info',
+            '附件信息': 'attachment_info',
+            '备注': 'remark'
+        }
 
         # 打印调试信息
         print(f"\n=== 预览API调试信息 ===")
@@ -3954,9 +4044,11 @@ def api_preview_report(id):
                 value_source = '来自已审核报告'
                 print(f"引用字段 [{field_name}] = '{value}'")
             else:
-                value = generator.report_data.get(field_name, field_dict.get('default_value', ''))
+                # 将中文字段名映射到英文数据库字段名
+                db_field_name = field_mapping.get(field_name, field_name)
+                value = generator.report_data.get(db_field_name, field_dict.get('default_value', ''))
                 value_source = '当前报告数据'
-                print(f"普通字段 [{field_name}] = '{value}' (在report_data中: {field_name in generator.report_data})")
+                print(f"普通字段 [{field_name}] -> [{db_field_name}] = '{value}' (在report_data中: {db_field_name in generator.report_data})")
 
             preview_fields.append({
                 'field_name': field_name,

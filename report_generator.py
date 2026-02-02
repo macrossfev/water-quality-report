@@ -106,6 +106,13 @@ class ReportGenerator:
             self.report_data['test_conclusion'] = report['test_conclusion'] or ''
             self.report_data['additional_info'] = report['additional_info'] or ''
 
+            # 添加检测项目描述和附件信息
+            detection_items_desc = report['detection_items_description'] if 'detection_items_description' in report.keys() else None
+            attachment_info_val = report['attachment_info'] if 'attachment_info' in report.keys() else None
+            # 确保 None 转换为空字符串，而不是字符串 'None'
+            self.report_data['detection_items_description'] = detection_items_desc if detection_items_desc is not None else ''
+            self.report_data['attachment_info'] = attachment_info_val if attachment_info_val is not None else ''
+
             # 从remark中提取客户信息
             if report['remark']:
                 try:
@@ -113,7 +120,8 @@ class ReportGenerator:
                     remark_data = json.loads(report['remark'])
                     self.report_data['customer_unit'] = remark_data.get('customer_unit', '')
                     self.report_data['customer_plant'] = remark_data.get('customer_plant', '')
-                    self.report_data['unit_address'] = remark_data.get('unit_address', '')
+                    # 注意：remark JSON中的键名是 customer_address，需要映射到 unit_address
+                    self.report_data['unit_address'] = remark_data.get('customer_address', '') or remark_data.get('unit_address', '')
                 except:
                     pass
 
@@ -192,6 +200,13 @@ class ReportGenerator:
         print(f"模板字段数量: {len(fields)}")
         print(f"报告数据键: {list(self.report_data.keys())}")
 
+        # 分组字段：普通字段、检测数据列、数据区结束标记
+        detection_columns = {}  # {sheet_name: {column_mapping: cell_address}}
+        data_region_ends = {}   # {sheet_name: end_row}
+
+        # 按单元格分组字段，用于处理同一单元格包含多个字段标记的情况
+        cell_fields = {}  # {(sheet_name, cell_address): [fields]}
+
         for field in fields:
             field_name = field['field_name']
             field_type = field['field_type']
@@ -207,33 +222,146 @@ class ReportGenerator:
             # 获取工作表
             ws = self.workbook[sheet_name]
 
+            # 检测数据列标记：收集列映射信息
+            if field_type == 'detection_column':
+                column_mapping = field.get('column_mapping')
+                if column_mapping:
+                    if sheet_name not in detection_columns:
+                        detection_columns[sheet_name] = {}
+                    detection_columns[sheet_name][column_mapping] = cell_address
+                    print(f"检测数据列: [{field_name}] -> {column_mapping} 在 {cell_address}")
+                continue
+
+            # 控制标记：数据区结束标记
+            if field_type == 'control_mark' and field.get('control_type') == 'data_region_end':
+                from openpyxl.utils.cell import coordinate_from_string
+                _, end_row = coordinate_from_string(cell_address)
+                data_region_ends[sheet_name] = end_row
+                print(f"数据区结束标记: {sheet_name} 最大行 {end_row}")
+                continue
+
             # 根据字段类型填充数据
             if field_type == 'table_data':
                 # 表格数据特殊处理
                 print(f"填充表格数据: {field_name}")
                 self._fill_table_data(ws, field)
             else:
-                # 获取字段值
-                if is_reference:
-                    # 引用字段：从已审核报告中查询数据
-                    value = self._get_reference_value(field_name)
-                    print(f"引用字段 [{field_name}] = {value} (来自已审核报告)")
-                else:
-                    # 普通字段：从当前报告数据中获取
-                    value = self.report_data.get(field_name, field.get('default_value', ''))
-                    print(f"普通字段 [{field_name}] = {value}")
+                # 对于普通字段，按单元格分组处理（支持同一单元格多个字段标记）
+                cell_key = (sheet_name, cell_address)
+                if cell_key not in cell_fields:
+                    cell_fields[cell_key] = []
+                cell_fields[cell_key].append(field)
 
-                # 修改条件：即使value为空字符串也要填充（除非是None）
-                if value is not None and cell_address:
-                    try:
-                        ws[cell_address] = value
-                        print(f"  ✓ 已填充到 {sheet_name}!{cell_address}")
-                    except Exception as e:
-                        print(f"  ✗ 填充失败: {e}")
+        # 批量处理单元格填充（处理同一单元格的多个字段）
+        for (sheet_name, cell_address), fields_in_cell in cell_fields.items():
+            ws = self.workbook[sheet_name]
+
+            # 获取第一个字段的原始文本作为基准
+            original_text = fields_in_cell[0].get('original_cell_text', '')
+
+            if original_text and original_text.strip():
+                # 有原始文本，进行字符串替换
+                filled_text = original_text
+
+                for field in fields_in_cell:
+                    field_name = field['field_name']
+                    is_reference = field.get('is_reference', False)
+
+                    # 获取字段值
+                    if is_reference:
+                        value = self._get_reference_value(field_name)
+                        print(f"引用字段 [{field_name}] = {value} (来自已审核报告)")
+                    else:
+                        value = self.report_data.get(field_name, field.get('default_value', ''))
+                        print(f"普通字段 [{field_name}] = {value}")
+
+                    if value is not None:
+                        # 构建字段标记
+                        field_code = field.get('field_code')
+                        if field_code:
+                            field_marker = f"[{field_code}]"
+                        elif is_reference:
+                            field_marker = f"[*{field_name}]"
+                        else:
+                            field_marker = f"[{field_name}]"
+
+                        # 日期格式转换：将YYYY-MM-DD转换为YYYY年MM月DD日
+                        if field.get('field_type') == 'date' or 'date' in field_name.lower() or '日期' in field_name:
+                            value = self._format_date_chinese(value)
+
+                        # 累积替换
+                        filled_text = filled_text.replace(field_marker, str(value))
+                        print(f"  ✓ 替换 '{field_marker}' -> '{value}'")
+
+                ws[cell_address] = filled_text
+                print(f"  ✓ 完成填充到 {sheet_name}!{cell_address}: {repr(filled_text)}")
+            else:
+                # 没有原始文本，直接填充第一个字段的值
+                field = fields_in_cell[0]
+                field_name = field['field_name']
+                is_reference = field.get('is_reference', False)
+
+                if is_reference:
+                    value = self._get_reference_value(field_name)
                 else:
-                    print(f"  - 跳过（值为None）")
+                    value = self.report_data.get(field_name, field.get('default_value', ''))
+
+                if value is not None:
+                    # 日期格式转换
+                    if field.get('field_type') == 'date' or 'date' in field_name.lower() or '日期' in field_name:
+                        value = self._format_date_chinese(value)
+
+                    ws[cell_address] = value
+                    print(f"  ✓ 已填充到 {sheet_name}!{cell_address}: {value}")
+
+        # 填充检测数据（使用动态列位置，支持跨页填充）
+        if detection_columns:
+            self._fill_detection_data_by_columns(detection_columns, data_region_ends)
 
         print(f"=== 数据填充完成 ===\n")
+
+    def _format_date_chinese(self, date_value):
+        """
+        将日期转换为中文格式
+
+        Args:
+            date_value: 日期值，可能是字符串或datetime对象
+
+        Returns:
+            str: 中文格式的日期，如 "2026年02月02日"
+        """
+        if not date_value:
+            return ''
+
+        try:
+            # 如果是字符串，尝试解析
+            if isinstance(date_value, str):
+                # 支持多种日期格式
+                from datetime import datetime
+
+                # 尝试常见格式
+                for fmt in ['%Y-%m-%d', '%Y/%m/%d', '%Y%m%d']:
+                    try:
+                        dt = datetime.strptime(date_value, fmt)
+                        return f"{dt.year}年{dt.month:02d}月{dt.day:02d}日"
+                    except ValueError:
+                        continue
+
+                # 如果已经是中文格式，直接返回
+                if '年' in date_value and '月' in date_value:
+                    return date_value
+
+                # 无法解析，返回原值
+                return str(date_value)
+
+            # 如果是datetime对象
+            elif hasattr(date_value, 'year'):
+                return f"{date_value.year}年{date_value.month:02d}月{date_value.day:02d}日"
+
+            return str(date_value)
+        except Exception as e:
+            print(f"  ⚠ 日期格式转换失败: {e}")
+            return str(date_value)
 
     def _get_reference_value(self, field_name):
         """
@@ -270,8 +398,10 @@ class ReportGenerator:
             '审核人员': 'review_person',
             '报告编制日期': 'report_date',
             '产品标准': 'product_standard',
+            '检测项目': 'detection_items_description',
             '检测结论': 'test_conclusion',
             '附加信息': 'additional_info',
+            '附件信息': 'attachment_info',
             '备注': 'remark'
         }
 
@@ -396,6 +526,135 @@ class ReportGenerator:
 
             # 检测方法
             worksheet.cell(row, start_col + 5).value = item.get('method', '')
+
+    def _fill_detection_data_by_columns(self, detection_columns, data_region_ends):
+        """
+        使用动态列位置填充检测数据，支持跨页填充
+
+        Args:
+            detection_columns: {sheet_name: {column_mapping: cell_address}}
+                例如: {'Sheet1': {'name': 'B8', 'unit': 'C8', 'result': 'D8'}}
+            data_region_ends: {sheet_name: end_row}
+                例如: {'Sheet1': 30, 'Sheet2': 30}
+        """
+        detection_items = self.report_data.get('detection_items', [])
+
+        if not detection_items:
+            print("没有检测数据需要填充")
+            return
+
+        print(f"\n=== 使用动态列位置填充检测数据（支持跨页） ===")
+        print(f"检测项目数量: {len(detection_items)}")
+
+        from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
+
+        # 按工作表名称排序，确保按顺序填充（Sheet1, Sheet2, ...）
+        sorted_sheets = sorted(detection_columns.keys())
+
+        # 构建数据页信息列表
+        data_pages = []
+        for sheet_name in sorted_sheets:
+            if sheet_name not in self.workbook.sheetnames:
+                print(f"警告: 工作表 '{sheet_name}' 不存在")
+                continue
+
+            columns = detection_columns[sheet_name]
+
+            # 解析起始行
+            first_cell = list(columns.values())[0]
+            _, start_row = coordinate_from_string(first_cell)
+
+            # 获取结束行（如果有标记）
+            end_row = data_region_ends.get(sheet_name)
+            if end_row:
+                capacity = end_row - start_row  # 实际可用行数（不包括结束标记行）
+            else:
+                # 如果没有结束标记，默认容量为1000行（实际上无限制）
+                capacity = 1000
+
+            data_pages.append({
+                'sheet_name': sheet_name,
+                'columns': columns,
+                'start_row': start_row,
+                'end_row': end_row,
+                'capacity': capacity
+            })
+
+            print(f"数据页: {sheet_name}, 起始行: {start_row}, 结束行: {end_row or '无限制'}, 容量: {capacity}行")
+
+        if not data_pages:
+            print("警告: 没有有效的数据页")
+            return
+
+        # 跨页填充检测数据
+        item_index = 0  # 当前检测项目索引
+
+        for page in data_pages:
+            sheet_name = page['sheet_name']
+            columns = page['columns']
+            start_row = page['start_row']
+            capacity = page['capacity']
+
+            ws = self.workbook[sheet_name]
+
+            # 计算本页要填充的数据量
+            remaining_items = len(detection_items) - item_index
+            items_to_fill = min(capacity, remaining_items)
+
+            if items_to_fill <= 0:
+                print(f"  ℹ {sheet_name}: 无需填充（所有数据已填充完）")
+                break
+
+            print(f"\n工作表: {sheet_name}")
+            print(f"  本页填充: {items_to_fill} 行 (从第 {item_index + 1} 项到第 {item_index + items_to_fill} 项)")
+
+            # 填充本页数据
+            for i in range(items_to_fill):
+                item = detection_items[item_index + i]
+                current_row = start_row + i
+
+                # 根据列映射填充数据
+                for mapping, cell_address in columns.items():
+                    col_letter, _ = coordinate_from_string(cell_address)
+                    col_index = column_index_from_string(col_letter)
+
+                    # 根据映射类型获取数据
+                    if mapping == 'index':
+                        value = item_index + i + 1  # 全局序号
+                    elif mapping == 'name':
+                        value = item.get('name', '')
+                    elif mapping == 'unit':
+                        value = item.get('unit', '')
+                    elif mapping == 'result':
+                        value = item.get('result', '')
+                    elif mapping == 'limit':
+                        value = item.get('limit', '')
+                    elif mapping == 'method':
+                        value = item.get('method', '')
+                    elif mapping == 'judgment':
+                        value = item.get('judgment', '')
+                    else:
+                        value = ''
+
+                    try:
+                        ws.cell(row=current_row, column=col_index).value = value
+                        if i == 0:  # 只打印第一行的详细信息
+                            print(f"  列 {mapping}: {col_letter}{current_row} = '{value}'")
+                    except Exception as e:
+                        print(f"  ✗ 填充失败 {col_letter}{current_row}: {e}")
+
+            print(f"  ✓ 已填充 {items_to_fill} 行到 {sheet_name}")
+            item_index += items_to_fill
+
+            # 如果所有数据都已填充完，退出循环
+            if item_index >= len(detection_items):
+                break
+
+        print(f"\n=== 检测数据填充完成 ===")
+        print(f"总计填充: {item_index} / {len(detection_items)} 项")
+
+        if item_index < len(detection_items):
+            print(f"⚠ 警告: 有 {len(detection_items) - item_index} 项数据未填充（数据页容量不足）")
 
 def generate_simple_report(report_id):
     """

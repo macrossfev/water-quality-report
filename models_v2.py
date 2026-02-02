@@ -274,6 +274,20 @@ def init_database():
         cursor.execute('ALTER TABLE export_templates ADD COLUMN sample_type_id INTEGER')
         print("export_templates表迁移完成！")
 
+    # 检查reports表是否有detection_items_description和attachment_info列
+    cursor.execute("PRAGMA table_info(reports)")
+    report_columns = [row[1] for row in cursor.fetchall()]
+
+    if 'detection_items_description' not in report_columns:
+        print("正在迁移reports表，添加detection_items_description列...")
+        cursor.execute('ALTER TABLE reports ADD COLUMN detection_items_description TEXT')
+        print("reports表迁移完成（detection_items_description）！")
+
+    if 'attachment_info' not in report_columns:
+        print("正在迁移reports表，添加attachment_info列...")
+        cursor.execute('ALTER TABLE reports ADD COLUMN attachment_info TEXT')
+        print("reports表迁移完成（attachment_info）！")
+
     conn.commit()
 
     # ==================== 初始化默认数据 ====================

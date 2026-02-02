@@ -41,6 +41,12 @@
             <button class="btn btn-info" id="refreshBtn">
                 <i class="bi bi-arrow-clockwise"></i> 刷新列表
             </button>
+            <button class="btn btn-primary" id="downloadDocBtn">
+                <i class="bi bi-download"></i> 下载字段代号说明
+            </button>
+            <button class="btn btn-warning" id="downloadExampleBtn">
+                <i class="bi bi-file-earmark-excel"></i> 下载Excel模板示例
+            </button>
         </div>
 
         <!-- 模版列表 -->
@@ -357,6 +363,14 @@
             });
 
             document.getElementById('refreshBtn').addEventListener('click', loadTemplates);
+
+            document.getElementById('downloadDocBtn').addEventListener('click', () => {
+                window.location.href = '/api/field-code-reference';
+            });
+
+            document.getElementById('downloadExampleBtn').addEventListener('click', () => {
+                window.location.href = '/api/download-example-template';
+            });
 
             document.getElementById('uploadBtn').addEventListener('click', uploadTemplate);
 

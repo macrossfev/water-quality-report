@@ -96,6 +96,12 @@ def migrate_template_tables():
             migrations_needed.append('placeholder')
         if 'is_reference' not in columns:
             migrations_needed.append('is_reference')
+        if 'column_mapping' not in columns:
+            migrations_needed.append('column_mapping')
+        if 'original_cell_text' not in columns:
+            migrations_needed.append('original_cell_text')
+        if 'field_code' not in columns:
+            migrations_needed.append('field_code')
 
         if migrations_needed:
             print(f"正在迁移 template_field_mappings 表，添加字段: {', '.join(migrations_needed)}")
@@ -111,6 +117,18 @@ def migrate_template_tables():
             if 'is_reference' in migrations_needed:
                 cursor.execute('ALTER TABLE template_field_mappings ADD COLUMN is_reference BOOLEAN DEFAULT 0')
                 print("  ✓ 添加字段 is_reference")
+
+            if 'column_mapping' in migrations_needed:
+                cursor.execute('ALTER TABLE template_field_mappings ADD COLUMN column_mapping TEXT')
+                print("  ✓ 添加字段 column_mapping (用于存储检测数据列映射)")
+
+            if 'original_cell_text' in migrations_needed:
+                cursor.execute('ALTER TABLE template_field_mappings ADD COLUMN original_cell_text TEXT')
+                print("  ✓ 添加字段 original_cell_text (用于存储原始单元格完整文本)")
+
+            if 'field_code' in migrations_needed:
+                cursor.execute('ALTER TABLE template_field_mappings ADD COLUMN field_code TEXT')
+                print("  ✓ 添加字段 field_code (用于存储字段代号如 #report_no)")
 
             conn.commit()
             print("模板表迁移完成！")
