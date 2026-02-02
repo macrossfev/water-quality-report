@@ -3934,6 +3934,13 @@ def api_preview_report(id):
         generator._load_template_info()
         generator._load_complete_data()
 
+        # 打印调试信息
+        print(f"\n=== 预览API调试信息 ===")
+        print(f"报告ID: {id}")
+        print(f"模板ID: {template_id}")
+        print(f"generator.report_data 键: {list(generator.report_data.keys())}")
+        print(f"模板字段数量: {len(template_fields)}")
+
         # 构建预览数据
         preview_fields = []
         for field in template_fields:
@@ -3945,9 +3952,11 @@ def api_preview_report(id):
             if is_reference:
                 value = generator._get_reference_value(field_name) if hasattr(generator, '_get_reference_value') else ''
                 value_source = '来自已审核报告'
+                print(f"引用字段 [{field_name}] = '{value}'")
             else:
                 value = generator.report_data.get(field_name, field_dict.get('default_value', ''))
                 value_source = '当前报告数据'
+                print(f"普通字段 [{field_name}] = '{value}' (在report_data中: {field_name in generator.report_data})")
 
             preview_fields.append({
                 'field_name': field_name,
@@ -3958,6 +3967,8 @@ def api_preview_report(id):
                 'value_source': value_source,
                 'is_reference': is_reference
             })
+
+        print(f"=== 预览API调试结束 ===\n")
 
         # 检测数据
         detection_data = [
