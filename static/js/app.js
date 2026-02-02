@@ -3581,22 +3581,86 @@ async function loadGenReports() {
 
 async function generateReport(reportId) {
     try {
-        // 获取报告信息以确定template_id
-        const report = await apiRequest(`/api/reports/${reportId}/review-detail`);
+        // 显示模板选择对话框
+        await showTemplateSelectModal(reportId);
 
-        if (!report.report.template_id) {
-            showToast('该报告没有关联模板，无法生成', 'warning');
+    } catch (error) {
+        console.error('生成报告失败:', error);
+        showToast('生成报告失败: ' + error.message, 'error');
+    }
+}
+
+// 显示模板选择对话框
+async function showTemplateSelectModal(reportId) {
+    try {
+        // 加载模板列表
+        const templates = await apiRequest('/api/report-templates');
+
+        if (templates.length === 0) {
+            showToast('没有可用的报告模板，请先导入模板', 'warning');
             return;
         }
 
-        if (!confirm('确定要生成此报告吗？')) return;
+        // 填充模板下拉列表
+        const selectElement = document.getElementById('selectedTemplateId');
+        selectElement.innerHTML = '<option value="">-- 请选择模板 --</option>' +
+            templates.map(t => `<option value="${t.id}">${t.name} ${t.sample_type_name ? `(${t.sample_type_name})` : ''}</option>`).join('');
 
+        // 监听模板选择变化
+        selectElement.onchange = function() {
+            const templateId = this.value;
+            const templateInfo = document.getElementById('templateInfo');
+            const templateInfoContent = document.getElementById('templateInfoContent');
+
+            if (templateId) {
+                const template = templates.find(t => t.id == templateId);
+                if (template) {
+                    templateInfoContent.innerHTML = `
+                        <div><strong>模板名称：</strong>${template.name}</div>
+                        <div><strong>样品类型：</strong>${template.sample_type_name || '未指定'}</div>
+                        <div><strong>描述：</strong>${template.description || '无'}</div>
+                    `;
+                    templateInfo.classList.remove('d-none');
+                }
+            } else {
+                templateInfo.classList.add('d-none');
+            }
+        };
+
+        // 显示对话框
+        const modal = new bootstrap.Modal(document.getElementById('templateSelectModal'));
+        modal.show();
+
+        // 绑定确认按钮
+        document.getElementById('confirmGenerateBtn').onclick = async function() {
+            const selectedTemplateId = document.getElementById('selectedTemplateId').value;
+
+            if (!selectedTemplateId) {
+                showToast('请选择一个模板', 'warning');
+                return;
+            }
+
+            modal.hide();
+
+            // 执行生成报告
+            await executeGenerateReport(reportId, selectedTemplateId);
+        };
+
+    } catch (error) {
+        console.error('加载模板列表失败:', error);
+        showToast('加载模板列表失败: ' + error.message, 'error');
+    }
+}
+
+// 执行生成报告
+async function executeGenerateReport(reportId, templateId) {
+    try {
         showToast('正在生成报告，请稍候...', 'warning');
 
         const result = await apiRequest(`/api/reports/${reportId}/generate`, {
             method: 'POST',
             body: JSON.stringify({
-                template_id: report.report.template_id
+                template_id: parseInt(templateId)
             })
         });
 

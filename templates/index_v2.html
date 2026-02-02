@@ -952,6 +952,37 @@
     <!-- 模态框容器 -->
     <div id="modalContainer"></div>
 
+    <!-- 模板选择模态框 -->
+    <div class="modal fade" id="templateSelectModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-file-earmark-spreadsheet"></i> 选择报告模板</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">请选择要使用的Excel报告模板 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="selectedTemplateId" size="6">
+                            <option value="">加载中...</option>
+                        </select>
+                        <div class="form-text">选择模板后，系统将使用该模板生成Excel报告</div>
+                    </div>
+                    <div id="templateInfo" class="alert alert-info d-none">
+                        <strong>模板信息：</strong>
+                        <div id="templateInfoContent"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="confirmGenerateBtn">
+                        <i class="bi bi-file-earmark-arrow-down"></i> 确认生成
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
