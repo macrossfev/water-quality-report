@@ -178,7 +178,13 @@
                                 <div id="searchResultList" style="display: none;">
                                     <hr>
                                     <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6>查询结果 (<span id="resultCount">0</span> 条)</h6>
+                                        <h6>查询结果 (显示 <span id="filteredCount">0</span> / <span id="resultCount">0</span> 条)</h6>
+                                        <div class="d-flex align-items-center">
+                                            <label class="me-2 mb-0 small">水样类型筛选：</label>
+                                            <select class="form-select form-select-sm" id="sampleTypeFilter" style="width: auto;">
+                                                <option value="">全部类型</option>
+                                            </select>
+                                        </div>
                                     </div>
                                     <div class="table-responsive">
                                         <table class="table table-hover table-striped">
@@ -382,6 +388,7 @@
         let categories = [];
         let templates = [];
         let currentSampleNumber = '';
+        let allSearchRecords = []; // 保存所有查询结果
 
         // 页面加载时检查登录状态
         document.addEventListener('DOMContentLoaded', function() {
@@ -668,12 +675,53 @@
         function displaySearchResults(records) {
             const resultListDiv = document.getElementById('searchResultList');
             const notFoundDiv = document.getElementById('searchNotFound');
-            const tableBody = document.getElementById('searchResultTableBody');
             const countSpan = document.getElementById('resultCount');
+
+            // 保存所有记录
+            allSearchRecords = records;
 
             notFoundDiv.style.display = 'none';
             resultListDiv.style.display = 'block';
             countSpan.textContent = records.length;
+
+            // 提取所有唯一的水样类型
+            const sampleTypes = [...new Set(records.map(r => r.sample_type).filter(t => t))];
+
+            // 填充水样类型筛选器
+            const filterSelect = document.getElementById('sampleTypeFilter');
+            filterSelect.innerHTML = '<option value="">全部类型</option>';
+            sampleTypes.forEach(type => {
+                filterSelect.innerHTML += `<option value="${type}">${type}</option>`;
+            });
+
+            // 绑定筛选器事件（先移除旧的事件监听）
+            const newFilterSelect = filterSelect.cloneNode(true);
+            filterSelect.parentNode.replaceChild(newFilterSelect, filterSelect);
+            newFilterSelect.addEventListener('change', function() {
+                filterRecordsBySampleType(this.value);
+            });
+
+            // 显示所有记录
+            renderRecords(records);
+        }
+
+        // 根据水样类型筛选记录
+        function filterRecordsBySampleType(sampleType) {
+            let filteredRecords = allSearchRecords;
+
+            if (sampleType) {
+                filteredRecords = allSearchRecords.filter(r => r.sample_type === sampleType);
+            }
+
+            renderRecords(filteredRecords);
+        }
+
+        // 渲染记录表格
+        function renderRecords(records) {
+            const tableBody = document.getElementById('searchResultTableBody');
+            const filteredCountSpan = document.getElementById('filteredCount');
+
+            filteredCountSpan.textContent = records.length;
 
             let html = '';
             records.forEach(record => {
@@ -698,6 +746,10 @@
                     </tr>
                 `;
             });
+
+            if (records.length === 0) {
+                html = '<tr><td colspan="6" class="text-center text-muted">没有符合条件的记录</td></tr>';
+            }
 
             tableBody.innerHTML = html;
         }
