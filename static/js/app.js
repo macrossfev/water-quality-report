@@ -60,13 +60,28 @@ async function apiRequest(url, options = {}) {
 function formatDateTime(dateString) {
     if (!dateString) return '';
     const date = new Date(dateString);
-    return date.toLocaleString('zh-CN');
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${year}年${month}月${day}日 ${hours}:${minutes}:${seconds}`;
 }
 
 function formatDate(dateString) {
     if (!dateString) return '';
+    // Handle YYYY-MM-DD format directly
+    const match = dateString.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+        return `${match[1]}年${match[2]}月${match[3]}日`;
+    }
+    // Fallback to Date object parsing
     const date = new Date(dateString);
-    return date.toLocaleDateString('zh-CN');
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}年${month}月${day}日`;
 }
 
 // ==================== 初始化 ====================
@@ -2223,7 +2238,7 @@ function updateReportsList() {
                 <td>${report.sample_number}</td>
                 <td>${report.sample_type_name || '-'}</td>
                 <td>${report.company_name || '-'}</td>
-                <td>${formatDate(report.detection_date)}</td>
+                <td>${report.detection_date || '-'}</td>
                 <td>${formatDateTime(report.created_at)}</td>
                 <td onclick="event.stopPropagation();">
                     <button class="btn btn-sm btn-primary me-1" onclick="viewReport(${report.id})">
@@ -2327,7 +2342,7 @@ async function viewReport(id) {
                                 </div>
                                 <div class="report-info-row">
                                     <div class="report-info-label">检测日期:</div>
-                                    <div class="report-info-value">${formatDate(report.detection_date)}</div>
+                                    <div class="report-info-value">${report.detection_date || '-'}</div>
                                 </div>
                                 <div class="report-info-row">
                                     <div class="report-info-label">检测人员:</div>
@@ -2775,7 +2790,7 @@ async function loadPendingReports() {
                     <td>${customerPlant}</td>
                     <td><span class="badge bg-info">${indicatorCount} 项</span></td>
                     <td>${statusBadge}</td>
-                    <td>${new Date(report.created_at).toLocaleString('zh-CN')}</td>
+                    <td>${formatDateTime(report.created_at)}</td>
                     <td class="text-truncate" style="max-width: 200px;" title="${rejectReason}">${rejectReason}</td>
                     <td>
                         <button class="btn btn-sm btn-warning" onclick="editPendingReport(${report.id})">
@@ -3146,7 +3161,7 @@ async function loadSubmittedReports() {
                     <td>${report.template_name || '-'}</td>
                     <td>${reviewStatusBadge}</td>
                     <td>${generateStatusBadge}</td>
-                    <td>${new Date(report.created_at).toLocaleString('zh-CN')}</td>
+                    <td>${formatDateTime(report.created_at)}</td>
                     <td>
                         <button class="btn btn-sm btn-info" onclick="showReviewDetailModal(${report.id})">
                             <i class="bi bi-eye"></i> 查看
@@ -3229,7 +3244,7 @@ async function loadReviewReports() {
                     <td>${report.sample_type_name || '-'}</td>
                     <td>${report.company_name || '-'}</td>
                     <td>${statusBadge}</td>
-                    <td>${new Date(report.created_at).toLocaleString('zh-CN')}</td>
+                    <td>${formatDateTime(report.created_at)}</td>
                     <td>${report.detection_date || '-'}</td>
                     <td>
                         <button class="btn btn-sm btn-info" onclick="showReviewDetailModal(${report.id})">
@@ -3284,7 +3299,7 @@ async function showReviewDetailModal(reportId) {
                             <h6 class="mb-3"><i class="bi bi-card-list"></i> 基本信息</h6>
                             <div class="row mb-2">
                                 <div class="col-md-6"><strong>报告编号：</strong>${data.report.report_number || '-'}</div>
-                                <div class="col-md-6"><strong>报告编制日期：</strong>${data.report.report_date || '-'}</div>
+                                <div class="col-md-6"><strong>报告编制日期：</strong>${data.report.report_date ? formatDate(data.report.report_date) : '-'}</div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-6"><strong>样品编号：</strong>${data.report.sample_number || '-'}</div>
@@ -3296,10 +3311,10 @@ async function showReviewDetailModal(reportId) {
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-6"><strong>采样人：</strong>${data.report.sampler || '-'}</div>
-                                <div class="col-md-6"><strong>采样日期：</strong>${data.report.sampling_date || '-'}</div>
+                                <div class="col-md-6"><strong>采样日期：</strong>${data.report.sampling_date ? formatDate(data.report.sampling_date) : '-'}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-6"><strong>收样日期：</strong>${data.report.sample_received_date || '-'}</div>
+                                <div class="col-md-6"><strong>收样日期：</strong>${data.report.sample_received_date ? formatDate(data.report.sample_received_date) : '-'}</div>
                                 <div class="col-md-6"><strong>检测日期：</strong>${data.report.detection_date || '-'}</div>
                             </div>
                             <div class="row mb-2">
@@ -3308,7 +3323,7 @@ async function showReviewDetailModal(reportId) {
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-6"><strong>产品标准：</strong>${data.report.product_standard || '-'}</div>
-                                <div class="col-md-6"><strong>创建时间：</strong>${data.report.created_at ? new Date(data.report.created_at).toLocaleString('zh-CN') : '-'}</div>
+                                <div class="col-md-6"><strong>创建时间：</strong>${data.report.created_at ? formatDateTime(data.report.created_at) : '-'}</div>
                             </div>
                             ${data.report.test_conclusion ? `
                                 <div class="row mb-2">
