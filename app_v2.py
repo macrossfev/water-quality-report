@@ -798,20 +798,11 @@ def api_reports():
         test_conclusion = data.get('test_conclusion', '')
         additional_info = data.get('additional_info', '')
 
-        if not sample_number or not sample_type_id:
-            return jsonify({'error': '样品编号和样品类型不能为空'}), 400
+        # 获取用户输入的报告编号
+        report_number = data.get('report_number', '').strip()
 
-        # 生成报告编号
-        sample_type = conn.execute(
-            'SELECT code FROM sample_types WHERE id = ?',
-            (sample_type_id,)
-        ).fetchone()
-
-        if not sample_type:
-            conn.close()
-            return jsonify({'error': '样品类型不存在'}), 404
-
-        report_number = f"{sample_number}-{sample_type['code']}"
+        if not report_number or not sample_number or not sample_type_id:
+            return jsonify({'error': '报告编号、样品编号和样品类型不能为空'}), 400
 
         # 检查报告编号是否已存在
         existing = conn.execute(
