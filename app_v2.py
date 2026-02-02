@@ -4602,12 +4602,14 @@ def api_raw_data_get_sample_types():
 @app.route('/api/raw-data/search-by-filters', methods=['POST'])
 @login_required
 def api_raw_data_search_by_filters():
-    """根据单位、水厂、样品类型组合查询"""
+    """根据单位、水厂、样品类型组合查询（支持录入时间筛选）"""
     try:
         data = request.json
         company_name = data.get('company_name', '').strip()
         plant_names = data.get('plant_names', [])
         sample_types = data.get('sample_types', [])
+        created_start = data.get('created_start', '').strip()  # 录入开始日期
+        created_end = data.get('created_end', '').strip()      # 录入结束日期
 
         if not company_name:
             return jsonify({'error': '被检单位不能为空'}), 400
@@ -4629,6 +4631,15 @@ def api_raw_data_search_by_filters():
             conditions.append(f'sample_type IN ({placeholders})')
             params.extend(sample_types)
 
+        # 添加录入时间筛选条件
+        if created_start:
+            conditions.append('DATE(created_at) >= ?')
+            params.append(created_start)
+
+        if created_end:
+            conditions.append('DATE(created_at) <= ?')
+            params.append(created_end)
+
         where_clause = ' AND '.join(conditions)
 
         query = f'''
@@ -4636,7 +4647,7 @@ def api_raw_data_search_by_filters():
                    created_at, updated_at
             FROM raw_data_records
             WHERE {where_clause}
-            ORDER BY company_name, plant_name, sampling_date DESC
+            ORDER BY created_at DESC, company_name, plant_name, sampling_date DESC
         '''
 
         cursor.execute(query, params)

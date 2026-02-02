@@ -240,6 +240,37 @@
                                     </div>
                                 </div>
 
+                                <!-- 高级筛选：录入时间 -->
+                                <div class="card mt-3 border-info">
+                                    <div class="card-header bg-info bg-opacity-10">
+                                        <h6 class="mb-0">
+                                            <i class="bi bi-calendar-range"></i> 高级筛选：录入时间
+                                            <span class="badge bg-secondary ms-2">可选</span>
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <label class="form-label">开始日期</label>
+                                                <input type="date" class="form-control" id="createdStartDate" placeholder="选择开始日期">
+                                                <small class="text-muted">不选则不限制开始时间</small>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">结束日期</label>
+                                                <input type="date" class="form-control" id="createdEndDate" placeholder="选择结束日期">
+                                                <small class="text-muted">不选则不限制结束时间</small>
+                                            </div>
+                                        </div>
+                                        <div class="mt-2">
+                                            <button class="btn btn-sm btn-outline-secondary" id="todayBtn">今天</button>
+                                            <button class="btn btn-sm btn-outline-secondary" id="last7DaysBtn">最近7天</button>
+                                            <button class="btn btn-sm btn-outline-secondary" id="last30DaysBtn">最近30天</button>
+                                            <button class="btn btn-sm btn-outline-secondary" id="thisMonthBtn">本月</button>
+                                            <button class="btn btn-sm btn-outline-secondary" id="clearDateBtn">清除</button>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <!-- 查询结果列表 -->
                                 <div id="searchResultList" style="display: none;">
                                     <hr>
@@ -818,6 +849,10 @@
                 return;
             }
 
+            // 获取录入时间筛选条件
+            const createdStart = document.getElementById('createdStartDate').value;
+            const createdEnd = document.getElementById('createdEndDate').value;
+
             // 执行查询
             fetch('/api/raw-data/search-by-filters', {
                 method: 'POST',
@@ -825,7 +860,9 @@
                 body: JSON.stringify({
                     company_name: selectedCompany,
                     plant_names: selectedPlants,
-                    sample_types: selectedTypes
+                    sample_types: selectedTypes,
+                    created_start: createdStart,
+                    created_end: createdEnd
                 })
             })
             .then(response => response.json())
@@ -887,6 +924,41 @@
             document.getElementById('searchResultList').style.display = 'none';
             document.getElementById('searchNotFound').style.display = 'block';
         }
+
+        // 录入时间快捷按钮
+        document.getElementById('todayBtn').addEventListener('click', function() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('createdStartDate').value = today;
+            document.getElementById('createdEndDate').value = today;
+        });
+
+        document.getElementById('last7DaysBtn').addEventListener('click', function() {
+            const today = new Date();
+            const last7Days = new Date(today);
+            last7Days.setDate(today.getDate() - 6);
+            document.getElementById('createdStartDate').value = last7Days.toISOString().split('T')[0];
+            document.getElementById('createdEndDate').value = today.toISOString().split('T')[0];
+        });
+
+        document.getElementById('last30DaysBtn').addEventListener('click', function() {
+            const today = new Date();
+            const last30Days = new Date(today);
+            last30Days.setDate(today.getDate() - 29);
+            document.getElementById('createdStartDate').value = last30Days.toISOString().split('T')[0];
+            document.getElementById('createdEndDate').value = today.toISOString().split('T')[0];
+        });
+
+        document.getElementById('thisMonthBtn').addEventListener('click', function() {
+            const today = new Date();
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            document.getElementById('createdStartDate').value = firstDay.toISOString().split('T')[0];
+            document.getElementById('createdEndDate').value = today.toISOString().split('T')[0];
+        });
+
+        document.getElementById('clearDateBtn').addEventListener('click', function() {
+            document.getElementById('createdStartDate').value = '';
+            document.getElementById('createdEndDate').value = '';
+        });
 
         // 查看详情
         function viewRecordDetail(recordId) {
