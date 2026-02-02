@@ -141,38 +141,62 @@
             <!-- 样品查询 -->
             <div class="tab-pane fade" id="search" role="tabpanel">
                 <div class="row">
-                    <div class="col-md-8 offset-md-2">
+                    <div class="col-md-10 offset-md-1">
                         <div class="card shadow">
                             <div class="card-header bg-success text-white">
-                                <h5><i class="bi bi-search"></i> 样品编号精确查询</h5>
+                                <h5><i class="bi bi-search"></i> 样品数据查询</h5>
                             </div>
                             <div class="card-body">
+                                <!-- 查询类型选择 -->
+                                <div class="mb-3">
+                                    <label class="form-label"><strong>查询方式</strong></label>
+                                    <div class="btn-group w-100" role="group">
+                                        <input type="radio" class="btn-check" name="searchType" id="searchTypeSample" value="sample" checked>
+                                        <label class="btn btn-outline-success" for="searchTypeSample">
+                                            <i class="bi bi-hash"></i> 样品编号查询
+                                        </label>
+                                        <input type="radio" class="btn-check" name="searchType" id="searchTypeCompany" value="company">
+                                        <label class="btn btn-outline-success" for="searchTypeCompany">
+                                            <i class="bi bi-building"></i> 被检单位查询
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- 查询输入框 -->
                                 <div class="input-group mb-3">
-                                    <input type="text" class="form-control" id="searchSampleNumber" placeholder="输入样品编号">
+                                    <input type="text" class="form-control" id="searchInput" placeholder="输入样品编号">
                                     <button class="btn btn-success" type="button" id="searchBtn">
                                         <i class="bi bi-search"></i> 查询
                                     </button>
                                 </div>
 
-                                <!-- 查询结果 -->
-                                <div id="searchResult" style="display: none;">
+                                <!-- 查询结果列表 -->
+                                <div id="searchResultList" style="display: none;">
                                     <hr>
-                                    <h6>查询结果：</h6>
-                                    <div id="searchResultContent"></div>
-
-                                    <div class="mt-3">
-                                        <button class="btn btn-primary" id="exportSingleBtn">
-                                            <i class="bi bi-download"></i> 导出为Excel
-                                        </button>
-                                        <button class="btn btn-secondary" id="exportSingleCsvBtn">
-                                            <i class="bi bi-filetype-csv"></i> 导出为CSV
-                                        </button>
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6>查询结果 (<span id="resultCount">0</span> 条)</h6>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-hover table-striped">
+                                            <thead class="table-success">
+                                                <tr>
+                                                    <th>样品编号</th>
+                                                    <th>被检单位</th>
+                                                    <th>被检水厂</th>
+                                                    <th>样品类型</th>
+                                                    <th>采样日期</th>
+                                                    <th width="200">操作</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="searchResultTableBody">
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
 
                                 <!-- 未找到提示 -->
                                 <div id="searchNotFound" class="alert alert-warning" style="display: none;">
-                                    <i class="bi bi-exclamation-triangle"></i> 未找到该样品编号的数据
+                                    <i class="bi bi-exclamation-triangle"></i> 未找到匹配的数据
                                 </div>
                             </div>
                         </div>
@@ -536,16 +560,40 @@
             });
         });
 
+        // 查询类型切换
+        document.querySelectorAll('input[name="searchType"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const searchInput = document.getElementById('searchInput');
+                if (this.value === 'sample') {
+                    searchInput.placeholder = '输入样品编号';
+                } else {
+                    searchInput.placeholder = '输入被检单位名称（支持模糊查询）';
+                }
+                // 清空之前的搜索结果
+                document.getElementById('searchResultList').style.display = 'none';
+                document.getElementById('searchNotFound').style.display = 'none';
+            });
+        });
+
         // 样品查询
         document.getElementById('searchBtn').addEventListener('click', function() {
-            const sampleNumber = document.getElementById('searchSampleNumber').value.trim();
-            if (!sampleNumber) {
-                alert('请输入样品编号');
+            const searchType = document.querySelector('input[name="searchType"]:checked').value;
+            const searchValue = document.getElementById('searchInput').value.trim();
+
+            if (!searchValue) {
+                alert(searchType === 'sample' ? '请输入样品编号' : '请输入被检单位名称');
                 return;
             }
 
-            currentSampleNumber = sampleNumber;
+            if (searchType === 'sample') {
+                searchBySampleNumber(searchValue);
+            } else {
+                searchByCompanyName(searchValue);
+            }
+        });
 
+        // 按样品编号查询
+        function searchBySampleNumber(sampleNumber) {
             fetch('/api/raw-data/search', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -553,73 +601,336 @@
             })
             .then(response => response.json())
             .then(data => {
-                const resultDiv = document.getElementById('searchResult');
-                const notFoundDiv = document.getElementById('searchNotFound');
-                const contentDiv = document.getElementById('searchResultContent');
-
                 if (data.found) {
-                    notFoundDiv.style.display = 'none';
-                    resultDiv.style.display = 'block';
-
-                    let html = `<table class="table table-bordered table-sm">
-                        <tr><th>样品编号</th><td>${data.data.sample_number}</td></tr>
-                        <tr><th>被检单位</th><td>${data.data.company_name || '-'}</td></tr>
-                        <tr><th>被检水厂</th><td>${data.data.plant_name || '-'}</td></tr>
-                        <tr><th>样品类型</th><td>${data.data.sample_type || '-'}</td></tr>
-                        <tr><th>采样日期</th><td>${data.data.sampling_date}</td></tr>
-                    </table>
-                    <h6 class="mt-3">检测指标：</h6>
-                    <table class="table table-bordered table-sm table-striped">`;
-
-                    for (const [key, value] of Object.entries(data.indicators)) {
-                        html += `<tr><th>${key}</th><td>${value || '-'}</td></tr>`;
-                    }
-
-                    html += '</table>';
-                    contentDiv.innerHTML = html;
+                    // 将单条结果转换为列表格式展示
+                    displaySearchResults([data.data]);
                 } else {
-                    resultDiv.style.display = 'none';
-                    notFoundDiv.style.display = 'block';
+                    showNoResults();
                 }
             })
             .catch(error => {
                 alert('查询失败: ' + error.message);
             });
-        });
+        }
 
-        // 导出单条记录
-        document.getElementById('exportSingleBtn').addEventListener('click', function() {
-            exportSingle('excel');
-        });
-
-        document.getElementById('exportSingleCsvBtn').addEventListener('click', function() {
-            exportSingle('csv');
-        });
-
-        function exportSingle(format) {
-            fetch('/api/raw-data/export-single', {
+        // 按被检单位查询
+        function searchByCompanyName(companyName) {
+            fetch('/api/raw-data/search-by-company', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    sample_number: currentSampleNumber,
-                    format: format
-                })
+                body: JSON.stringify({company_name: companyName})
             })
-            .then(response => {
-                if (response.ok) {
-                    return response.blob();
+            .then(response => response.json())
+            .then(data => {
+                if (data.found && data.records.length > 0) {
+                    displaySearchResults(data.records);
+                } else {
+                    showNoResults();
                 }
-                throw new Error('导出失败');
-            })
-            .then(blob => {
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${currentSampleNumber}_${new Date().getTime()}.${format === 'csv' ? 'csv' : 'xlsx'}`;
-                a.click();
             })
             .catch(error => {
-                alert('导出失败: ' + error.message);
+                alert('查询失败: ' + error.message);
+            });
+        }
+
+        // 显示查询结果列表
+        function displaySearchResults(records) {
+            const resultListDiv = document.getElementById('searchResultList');
+            const notFoundDiv = document.getElementById('searchNotFound');
+            const tableBody = document.getElementById('searchResultTableBody');
+            const countSpan = document.getElementById('resultCount');
+
+            notFoundDiv.style.display = 'none';
+            resultListDiv.style.display = 'block';
+            countSpan.textContent = records.length;
+
+            let html = '';
+            records.forEach(record => {
+                html += `
+                    <tr>
+                        <td>${record.sample_number}</td>
+                        <td>${record.company_name || '-'}</td>
+                        <td>${record.plant_name || '-'}</td>
+                        <td>${record.sample_type || '-'}</td>
+                        <td>${record.sampling_date}</td>
+                        <td>
+                            <button class="btn btn-sm btn-info" onclick="viewRecordDetail(${record.id})">
+                                <i class="bi bi-eye"></i> 查看
+                            </button>
+                            <button class="btn btn-sm btn-warning" onclick="editRecord(${record.id})">
+                                <i class="bi bi-pencil"></i> 修改
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteRecord(${record.id}, '${record.sample_number}')">
+                                <i class="bi bi-trash"></i> 删除
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tableBody.innerHTML = html;
+        }
+
+        // 显示无结果
+        function showNoResults() {
+            document.getElementById('searchResultList').style.display = 'none';
+            document.getElementById('searchNotFound').style.display = 'block';
+        }
+
+        // 查看详情
+        function viewRecordDetail(recordId) {
+            fetch(`/api/raw-data/detail/${recordId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('获取详情失败: ' + data.error);
+                        return;
+                    }
+
+                    const record = data.data;
+                    const indicators = data.indicators;
+
+                    let html = `
+                        <div class="modal fade" id="detailModal" tabindex="-1">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header bg-info text-white">
+                                        <h5 class="modal-title">样品详情</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <h6>基本信息</h6>
+                                        <table class="table table-bordered table-sm">
+                                            <tr><th width="150">样品编号</th><td>${record.sample_number}</td></tr>
+                                            <tr><th>被检单位</th><td>${record.company_name || '-'}</td></tr>
+                                            <tr><th>被检水厂</th><td>${record.plant_name || '-'}</td></tr>
+                                            <tr><th>样品类型</th><td>${record.sample_type || '-'}</td></tr>
+                                            <tr><th>采样日期</th><td>${record.sampling_date}</td></tr>
+                                        </table>
+
+                                        <h6 class="mt-3">检测指标</h6>
+                                        <table class="table table-bordered table-sm table-striped">
+                                            <thead><tr><th width="150">指标名称</th><th>检测值</th></tr></thead>
+                                            <tbody>
+                    `;
+
+                    for (const [key, value] of Object.entries(indicators)) {
+                        html += `<tr><th>${key}</th><td>${value || '-'}</td></tr>`;
+                    }
+
+                    html += `
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    // 移除旧的Modal
+                    const oldModal = document.getElementById('detailModal');
+                    if (oldModal) oldModal.remove();
+
+                    // 添加新Modal
+                    document.body.insertAdjacentHTML('beforeend', html);
+                    const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+                    modal.show();
+                })
+                .catch(error => {
+                    alert('获取详情失败: ' + error.message);
+                });
+        }
+
+        // 编辑记录
+        function editRecord(recordId) {
+            // 显示警告确认
+            if (!confirm('⚠️ 警告：这是重要数据！\n\n修改原始数据可能会影响数据的完整性和准确性。\n\n确定要继续修改吗？')) {
+                return;
+            }
+
+            fetch(`/api/raw-data/detail/${recordId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('获取数据失败: ' + data.error);
+                        return;
+                    }
+
+                    const record = data.data;
+                    const indicators = data.indicators;
+
+                    let indicatorsHtml = '';
+                    for (const [key, value] of Object.entries(indicators)) {
+                        indicatorsHtml += `
+                            <div class="col-md-6 mb-2">
+                                <label class="form-label small">${key}</label>
+                                <input type="text" class="form-control form-control-sm"
+                                       name="indicator_${key}" value="${value || ''}"
+                                       data-indicator="${key}">
+                            </div>
+                        `;
+                    }
+
+                    let html = `
+                        <div class="modal fade" id="editModal" tabindex="-1">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header bg-warning">
+                                        <h5 class="modal-title">修改样品数据</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="alert alert-warning">
+                                            <i class="bi bi-exclamation-triangle"></i>
+                                            <strong>注意：</strong>请谨慎修改数据，确保数据的准确性。
+                                        </div>
+
+                                        <h6>基本信息</h6>
+                                        <div class="row mb-3">
+                                            <div class="col-md-6 mb-2">
+                                                <label class="form-label">样品编号 <span class="text-danger">*</span></label>
+                                                <input type="text" class="form-control" id="editSampleNumber"
+                                                       value="${record.sample_number}" required>
+                                            </div>
+                                            <div class="col-md-6 mb-2">
+                                                <label class="form-label">被检单位</label>
+                                                <input type="text" class="form-control" id="editCompanyName"
+                                                       value="${record.company_name || ''}">
+                                            </div>
+                                            <div class="col-md-6 mb-2">
+                                                <label class="form-label">被检水厂</label>
+                                                <input type="text" class="form-control" id="editPlantName"
+                                                       value="${record.plant_name || ''}">
+                                            </div>
+                                            <div class="col-md-6 mb-2">
+                                                <label class="form-label">样品类型</label>
+                                                <input type="text" class="form-control" id="editSampleType"
+                                                       value="${record.sample_type || ''}">
+                                            </div>
+                                            <div class="col-md-6 mb-2">
+                                                <label class="form-label">采样日期 <span class="text-danger">*</span></label>
+                                                <input type="date" class="form-control" id="editSamplingDate"
+                                                       value="${record.sampling_date}" required>
+                                            </div>
+                                        </div>
+
+                                        <h6 class="mt-3">检测指标</h6>
+                                        <div class="row" id="editIndicators">
+                                            ${indicatorsHtml}
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                                        <button type="button" class="btn btn-primary" onclick="saveRecord(${recordId})">
+                                            <i class="bi bi-save"></i> 保存修改
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    // 移除旧的Modal
+                    const oldModal = document.getElementById('editModal');
+                    if (oldModal) oldModal.remove();
+
+                    // 添加新Modal
+                    document.body.insertAdjacentHTML('beforeend', html);
+                    const modal = new bootstrap.Modal(document.getElementById('editModal'));
+                    modal.show();
+                })
+                .catch(error => {
+                    alert('获取数据失败: ' + error.message);
+                });
+        }
+
+        // 保存修改
+        function saveRecord(recordId) {
+            const sampleNumber = document.getElementById('editSampleNumber').value.trim();
+            const companyName = document.getElementById('editCompanyName').value.trim();
+            const plantName = document.getElementById('editPlantName').value.trim();
+            const sampleType = document.getElementById('editSampleType').value.trim();
+            const samplingDate = document.getElementById('editSamplingDate').value;
+
+            if (!sampleNumber) {
+                alert('样品编号不能为空');
+                return;
+            }
+
+            if (!samplingDate) {
+                alert('采样日期不能为空');
+                return;
+            }
+
+            // 收集检测指标数据
+            const indicators = {};
+            document.querySelectorAll('#editIndicators input').forEach(input => {
+                const indicatorName = input.getAttribute('data-indicator');
+                const value = input.value.trim();
+                if (indicatorName) {
+                    indicators[indicatorName] = value;
+                }
+            });
+
+            // 发送更新请求
+            fetch(`/api/raw-data/update/${recordId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    sample_number: sampleNumber,
+                    company_name: companyName,
+                    plant_name: plantName,
+                    sample_type: sampleType,
+                    sampling_date: samplingDate,
+                    indicators: indicators
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    alert('修改成功！');
+                    bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+                    // 重新执行查询
+                    document.getElementById('searchBtn').click();
+                } else {
+                    alert('修改失败: ' + (data.error || '未知错误'));
+                }
+            })
+            .catch(error => {
+                alert('修改失败: ' + error.message);
+            });
+        }
+
+        // 删除记录
+        function deleteRecord(recordId, sampleNumber) {
+            // 显示警告确认
+            if (!confirm(`⚠️ 警告：这是重要数据！\n\n您即将删除样品编号为"${sampleNumber}"的记录。\n删除后数据将无法恢复！\n\n确定要删除吗？`)) {
+                return;
+            }
+
+            // 二次确认
+            if (!confirm('再次确认：真的要删除这条数据吗？')) {
+                return;
+            }
+
+            fetch(`/api/raw-data/delete/${recordId}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    alert('删除成功！');
+                    // 重新执行查询
+                    document.getElementById('searchBtn').click();
+                } else {
+                    alert('删除失败: ' + (data.error || '未知错误'));
+                }
+            })
+            .catch(error => {
+                alert('删除失败: ' + error.message);
             });
         }
 

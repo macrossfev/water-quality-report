@@ -4156,6 +4156,206 @@ def api_raw_data_search():
     except Exception as e:
         return jsonify({'error': f'查询失败: {str(e)}'}), 500
 
+@app.route('/api/raw-data/search-by-company', methods=['POST'])
+@login_required
+def api_raw_data_search_by_company():
+    """根据被检单位模糊查询原始数据列表"""
+    try:
+        data = request.json
+        company_name = data.get('company_name', '').strip()
+
+        if not company_name:
+            return jsonify({'error': '被检单位不能为空'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 模糊查询主记录
+        cursor.execute('''
+            SELECT id, sample_number, company_name, plant_name, sample_type, sampling_date,
+                   created_at, updated_at
+            FROM raw_data_records
+            WHERE company_name LIKE ?
+            ORDER BY company_name, plant_name, sampling_date DESC
+        ''', (f'%{company_name}%',))
+
+        records = cursor.fetchall()
+        conn.close()
+
+        if not records:
+            return jsonify({'found': False, 'message': '未找到匹配的数据', 'records': []})
+
+        result_list = []
+        for record in records:
+            result_list.append({
+                'id': record[0],
+                'sample_number': record[1],
+                'company_name': record[2],
+                'plant_name': record[3],
+                'sample_type': record[4],
+                'sampling_date': record[5],
+                'created_at': record[6],
+                'updated_at': record[7]
+            })
+
+        return jsonify({
+            'found': True,
+            'count': len(result_list),
+            'records': result_list
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'查询失败: {str(e)}'}), 500
+
+@app.route('/api/raw-data/detail/<int:record_id>', methods=['GET'])
+@login_required
+def api_raw_data_detail(record_id):
+    """获取原始数据详情"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 查询主记录
+        cursor.execute('''
+            SELECT id, sample_number, company_name, plant_name, sample_type, sampling_date,
+                   created_at, updated_at
+            FROM raw_data_records
+            WHERE id = ?
+        ''', (record_id,))
+
+        record = cursor.fetchone()
+
+        if not record:
+            conn.close()
+            return jsonify({'error': '记录不存在'}), 404
+
+        record_data = {
+            'id': record[0],
+            'sample_number': record[1],
+            'company_name': record[2],
+            'plant_name': record[3],
+            'sample_type': record[4],
+            'sampling_date': record[5],
+            'created_at': record[6],
+            'updated_at': record[7]
+        }
+
+        # 查询检测指标数据
+        cursor.execute('''
+            SELECT column_name, value
+            FROM raw_data_values
+            WHERE record_id = ?
+            ORDER BY id
+        ''', (record_id,))
+
+        indicators = {}
+        for row in cursor.fetchall():
+            indicators[row[0]] = row[1]
+
+        conn.close()
+
+        return jsonify({
+            'data': record_data,
+            'indicators': indicators
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'获取详情失败: {str(e)}'}), 500
+
+@app.route('/api/raw-data/update/<int:record_id>', methods=['PUT'])
+@login_required
+def api_raw_data_update(record_id):
+    """更新原始数据记录"""
+    try:
+        data = request.json
+
+        # 提取基础字段
+        sample_number = data.get('sample_number', '').strip()
+        company_name = data.get('company_name', '').strip()
+        plant_name = data.get('plant_name', '').strip()
+        sample_type = data.get('sample_type', '').strip()
+        sampling_date = data.get('sampling_date', '').strip()
+        indicators = data.get('indicators', {})
+
+        if not sample_number:
+            return jsonify({'error': '样品编号不能为空'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 检查记录是否存在
+        cursor.execute('SELECT id FROM raw_data_records WHERE id = ?', (record_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({'error': '记录不存在'}), 404
+
+        # 检查样品编号是否与其他记录重复
+        cursor.execute('SELECT id FROM raw_data_records WHERE sample_number = ? AND id != ?',
+                      (sample_number, record_id))
+        if cursor.fetchone():
+            conn.close()
+            return jsonify({'error': f'样品编号"{sample_number}"已被其他记录使用'}), 400
+
+        # 更新主记录
+        cursor.execute('''
+            UPDATE raw_data_records
+            SET sample_number = ?, company_name = ?, plant_name = ?,
+                sample_type = ?, sampling_date = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (sample_number, company_name, plant_name, sample_type, sampling_date, record_id))
+
+        # 删除旧的检测值数据
+        cursor.execute('DELETE FROM raw_data_values WHERE record_id = ?', (record_id,))
+
+        # 插入新的检测值数据
+        for column_name, value in indicators.items():
+            if value is not None and str(value).strip():
+                cursor.execute('''
+                    INSERT INTO raw_data_values (record_id, column_name, value)
+                    VALUES (?, ?, ?)
+                ''', (record_id, column_name, str(value).strip()))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({'message': '更新成功'})
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+            conn.close()
+        return jsonify({'error': f'更新失败: {str(e)}'}), 500
+
+@app.route('/api/raw-data/delete/<int:record_id>', methods=['DELETE'])
+@login_required
+def api_raw_data_delete(record_id):
+    """删除原始数据记录"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 检查记录是否存在
+        cursor.execute('SELECT sample_number FROM raw_data_records WHERE id = ?', (record_id,))
+        record = cursor.fetchone()
+
+        if not record:
+            conn.close()
+            return jsonify({'error': '记录不存在'}), 404
+
+        # 删除记录（级联删除会自动删除关联的检测值）
+        cursor.execute('DELETE FROM raw_data_records WHERE id = ?', (record_id,))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({'message': f'已删除样品编号"{record[0]}"的记录'})
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+            conn.close()
+        return jsonify({'error': f'删除失败: {str(e)}'}), 500
+
 @app.route('/api/raw-data/export-single', methods=['POST'])
 @login_required
 def api_raw_data_export_single():
