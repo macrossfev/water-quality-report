@@ -13,7 +13,7 @@ class RawDataImporter:
     """原始数据导入器"""
 
     # 基础字段名称（系统预定义）
-    BASE_FIELDS = ['样品编号', '被检单位', '被检水厂', '样品类型', '采样日期']
+    BASE_FIELDS = ['报告编号', '样品编号', '被检单位', '被检水厂', '样品类型', '采样日期']
 
     def __init__(self):
         self.conn = None
@@ -198,6 +198,7 @@ class RawDataImporter:
 
                 try:
                     # 提取基础字段
+                    report_number = str(row['报告编号']).strip() if pd.notna(row['报告编号']) else ''
                     sample_number = str(row['样品编号']).strip() if pd.notna(row['样品编号']) else ''
                     company_name = str(row['被检单位']).strip() if pd.notna(row['被检单位']) else ''
                     plant_name = str(row['被检水厂']).strip() if pd.notna(row['被检水厂']) else ''
@@ -248,9 +249,9 @@ class RawDataImporter:
                     cursor = self.conn.cursor()
                     cursor.execute('''
                         INSERT INTO raw_data_records
-                        (sample_number, company_name, plant_name, sample_type, sampling_date)
-                        VALUES (?, ?, ?, ?, ?)
-                    ''', (sample_number, company_name, plant_name, sample_type, sampling_date))
+                        (sample_number, report_number, company_name, plant_name, sample_type, sampling_date)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (sample_number, report_number, company_name, plant_name, sample_type, sampling_date))
 
                     record_id = cursor.lastrowid
 

@@ -204,6 +204,7 @@ def init_database():
         CREATE TABLE IF NOT EXISTS raw_data_records (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sample_number TEXT NOT NULL UNIQUE,
+            report_number TEXT,
             company_name TEXT,
             plant_name TEXT,
             sample_type TEXT,

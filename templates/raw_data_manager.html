@@ -250,6 +250,7 @@
                                         <table class="table table-hover table-striped">
                                             <thead class="table-success">
                                                 <tr>
+                                                    <th>报告编号</th>
                                                     <th>样品编号</th>
                                                     <th>被检单位</th>
                                                     <th>被检水厂</th>
@@ -881,6 +882,7 @@
             records.forEach(record => {
                 html += `
                     <tr>
+                        <td>${record.report_number || '-'}</td>
                         <td>${record.sample_number}</td>
                         <td>${record.company_name || '-'}</td>
                         <td>${record.plant_name || '-'}</td>

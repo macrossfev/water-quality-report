@@ -798,20 +798,11 @@ def api_reports():
         test_conclusion = data.get('test_conclusion', '')
         additional_info = data.get('additional_info', '')
 
-        if not sample_number or not sample_type_id:
-            return jsonify({'error': '样品编号和样品类型不能为空'}), 400
+        # 获取用户输入的报告编号
+        report_number = data.get('report_number', '').strip()
 
-        # 生成报告编号
-        sample_type = conn.execute(
-            'SELECT code FROM sample_types WHERE id = ?',
-            (sample_type_id,)
-        ).fetchone()
-
-        if not sample_type:
-            conn.close()
-            return jsonify({'error': '样品类型不存在'}), 404
-
-        report_number = f"{sample_number}-{sample_type['code']}"
+        if not report_number or not sample_number or not sample_type_id:
+            return jsonify({'error': '报告编号、样品编号和样品类型不能为空'}), 400
 
         # 检查报告编号是否已存在
         existing = conn.execute(
@@ -2025,10 +2016,11 @@ def api_import_reports_excel():
 
         # 查找固定列的索引
         try:
+            report_number_idx = headers.index('报告编号')
             sample_number_idx = headers.index('样品编号')
             sample_type_idx = headers.index('样品类型')
         except ValueError:
-            return jsonify({'error': 'Excel格式错误：必须包含"样品编号"和"样品类型"列'}), 400
+            return jsonify({'error': 'Excel格式错误：必须包含"报告编号"、"样品编号"和"样品类型"列'}), 400
 
         # 可选列
         company_idx = headers.index('委托单位') if '委托单位' in headers else None
@@ -2038,7 +2030,7 @@ def api_import_reports_excel():
         remark_idx = headers.index('备注') if '备注' in headers else None
 
         # 检测指标列（除了固定列之外的列都视为检测指标）
-        fixed_cols = {'样品编号', '样品类型', '委托单位', '检测日期', '检测人员', '审核人员', '备注'}
+        fixed_cols = {'报告编号', '样品编号', '样品类型', '委托单位', '检测日期', '检测人员', '审核人员', '备注'}
         indicator_cols = [(idx, col) for idx, col in enumerate(headers) if col and col not in fixed_cols]
 
         # 从第2行开始读取数据
@@ -2047,8 +2039,14 @@ def api_import_reports_excel():
                 continue
 
             try:
+                report_number = str(row[report_number_idx]).strip() if row[report_number_idx] else ''
                 sample_number = str(row[sample_number_idx]).strip()
                 sample_type_value = str(row[sample_type_idx]).strip()
+
+                # 验证报告编号不能为空
+                if not report_number:
+                    error_rows.append(f'第{row_idx}行: 报告编号不能为空')
+                    continue
 
                 # 查找样品类型（支持名称或代码）
                 sample_type = sample_type_name_map.get(sample_type_value) or sample_type_code_map.get(sample_type_value)
@@ -2075,9 +2073,6 @@ def api_import_reports_excel():
                 review_person = str(row[review_person_idx]).strip() if review_person_idx is not None and row[review_person_idx] else ''
                 detection_date = str(row[detection_date_idx]) if detection_date_idx is not None and row[detection_date_idx] else None
                 remark = str(row[remark_idx]).strip() if remark_idx is not None and row[remark_idx] else ''
-
-                # 生成报告编号
-                report_number = f"{sample_number}-{sample_type['code']}"
 
                 # 检查报告编号是否已存在
                 existing = cursor.execute('SELECT id FROM reports WHERE report_number = ?', (report_number,)).fetchone()
@@ -3723,22 +3718,23 @@ def api_approve_report(id):
                 # 更新现有记录
                 cursor.execute('''
                     UPDATE raw_data_records
-                    SET company_name = ?,
+                    SET report_number = ?,
+                        company_name = ?,
                         plant_name = ?,
                         sample_type = ?,
                         sampling_date = ?,
                         updated_at = ?
                     WHERE sample_number = ?
-                ''', (customer_unit, customer_plant, report['sample_type_name'],
+                ''', (report['report_number'], customer_unit, customer_plant, report['sample_type_name'],
                       report['sampling_date'], review_time, report['sample_number']))
                 record_id = existing['id']
             else:
                 # 插入新记录
                 cursor.execute('''
                     INSERT INTO raw_data_records
-                    (sample_number, company_name, plant_name, sample_type, sampling_date, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (report['sample_number'], customer_unit, customer_plant,
+                    (sample_number, report_number, company_name, plant_name, sample_type, sampling_date, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (report['sample_number'], report['report_number'], customer_unit, customer_plant,
                       report['sample_type_name'], report['sampling_date'], review_time, review_time))
                 record_id = cursor.lastrowid
 
@@ -4109,7 +4105,7 @@ def api_raw_data_search():
 
         # 查询主记录
         cursor.execute('''
-            SELECT id, sample_number, company_name, plant_name, sample_type, sampling_date,
+            SELECT id, sample_number, report_number, company_name, plant_name, sample_type, sampling_date,
                    created_at, updated_at
             FROM raw_data_records
             WHERE sample_number = ?
@@ -4125,12 +4121,13 @@ def api_raw_data_search():
         record_data = {
             'id': record[0],
             'sample_number': record[1],
-            'company_name': record[2],
-            'plant_name': record[3],
-            'sample_type': record[4],
-            'sampling_date': record[5],
-            'created_at': record[6],
-            'updated_at': record[7]
+            'report_number': record[2],
+            'company_name': record[3],
+            'plant_name': record[4],
+            'sample_type': record[5],
+            'sampling_date': record[6],
+            'created_at': record[7],
+            'updated_at': record[8]
         }
 
         # 查询检测指标数据
@@ -4402,7 +4399,7 @@ def api_raw_data_search_by_filters():
         where_clause = ' AND '.join(conditions)
 
         query = f'''
-            SELECT id, sample_number, company_name, plant_name, sample_type, sampling_date,
+            SELECT id, sample_number, report_number, company_name, plant_name, sample_type, sampling_date,
                    created_at, updated_at
             FROM raw_data_records
             WHERE {where_clause}
@@ -4421,12 +4418,13 @@ def api_raw_data_search_by_filters():
             result_list.append({
                 'id': record[0],
                 'sample_number': record[1],
-                'company_name': record[2],
-                'plant_name': record[3],
-                'sample_type': record[4],
-                'sampling_date': record[5],
-                'created_at': record[6],
-                'updated_at': record[7]
+                'report_number': record[2],
+                'company_name': record[3],
+                'plant_name': record[4],
+                'sample_type': record[5],
+                'sampling_date': record[6],
+                'created_at': record[7],
+                'updated_at': record[8]
             })
 
         return jsonify({
@@ -4448,7 +4446,7 @@ def api_raw_data_detail(record_id):
 
         # 查询主记录
         cursor.execute('''
-            SELECT id, sample_number, company_name, plant_name, sample_type, sampling_date,
+            SELECT id, sample_number, report_number, company_name, plant_name, sample_type, sampling_date,
                    created_at, updated_at
             FROM raw_data_records
             WHERE id = ?
@@ -4463,12 +4461,13 @@ def api_raw_data_detail(record_id):
         record_data = {
             'id': record[0],
             'sample_number': record[1],
-            'company_name': record[2],
-            'plant_name': record[3],
-            'sample_type': record[4],
-            'sampling_date': record[5],
-            'created_at': record[6],
-            'updated_at': record[7]
+            'report_number': record[2],
+            'company_name': record[3],
+            'plant_name': record[4],
+            'sample_type': record[5],
+            'sampling_date': record[6],
+            'created_at': record[7],
+            'updated_at': record[8]
         }
 
         # 查询检测指标数据
