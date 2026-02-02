@@ -4207,6 +4207,57 @@ def api_raw_data_search_by_company():
     except Exception as e:
         return jsonify({'error': f'查询失败: {str(e)}'}), 500
 
+@app.route('/api/raw-data/search-by-plant', methods=['POST'])
+@login_required
+def api_raw_data_search_by_plant():
+    """根据被检水厂模糊查询原始数据列表"""
+    try:
+        data = request.json
+        plant_name = data.get('plant_name', '').strip()
+
+        if not plant_name:
+            return jsonify({'error': '被检水厂不能为空'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 模糊查询主记录
+        cursor.execute('''
+            SELECT id, sample_number, company_name, plant_name, sample_type, sampling_date,
+                   created_at, updated_at
+            FROM raw_data_records
+            WHERE plant_name LIKE ?
+            ORDER BY company_name, plant_name, sampling_date DESC
+        ''', (f'%{plant_name}%',))
+
+        records = cursor.fetchall()
+        conn.close()
+
+        if not records:
+            return jsonify({'found': False, 'message': '未找到匹配的数据', 'records': []})
+
+        result_list = []
+        for record in records:
+            result_list.append({
+                'id': record[0],
+                'sample_number': record[1],
+                'company_name': record[2],
+                'plant_name': record[3],
+                'sample_type': record[4],
+                'sampling_date': record[5],
+                'created_at': record[6],
+                'updated_at': record[7]
+            })
+
+        return jsonify({
+            'found': True,
+            'count': len(result_list),
+            'records': result_list
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'查询失败: {str(e)}'}), 500
+
 @app.route('/api/raw-data/detail/<int:record_id>', methods=['GET'])
 @login_required
 def api_raw_data_detail(record_id):

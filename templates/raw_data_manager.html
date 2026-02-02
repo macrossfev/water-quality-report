@@ -153,11 +153,15 @@
                                     <div class="btn-group w-100" role="group">
                                         <input type="radio" class="btn-check" name="searchType" id="searchTypeSample" value="sample" checked>
                                         <label class="btn btn-outline-success" for="searchTypeSample">
-                                            <i class="bi bi-hash"></i> 样品编号查询
+                                            <i class="bi bi-hash"></i> 样品编号
                                         </label>
                                         <input type="radio" class="btn-check" name="searchType" id="searchTypeCompany" value="company">
                                         <label class="btn btn-outline-success" for="searchTypeCompany">
-                                            <i class="bi bi-building"></i> 被检单位查询
+                                            <i class="bi bi-building"></i> 被检单位
+                                        </label>
+                                        <input type="radio" class="btn-check" name="searchType" id="searchTypePlant" value="plant">
+                                        <label class="btn btn-outline-success" for="searchTypePlant">
+                                            <i class="bi bi-water"></i> 被检水厂
                                         </label>
                                     </div>
                                 </div>
@@ -566,8 +570,10 @@
                 const searchInput = document.getElementById('searchInput');
                 if (this.value === 'sample') {
                     searchInput.placeholder = '输入样品编号';
-                } else {
+                } else if (this.value === 'company') {
                     searchInput.placeholder = '输入被检单位名称（支持模糊查询）';
+                } else if (this.value === 'plant') {
+                    searchInput.placeholder = '输入被检水厂名称（支持模糊查询）';
                 }
                 // 清空之前的搜索结果
                 document.getElementById('searchResultList').style.display = 'none';
@@ -581,14 +587,19 @@
             const searchValue = document.getElementById('searchInput').value.trim();
 
             if (!searchValue) {
-                alert(searchType === 'sample' ? '请输入样品编号' : '请输入被检单位名称');
+                let alertMsg = '请输入样品编号';
+                if (searchType === 'company') alertMsg = '请输入被检单位名称';
+                if (searchType === 'plant') alertMsg = '请输入被检水厂名称';
+                alert(alertMsg);
                 return;
             }
 
             if (searchType === 'sample') {
                 searchBySampleNumber(searchValue);
-            } else {
+            } else if (searchType === 'company') {
                 searchByCompanyName(searchValue);
+            } else if (searchType === 'plant') {
+                searchByPlantName(searchValue);
             }
         });
 
@@ -619,6 +630,26 @@
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({company_name: companyName})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.found && data.records.length > 0) {
+                    displaySearchResults(data.records);
+                } else {
+                    showNoResults();
+                }
+            })
+            .catch(error => {
+                alert('查询失败: ' + error.message);
+            });
+        }
+
+        // 按被检水厂查询
+        function searchByPlantName(plantName) {
+            fetch('/api/raw-data/search-by-plant', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({plant_name: plantName})
             })
             .then(response => response.json())
             .then(data => {
