@@ -966,7 +966,7 @@
                         <select class="form-select" id="selectedTemplateId" size="6">
                             <option value="">加载中...</option>
                         </select>
-                        <div class="form-text">选择模板后，系统将使用该模板生成Excel报告</div>
+                        <div class="form-text">选择模板后，可以预览数据或直接生成Excel报告</div>
                     </div>
                     <div id="templateInfo" class="alert alert-info d-none">
                         <strong>模板信息：</strong>
@@ -975,8 +975,71 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-info" id="previewReportBtn">
+                        <i class="bi bi-eye"></i> 预览数据
+                    </button>
                     <button type="button" class="btn btn-primary" id="confirmGenerateBtn">
                         <i class="bi bi-file-earmark-arrow-down"></i> 确认生成
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 报告预览模态框 -->
+    <div class="modal fade" id="reportPreviewModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-eye"></i> 报告数据预览</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>预览说明：</strong>下方显示将要生成到Excel中的数据，请确认数据正确后再生成报告
+                    </div>
+
+                    <h6 class="mb-3"><i class="bi bi-card-text"></i> 基本信息</h6>
+                    <div id="previewBasicInfo" class="mb-4"></div>
+
+                    <h6 class="mb-3"><i class="bi bi-table"></i> 字段映射</h6>
+                    <div class="table-responsive mb-4">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>字段名</th>
+                                    <th>工作表</th>
+                                    <th>单元格</th>
+                                    <th>数据值</th>
+                                    <th>数据来源</th>
+                                </tr>
+                            </thead>
+                            <tbody id="previewFields"></tbody>
+                        </table>
+                    </div>
+
+                    <h6 class="mb-3"><i class="bi bi-clipboard-data"></i> 检测数据</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>序号</th>
+                                    <th>检测项目</th>
+                                    <th>单位</th>
+                                    <th>检测结果</th>
+                                    <th>限值</th>
+                                    <th>检测方法</th>
+                                </tr>
+                            </thead>
+                            <tbody id="previewDetectionItems"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">返回</button>
+                    <button type="button" class="btn btn-primary" id="confirmGenerateFromPreviewBtn">
+                        <i class="bi bi-file-earmark-arrow-down"></i> 确认生成报告
                     </button>
                 </div>
             </div>

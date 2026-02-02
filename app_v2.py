@@ -3854,6 +3854,138 @@ def api_submit_report(id):
     finally:
         conn.close()
 
+@app.route('/api/reports/<int:id>/preview', methods=['POST'])
+@login_required
+def api_preview_report(id):
+    """预览报告数据"""
+    from report_generator import ReportGenerator
+
+    data = request.json
+    template_id = data.get('template_id')
+
+    if not template_id:
+        return jsonify({'error': '请选择报告模板'}), 400
+
+    conn = get_db_connection()
+
+    try:
+        # 检查报告是否已审核
+        report = conn.execute('''
+            SELECT r.*, st.name as sample_type_name
+            FROM reports r
+            LEFT JOIN sample_types st ON r.sample_type_id = st.id
+            WHERE r.id = ?
+        ''', (id,)).fetchone()
+
+        if not report:
+            return jsonify({'error': '报告不存在'}), 404
+
+        if report['review_status'] != 'approved':
+            return jsonify({'error': '只有已审核通过的报告才能预览'}), 400
+
+        # 获取报告数据
+        detection_items = conn.execute('''
+            SELECT rd.*, i.name, i.unit, i.limit_value, i.detection_method
+            FROM report_data rd
+            LEFT JOIN indicators i ON rd.indicator_id = i.id
+            WHERE rd.report_id = ?
+            ORDER BY i.sort_order, i.name
+        ''', (id,)).fetchall()
+
+        # 获取模板字段映射
+        template_fields = conn.execute('''
+            SELECT * FROM template_field_mappings
+            WHERE template_id = ?
+            ORDER BY sheet_name, cell_address
+        ''', (template_id,)).fetchall()
+
+        # 获取模板信息
+        template = conn.execute(
+            'SELECT * FROM excel_report_templates WHERE id = ?',
+            (template_id,)
+        ).fetchone()
+
+        # 构建报告数据
+        report_data = {
+            'report_number': report['report_number'],
+            'sample_number': report['sample_number'],
+            'sample_type': report['sample_type_name'],
+            'detection_date': report['detection_date'],
+            'detection_person': report['detection_person'],
+            'review_person': report['review_person'],
+            'sampling_date': report['sampling_date'],
+            'sampler': report['sampler'],
+            'sampling_location': report['sampling_location'],
+            'report_date': report['report_date'],
+        }
+
+        # 尝试从remark中提取客户信息
+        if report['remark']:
+            try:
+                import json
+                remark_data = json.loads(report['remark'])
+                report_data['customer_unit'] = remark_data.get('customer_unit', '')
+                report_data['customer_plant'] = remark_data.get('customer_plant', '')
+            except:
+                pass
+
+        # 使用ReportGenerator加载完整数据
+        generator = ReportGenerator(template_id, report_data, report_id=id)
+        generator._load_template_info()
+        generator._load_complete_data()
+
+        # 构建预览数据
+        preview_fields = []
+        for field in template_fields:
+            field_dict = dict(field)
+            field_name = field_dict['field_name']
+            is_reference = field_dict.get('is_reference', False)
+
+            # 获取字段值
+            if is_reference:
+                value = generator._get_reference_value(field_name) if hasattr(generator, '_get_reference_value') else ''
+                value_source = '来自已审核报告'
+            else:
+                value = generator.report_data.get(field_name, field_dict.get('default_value', ''))
+                value_source = '当前报告数据'
+
+            preview_fields.append({
+                'field_name': field_name,
+                'field_display_name': field_dict.get('field_display_name', field_name),
+                'sheet_name': field_dict['sheet_name'],
+                'cell_address': field_dict['cell_address'],
+                'value': value if value is not None else '',
+                'value_source': value_source,
+                'is_reference': is_reference
+            })
+
+        # 检测数据
+        detection_data = [
+            {
+                'name': item['name'],
+                'unit': item['unit'],
+                'result': item['measured_value'],
+                'limit': item['limit_value'],
+                'method': item['detection_method']
+            }
+            for item in detection_items
+        ]
+
+        return jsonify({
+            'template_name': template['name'],
+            'report_number': report['report_number'],
+            'sample_number': report['sample_number'],
+            'fields': preview_fields,
+            'detection_items': detection_data
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'预览失败: {str(e)}'}), 500
+    finally:
+        conn.close()
+
 @app.route('/api/reports/<int:id>/generate', methods=['POST'])
 @login_required
 def api_generate_report(id):
@@ -3923,6 +4055,8 @@ def api_generate_report(id):
             'file_path': output_path
         })
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'生成失败: {str(e)}'}), 500
     finally:
         conn.close()

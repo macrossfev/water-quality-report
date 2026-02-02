@@ -3631,7 +3631,20 @@ async function showTemplateSelectModal(reportId) {
         const modal = new bootstrap.Modal(document.getElementById('templateSelectModal'));
         modal.show();
 
-        // 绑定确认按钮
+        // 绑定预览按钮
+        document.getElementById('previewReportBtn').onclick = async function() {
+            const selectedTemplateId = document.getElementById('selectedTemplateId').value;
+
+            if (!selectedTemplateId) {
+                showToast('请先选择一个模板', 'warning');
+                return;
+            }
+
+            // 显示预览
+            await showReportPreview(reportId, selectedTemplateId);
+        };
+
+        // 绑定确认生成按钮
         document.getElementById('confirmGenerateBtn').onclick = async function() {
             const selectedTemplateId = document.getElementById('selectedTemplateId').value;
 
@@ -3649,6 +3662,75 @@ async function showTemplateSelectModal(reportId) {
     } catch (error) {
         console.error('加载模板列表失败:', error);
         showToast('加载模板列表失败: ' + error.message, 'error');
+    }
+}
+
+// 显示报告预览
+async function showReportPreview(reportId, templateId) {
+    try {
+        showToast('正在加载预览数据...', 'warning');
+
+        const previewData = await apiRequest(`/api/reports/${reportId}/preview`, {
+            method: 'POST',
+            body: JSON.stringify({ template_id: parseInt(templateId) })
+        });
+
+        // 填充基本信息
+        document.getElementById('previewBasicInfo').innerHTML = `
+            <div class="row">
+                <div class="col-md-4"><strong>模板名称：</strong>${previewData.template_name}</div>
+                <div class="col-md-4"><strong>报告编号：</strong>${previewData.report_number}</div>
+                <div class="col-md-4"><strong>样品编号：</strong>${previewData.sample_number}</div>
+            </div>
+        `;
+
+        // 填充字段映射
+        const fieldsHtml = previewData.fields.map(field => {
+            const valueClass = field.is_reference ? 'text-primary' : '';
+            const sourceIcon = field.is_reference ? '<i class="bi bi-link"></i>' : '<i class="bi bi-file-text"></i>';
+            return `
+                <tr>
+                    <td>${field.field_display_name || field.field_name}</td>
+                    <td>${field.sheet_name}</td>
+                    <td>${field.cell_address}</td>
+                    <td class="${valueClass}">${field.value || '<span class="text-muted">（空）</span>'}</td>
+                    <td>${sourceIcon} ${field.value_source}</td>
+                </tr>
+            `;
+        }).join('');
+        document.getElementById('previewFields').innerHTML = fieldsHtml;
+
+        // 填充检测数据
+        const detectionHtml = previewData.detection_items.map((item, index) => `
+            <tr>
+                <td>${index + 1}</td>
+                <td>${item.name}</td>
+                <td>${item.unit || '-'}</td>
+                <td>${item.result || '-'}</td>
+                <td>${item.limit || '-'}</td>
+                <td>${item.method || '-'}</td>
+            </tr>
+        `).join('');
+        document.getElementById('previewDetectionItems').innerHTML = detectionHtml;
+
+        // 隐藏模板选择对话框
+        bootstrap.Modal.getInstance(document.getElementById('templateSelectModal')).hide();
+
+        // 显示预览对话框
+        const previewModal = new bootstrap.Modal(document.getElementById('reportPreviewModal'));
+        previewModal.show();
+
+        // 绑定从预览确认生成按钮
+        document.getElementById('confirmGenerateFromPreviewBtn').onclick = async function() {
+            previewModal.hide();
+            await executeGenerateReport(reportId, templateId);
+        };
+
+        showToast('预览加载成功', 'success');
+
+    } catch (error) {
+        console.error('预览失败:', error);
+        showToast('预览失败: ' + error.message, 'error');
     }
 }
 

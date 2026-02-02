@@ -161,15 +161,20 @@ class ReportGenerator:
         """填充报告数据"""
         fields = self.template_info.get('fields', [])
 
+        print(f"\n=== 开始填充数据 ===")
+        print(f"模板字段数量: {len(fields)}")
+        print(f"报告数据键: {list(self.report_data.keys())}")
+
         for field in fields:
             field_name = field['field_name']
             field_type = field['field_type']
             sheet_name = field['sheet_name']
             cell_address = field['cell_address']
-            is_reference = field.get('is_reference', False)  # 检查是否为引用字段
+            is_reference = field.get('is_reference', False)
 
             # 如果没有字段映射配置，跳过
             if not cell_address or sheet_name not in self.workbook.sheetnames:
+                print(f"跳过字段 {field_name}: cell_address={cell_address}, sheet存在={sheet_name in self.workbook.sheetnames if self.workbook else False}")
                 continue
 
             # 获取工作表
@@ -178,21 +183,30 @@ class ReportGenerator:
             # 根据字段类型填充数据
             if field_type == 'table_data':
                 # 表格数据特殊处理
+                print(f"填充表格数据: {field_name}")
                 self._fill_table_data(ws, field)
             else:
                 # 获取字段值
                 if is_reference:
                     # 引用字段：从已审核报告中查询数据
                     value = self._get_reference_value(field_name)
+                    print(f"引用字段 [{field_name}] = {value} (来自已审核报告)")
                 else:
                     # 普通字段：从当前报告数据中获取
                     value = self.report_data.get(field_name, field.get('default_value', ''))
+                    print(f"普通字段 [{field_name}] = {value}")
 
-                if value and cell_address:
+                # 修改条件：即使value为空字符串也要填充（除非是None）
+                if value is not None and cell_address:
                     try:
                         ws[cell_address] = value
+                        print(f"  ✓ 已填充到 {sheet_name}!{cell_address}")
                     except Exception as e:
-                        print(f"填充字段失败 {field_name}: {e}")
+                        print(f"  ✗ 填充失败: {e}")
+                else:
+                    print(f"  - 跳过（值为None）")
+
+        print(f"=== 数据填充完成 ===\n")
 
     def _get_reference_value(self, field_name):
         """
