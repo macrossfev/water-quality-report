@@ -159,6 +159,11 @@
                             <i class="bi bi-check2-circle"></i> 已提交报告
                         </button>
                     </li>
+                    <li class="nav-item" role="presentation" id="edit-report-tab-li" style="display: none;">
+                        <button class="nav-link" id="edit-report-tab" data-bs-toggle="tab" data-bs-target="#edit-report" type="button" role="tab">
+                            <i class="bi bi-pencil-square"></i> 编辑报告
+                        </button>
+                    </li>
                 </ul>
 
                 <!-- 子标签内容 -->
@@ -170,139 +175,197 @@
                                 <h5 class="mb-0"><i class="bi bi-file-earmark-plus"></i> 创建检测报告</h5>
                             </div>
                             <div class="card-body">
-                                <!-- 流程提示 -->
-                                <div class="alert alert-info">
-                                    <i class="bi bi-info-circle"></i> <strong>操作流程：</strong>
-                                    <ol class="mb-0 mt-2">
-                                        <li>选择报告模板，下载并填写报告模板Excel，然后上传</li>
-                                        <li>选择样品类型，下载并填写检测数据Excel，然后上传</li>
-                                        <li>系统解析Excel数据并生成预览页面，可在线修订或直接生成报告</li>
-                                    </ol>
-                                </div>
-
-                                <!-- 步骤1: 报告模板 -->
-                                <div class="card mb-3" id="step1Card">
+                                <!-- 基本信息 -->
+                                <div class="card mb-3">
                                     <div class="card-header bg-light">
-                                        <h6 class="mb-0">
-                                            <i class="bi bi-1-circle-fill text-primary"></i>
-                                            <strong>步骤1：报告模板</strong>
-                                        </h6>
+                                        <h6 class="mb-0"><i class="bi bi-info-circle"></i> 基本信息</h6>
                                     </div>
                                     <div class="card-body">
-                                        <div class="row align-items-end">
+                                        <div class="row g-3 mb-3">
                                             <div class="col-md-4">
-                                                <label class="form-label">选择报告模板 <span class="text-danger">*</span></label>
-                                                <select class="form-select" id="reportTemplate">
-                                                    <option value="">请选择报告模板...</option>
+                                                <label class="form-label">报告编号</label>
+                                                <input type="text" class="form-control" id="newReportNumber" placeholder="请输入报告编号">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">报告编制日期</label>
+                                                <input type="date" class="form-control" id="newReportDate">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">样品编号 <span class="text-danger">*</span></label>
+                                                <input type="text" class="form-control" id="newReportSampleNumber" placeholder="请输入样品编号">
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-4">
+                                                <label class="form-label">样品类型 <span class="text-danger">*</span></label>
+                                                <select class="form-select" id="newReportSampleType">
+                                                    <option value="">请选择样品类型...</option>
                                                 </select>
                                             </div>
                                             <div class="col-md-4">
-                                                <button class="btn btn-success" id="downloadTemplateExcelBtn" disabled>
-                                                    <i class="bi bi-download"></i> 下载报告模板Excel
-                                                </button>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label">上传填写好的Excel</label>
-                                                <input type="file" class="form-control" id="templateExcelFile" accept=".xlsx,.xls" disabled>
-                                            </div>
-                                        </div>
-                                        <div class="mt-2" id="step1Status">
-                                            <small class="text-muted">请先选择报告模板</small>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- 步骤2: 样品类型 -->
-                                <div class="card mb-3" id="step2Card" style="opacity: 0.6; pointer-events: none;">
-                                    <div class="card-header bg-light">
-                                        <h6 class="mb-0">
-                                            <i class="bi bi-2-circle-fill text-primary"></i>
-                                            <strong>步骤2：样品类型及检测数据</strong>
-                                        </h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="row align-items-end">
-                                            <div class="col-md-4">
-                                                <label class="form-label">选择样品类型 <span class="text-danger">*</span></label>
-                                                <select class="form-select" id="reportSampleType" disabled>
-                                                    <option value="">请先完成步骤1...</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <button class="btn btn-success" id="downloadDetectionExcelBtn" disabled>
-                                                    <i class="bi bi-download"></i> 下载检测数据Excel
-                                                </button>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label">上传填写好的Excel</label>
-                                                <input type="file" class="form-control" id="detectionExcelFile" accept=".xlsx,.xls" disabled>
-                                            </div>
-                                        </div>
-                                        <div class="mt-2" id="step2Status">
-                                            <small class="text-muted">请先完成步骤1</small>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- 步骤3: 解析和预览 -->
-                                <div class="card mb-3" id="step3Card" style="opacity: 0.6; pointer-events: none;">
-                                    <div class="card-header bg-light">
-                                        <h6 class="mb-0">
-                                            <i class="bi bi-3-circle-fill text-primary"></i>
-                                            <strong>步骤3：解析数据并预览</strong>
-                                        </h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <button class="btn btn-primary btn-lg" id="parseAndPreviewBtn" disabled>
-                                            <i class="bi bi-gear-fill"></i> 解析Excel并生成预览
-                                        </button>
-                                        <div class="mt-2" id="step3Status">
-                                            <small class="text-muted">请先完成步骤1和步骤2</small>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- 数据预览区域 -->
-                                <div id="dataPreviewArea" style="display: none;">
-                                    <hr class="my-4">
-                                    <div class="card">
-                                        <div class="card-header bg-success text-white">
-                                            <h5 class="mb-0"><i class="bi bi-eye-fill"></i> 数据预览与编辑</h5>
-                                        </div>
-                                        <div class="card-body">
-                                            <form id="reportPreviewForm">
-                                                <!-- 基本信息 -->
-                                                <h6 class="mb-3"><i class="bi bi-card-list"></i> 基本信息</h6>
-                                                <div id="basicInfoArea"></div>
-
-                                                <hr class="my-4">
-
-                                                <!-- 模板字段 -->
-                                                <h6 class="mb-3"><i class="bi bi-file-text"></i> 模板字段</h6>
-                                                <div id="templateFieldsPreviewArea"></div>
-
-                                                <hr class="my-4">
-
-                                                <!-- 检测项目数据 -->
-                                                <h6 class="mb-3"><i class="bi bi-clipboard-data"></i> 检测项目数据</h6>
-                                                <div id="detectionDataPreviewArea"></div>
-
-                                                <!-- 操作按钮 -->
-                                                <div class="mt-4">
-                                                    <button type="button" class="btn btn-outline-secondary" id="saveDraftBtn">
-                                                        <i class="bi bi-save"></i> 保存草稿
-                                                    </button>
-                                                    <button type="button" class="btn btn-primary" id="submitReportBtn">
-                                                        <i class="bi bi-check-circle"></i> 提交审核
-                                                    </button>
-                                                    <button type="button" class="btn btn-success" id="generateDirectBtn">
-                                                        <i class="bi bi-file-earmark-pdf"></i> 直接生成报告
-                                                    </button>
-                                                    <button type="button" class="btn btn-secondary" id="resetFormBtn">
-                                                        <i class="bi bi-x-circle"></i> 重置并重新开始
-                                                    </button>
+                                                <label class="form-label">样品来源</label>
+                                                <div class="position-relative">
+                                                    <input type="text" class="form-control" id="newSampleSource" placeholder="请选择或输入样品来源" autocomplete="off">
+                                                    <div id="sampleSourceDropdown" class="dropdown-menu w-100">
+                                                        <a class="dropdown-item" href="javascript:void(0)" onclick="selectSampleSource('委托采样')">委托采样</a>
+                                                        <a class="dropdown-item" href="javascript:void(0)" onclick="selectSampleSource('委托送样')">委托送样</a>
+                                                    </div>
                                                 </div>
-                                            </form>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">样品状态</label>
+                                                <input type="text" class="form-control" id="newSampleStatus" value="样品完好，液态">
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-3">
+                                                <label class="form-label">采样人</label>
+                                                <input type="text" class="form-control" id="newSampler" placeholder="采样人姓名">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">采样日期</label>
+                                                <input type="date" class="form-control" id="newSamplingDate">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">收样日期</label>
+                                                <input type="date" class="form-control" id="newSampleReceivedDate">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">检测日期</label>
+                                                <input type="text" class="form-control" id="newDetectionDate" placeholder="例如: 2024年1月1日">
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label">采样地点</label>
+                                                <input type="text" class="form-control" id="newSamplingLocation" placeholder="采样具体地点">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">采样依据</label>
+                                                <input type="text" class="form-control" id="newSamplingBasis" value="GB/T 5750.2-2023">
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-12">
+                                                <label class="form-label">检测项目</label>
+                                                <textarea class="form-control" id="newTestItems" rows="3" readonly>色度、浑浊度、pH、菌落总数、氟化物、硫酸盐、铜、铁、锰、砷、锌、铝、氰化物、溶解性总固体、三氯甲烷等共计43项指标</textarea>
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-12">
+                                                <label class="form-label">产品标准</label>
+                                                <input type="text" class="form-control" id="newProductStandard" value="《生活饮用水卫生标准》 GB5749-2022">
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-12">
+                                                <label class="form-label">检测结论</label>
+                                                <textarea class="form-control" id="newTestConclusion" rows="2">该水样所检43项指标除铝外，其余检测项目均符合《生活饮用水卫生标准》GB5749-2022的标准限值要求</textarea>
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-12">
+                                                <label class="form-label">附加信息</label>
+                                                <textarea class="form-control" id="newAdditionalInfo" rows="2" placeholder="其他需要说明的信息"></textarea>
+                                            </div>
+                                        </div>
+                                        <div class="row g-3">
+                                            <div class="col-md-12">
+                                                <button class="btn btn-primary" id="loadIndicatorsBtn" disabled>
+                                                    <i class="bi bi-arrow-down-circle"></i> 加载检测项目
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 客户信息 -->
+                                <div class="card mb-3">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0"><i class="bi bi-people"></i> 客户信息（可选）</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-4">
+                                                <label class="form-label">被检单位</label>
+                                                <div class="position-relative">
+                                                    <input type="text" class="form-control" id="customerUnitInput"
+                                                           placeholder="输入或选择被检单位..." autocomplete="off">
+                                                    <div id="customerUnitDropdown" class="dropdown-menu w-100" style="max-height: 200px; overflow-y: auto;">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">被检水厂</label>
+                                                <select class="form-select" id="customerPlantSelect" disabled>
+                                                    <option value="">请先选择被检单位...</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">&nbsp;</label>
+                                                <button class="btn btn-info w-100" id="loadCustomerInfoBtn" disabled>
+                                                    <i class="bi bi-arrow-down-circle"></i> 加载客户信息
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div id="customerInfoFields" style="display: none;">
+                                            <div class="row g-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">被检单位地址</label>
+                                                    <input type="text" class="form-control" id="customerAddress" placeholder="可手动编辑">
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">联系人</label>
+                                                    <input type="text" class="form-control" id="customerContact" placeholder="可手动编辑">
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">联系电话</label>
+                                                    <input type="text" class="form-control" id="customerPhone" placeholder="可手动编辑">
+                                                </div>
+                                            </div>
+                                            <div class="row g-3 mt-2">
+                                                <div class="col-md-12">
+                                                    <label class="form-label">邮箱地址</label>
+                                                    <input type="text" class="form-control" id="customerEmail" placeholder="可手动编辑">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 检测项目列表 -->
+                                <div class="card" id="indicatorsCard" style="display: none;">
+                                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0"><i class="bi bi-clipboard-data"></i> 检测项目及结果</h6>
+                                        <small class="text-muted">按样品类型预设顺序排列，可手动调整</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-bordered table-hover">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th width="5%">序号</th>
+                                                        <th width="18%">检测项目名称</th>
+                                                        <th width="8%">单位</th>
+                                                        <th width="12%">检测结果</th>
+                                                        <th width="15%">限值</th>
+                                                        <th width="27%">检测方法</th>
+                                                        <th width="15%">操作</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="indicatorsTableBody">
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        <!-- 操作按钮 -->
+                                        <div class="mt-4 d-flex gap-2">
+                                            <button type="button" class="btn btn-success" id="saveNewReportBtn">
+                                                <i class="bi bi-check-circle"></i> 保存报告
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary" id="resetNewReportBtn">
+                                                <i class="bi bi-x-circle"></i> 重置
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -346,8 +409,9 @@
                                                 <th>报告编号</th>
                                                 <th>样品编号</th>
                                                 <th>样品类型</th>
-                                                <th>委托单位</th>
-                                                <th>模板</th>
+                                                <th>被检单位</th>
+                                                <th>被检水厂</th>
+                                                <th>检测项目数</th>
                                                 <th>状态</th>
                                                 <th>创建时间</th>
                                                 <th>拒绝原因</th>
@@ -356,7 +420,7 @@
                                         </thead>
                                         <tbody id="pendingReportsTableBody">
                                             <tr>
-                                                <td colspan="9" class="text-center text-muted">暂无待提交报告</td>
+                                                <td colspan="10" class="text-center text-muted">暂无待提交报告</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -426,6 +490,187 @@
                                             </tr>
                                         </tbody>
                                     </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 编辑报告 -->
+                    <div class="tab-pane fade" id="edit-report" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0"><i class="bi bi-pencil-square"></i> 编辑检测报告 <span id="editReportId" class="badge bg-secondary"></span></h5>
+                                <button class="btn btn-sm btn-outline-dark" onclick="cancelEditReport()">
+                                    <i class="bi bi-x-circle"></i> 取消编辑
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <!-- 基本信息 -->
+                                <div class="card mb-3">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0"><i class="bi bi-info-circle"></i> 基本信息</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-4">
+                                                <label class="form-label">报告编号</label>
+                                                <input type="text" class="form-control" id="editReportNumber" readonly>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">报告编制日期</label>
+                                                <input type="date" class="form-control" id="editReportDate">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">样品编号 <span class="text-danger">*</span></label>
+                                                <input type="text" class="form-control" id="editSampleNumber" placeholder="例如: 2024001">
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-4">
+                                                <label class="form-label">样品类型</label>
+                                                <input type="text" class="form-control" id="editSampleType" readonly>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">样品来源</label>
+                                                <div class="position-relative">
+                                                    <input type="text" class="form-control" id="editSampleSource" placeholder="请选择或输入样品来源" autocomplete="off">
+                                                    <div id="editSampleSourceDropdown" class="dropdown-menu w-100">
+                                                        <a class="dropdown-item" href="javascript:void(0)" onclick="selectEditSampleSource('委托采样')">委托采样</a>
+                                                        <a class="dropdown-item" href="javascript:void(0)" onclick="selectEditSampleSource('委托送样')">委托送样</a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">样品状态</label>
+                                                <input type="text" class="form-control" id="editSampleStatus">
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-3">
+                                                <label class="form-label">采样人</label>
+                                                <input type="text" class="form-control" id="editSampler">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">采样日期</label>
+                                                <input type="date" class="form-control" id="editSamplingDate">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">收样日期</label>
+                                                <input type="date" class="form-control" id="editSampleReceivedDate">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">检测日期</label>
+                                                <input type="text" class="form-control" id="editDetectionDate" placeholder="例如: 2024年1月1日">
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label">采样地点</label>
+                                                <input type="text" class="form-control" id="editSamplingLocation">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">采样依据</label>
+                                                <input type="text" class="form-control" id="editSamplingBasis">
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-12">
+                                                <label class="form-label">产品标准</label>
+                                                <input type="text" class="form-control" id="editProductStandard">
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-12">
+                                                <label class="form-label">检测结论</label>
+                                                <textarea class="form-control" id="editTestConclusion" rows="2"></textarea>
+                                            </div>
+                                        </div>
+                                        <div class="row g-3">
+                                            <div class="col-md-12">
+                                                <label class="form-label">附加信息</label>
+                                                <textarea class="form-control" id="editAdditionalInfo" rows="2"></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 客户信息 -->
+                                <div class="card mb-3">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0"><i class="bi bi-people"></i> 客户信息</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label">被检单位</label>
+                                                <input type="text" class="form-control" id="editCustomerUnit">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">被检水厂</label>
+                                                <input type="text" class="form-control" id="editCustomerPlant">
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mt-2">
+                                            <div class="col-md-6">
+                                                <label class="form-label">被检单位地址</label>
+                                                <input type="text" class="form-control" id="editCustomerAddress">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">联系人</label>
+                                                <input type="text" class="form-control" id="editCustomerContact">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">联系电话</label>
+                                                <input type="text" class="form-control" id="editCustomerPhone">
+                                            </div>
+                                        </div>
+                                        <div class="row g-3 mt-2">
+                                            <div class="col-md-12">
+                                                <label class="form-label">邮箱地址</label>
+                                                <input type="text" class="form-control" id="editCustomerEmail">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 检测项目列表 -->
+                                <div class="card">
+                                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0"><i class="bi bi-clipboard-data"></i> 检测项目及结果</h6>
+                                        <small class="text-muted">所有字段均可编辑</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-bordered table-hover">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th width="5%">序号</th>
+                                                        <th width="18%">检测项目名称</th>
+                                                        <th width="8%">单位</th>
+                                                        <th width="12%">检测结果</th>
+                                                        <th width="15%">限值</th>
+                                                        <th width="27%">检测方法</th>
+                                                        <th width="15%">操作</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="editIndicatorsTableBody">
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        <!-- 操作按钮 -->
+                                        <div class="mt-4 d-flex gap-2">
+                                            <button type="button" class="btn btn-success" id="saveEditReportBtn">
+                                                <i class="bi bi-check-circle"></i> 保存修改
+                                            </button>
+                                            <button type="button" class="btn btn-primary" id="submitEditReportBtn">
+                                                <i class="bi bi-send"></i> 保存并提交审核
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary" onclick="cancelEditReport()">
+                                                <i class="bi bi-x-circle"></i> 取消
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

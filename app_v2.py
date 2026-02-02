@@ -728,13 +728,13 @@ def api_template_indicators():
 
     if sample_type_id:
         template_indicators = conn.execute(
-            'SELECT ti.*, i.name as indicator_name, i.unit, i.default_value, i.group_id, '
-            'g.name as group_name '
+            'SELECT ti.*, i.name as indicator_name, i.unit, i.default_value, i.limit_value, '
+            'i.detection_method, i.group_id, g.name as group_name '
             'FROM template_indicators ti '
             'LEFT JOIN indicators i ON ti.indicator_id = i.id '
             'LEFT JOIN indicator_groups g ON i.group_id = g.id '
             'WHERE ti.sample_type_id = ? '
-            'ORDER BY g.sort_order, i.sort_order, ti.sort_order',
+            'ORDER BY ti.sort_order, g.sort_order, i.sort_order',
             (sample_type_id,)
         ).fetchall()
     else:
@@ -785,6 +785,19 @@ def api_reports():
         template_fields = data.get('template_fields', [])
         review_status = data.get('review_status', 'draft')  # 默认为草稿，可以是 'draft' 或 'pending'
 
+        # 新增字段
+        report_date = data.get('report_date')
+        sample_source = data.get('sample_source', '')
+        sampler = data.get('sampler', '')
+        sampling_date = data.get('sampling_date')
+        sampling_basis = data.get('sampling_basis', '')
+        sample_received_date = data.get('sample_received_date')
+        sampling_location = data.get('sampling_location', '')
+        sample_status = data.get('sample_status', '')
+        product_standard = data.get('product_standard', '')
+        test_conclusion = data.get('test_conclusion', '')
+        additional_info = data.get('additional_info', '')
+
         if not sample_number or not sample_type_id:
             return jsonify({'error': '样品编号和样品类型不能为空'}), 400
 
@@ -814,10 +827,16 @@ def api_reports():
             cursor = conn.cursor()
             cursor.execute(
                 'INSERT INTO reports (report_number, sample_number, company_id, sample_type_id, '
-                'detection_person, review_person, detection_date, remark, template_id, review_status, created_by) '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'detection_person, review_person, detection_date, remark, template_id, review_status, created_by, '
+                'report_date, sample_source, sampler, sampling_date, sampling_basis, '
+                'sample_received_date, sampling_location, sample_status, product_standard, '
+                'test_conclusion, additional_info) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 (report_number, sample_number, company_id, sample_type_id, detection_person,
-                 review_person, detection_date, remark, template_id, review_status, session['user_id'])
+                 review_person, detection_date, remark, template_id, review_status, session['user_id'],
+                 report_date, sample_source, sampler, sampling_date, sampling_basis,
+                 sample_received_date, sampling_location, sample_status, product_standard,
+                 test_conclusion, additional_info)
             )
             conn.commit()
             report_id = cursor.lastrowid
@@ -928,6 +947,7 @@ def api_report_detail(id):
             return jsonify({'error': '无权修改此报告'}), 403
 
         data = request.json
+        sample_number = data.get('sample_number')
         company_id = data.get('company_id')
         detection_person = data.get('detection_person', '')
         review_person = data.get('review_person', '')
@@ -936,13 +956,31 @@ def api_report_detail(id):
         report_data_list = data.get('data', [])
         template_fields = data.get('template_fields', [])
 
+        # 新增字段
+        report_date = data.get('report_date')
+        sample_source = data.get('sample_source', '')
+        sampler = data.get('sampler', '')
+        sampling_date = data.get('sampling_date')
+        sampling_basis = data.get('sampling_basis', '')
+        sample_received_date = data.get('sample_received_date')
+        sampling_location = data.get('sampling_location', '')
+        sample_status = data.get('sample_status', '')
+        product_standard = data.get('product_standard', '')
+        test_conclusion = data.get('test_conclusion', '')
+        additional_info = data.get('additional_info', '')
+
         try:
             cursor = conn.cursor()
             # 更新报告基本信息
             cursor.execute(
-                'UPDATE reports SET company_id = ?, detection_person = ?, review_person = ?, '
-                'detection_date = ?, remark = ? WHERE id = ?',
-                (company_id, detection_person, review_person, detection_date, remark, id)
+                'UPDATE reports SET sample_number = ?, company_id = ?, detection_person = ?, review_person = ?, '
+                'detection_date = ?, remark = ?, report_date = ?, sample_source = ?, sampler = ?, '
+                'sampling_date = ?, sampling_basis = ?, sample_received_date = ?, sampling_location = ?, '
+                'sample_status = ?, product_standard = ?, test_conclusion = ?, additional_info = ? WHERE id = ?',
+                (sample_number, company_id, detection_person, review_person, detection_date, remark,
+                 report_date, sample_source, sampler, sampling_date, sampling_basis,
+                 sample_received_date, sampling_location, sample_status, product_standard,
+                 test_conclusion, additional_info, id)
             )
 
             # 删除旧的报告数据
@@ -997,7 +1035,8 @@ def api_report_detail(id):
 
     # 获取报告数据
     data = conn.execute(
-        'SELECT rd.*, i.name as indicator_name, i.unit, i.group_id, g.name as group_name '
+        'SELECT rd.*, i.name as indicator_name, i.unit, i.limit_value, i.detection_method, '
+        'i.group_id, g.name as group_name '
         'FROM report_data rd '
         'LEFT JOIN indicators i ON rd.indicator_id = i.id '
         'LEFT JOIN indicator_groups g ON i.group_id = g.id '

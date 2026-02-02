@@ -2750,13 +2750,30 @@ async function loadPendingReports() {
                 ? report.review_comment
                 : '-';
 
+            // 解析客户信息
+            let customerUnit = '-';
+            let customerPlant = '-';
+            try {
+                if (report.remark) {
+                    const customerInfo = JSON.parse(report.remark);
+                    customerUnit = customerInfo.customer_unit || '-';
+                    customerPlant = customerInfo.customer_plant || '-';
+                }
+            } catch (e) {
+                // 如果remark不是JSON格式，保持默认值
+            }
+
+            // 检测项目数
+            const indicatorCount = report.data ? report.data.length : 0;
+
             return `
                 <tr>
                     <td>${report.report_number || '-'}</td>
                     <td>${report.sample_number || '-'}</td>
                     <td>${report.sample_type_name || '-'}</td>
-                    <td>${report.company_name || '-'}</td>
-                    <td>${report.template_name || '-'}</td>
+                    <td>${customerUnit}</td>
+                    <td>${customerPlant}</td>
+                    <td><span class="badge bg-info">${indicatorCount} 项</span></td>
                     <td>${statusBadge}</td>
                     <td>${new Date(report.created_at).toLocaleString('zh-CN')}</td>
                     <td class="text-truncate" style="max-width: 200px;" title="${rejectReason}">${rejectReason}</td>
@@ -2815,76 +2832,257 @@ async function deletePendingReport(reportId) {
     }
 }
 
+// 全局变量：存储当前编辑的报告数据
+let editingReportData = null;
+let editReportIndicators = [];
+
 async function editPendingReport(reportId) {
     try {
         // 加载报告详情
         const report = await apiRequest(`/api/reports/${reportId}`);
 
-        // 切换到新建报告标签页
-        const newReportTab = new bootstrap.Tab(document.getElementById('new-report-tab'));
-        newReportTab.show();
+        // 保存到全局变量
+        editingReportData = report;
 
-        // 设置编辑模式
-        AppState.editingReportId = reportId;
+        // 显示编辑标签页
+        document.getElementById('edit-report-tab-li').style.display = 'block';
+        const editTab = new bootstrap.Tab(document.getElementById('edit-report-tab'));
+        editTab.show();
+
+        // 设置报告ID显示
+        document.getElementById('editReportId').textContent = `报告 #${report.id}`;
 
         // 填充基本信息
-        document.getElementById('reportTemplate').value = report.template_id || '';
-        document.getElementById('reportSampleType').value = report.sample_type_id || '';
-        document.getElementById('sampleNumber').value = report.sample_number || '';
-        document.getElementById('reportCompany').value = report.company_id || '';
-        document.getElementById('detectionDate').value = report.detection_date || '';
-        document.getElementById('detectionPerson').value = report.detection_person || '';
-        document.getElementById('reviewPerson').value = report.review_person || '';
-        document.getElementById('reportRemark').value = report.remark || '';
+        document.getElementById('editReportNumber').value = report.report_number || '';
+        document.getElementById('editReportDate').value = report.report_date || '';
+        document.getElementById('editSampleNumber').value = report.sample_number || '';
+        document.getElementById('editSampleType').value = report.sample_type_name || '';
+        document.getElementById('editSampleSource').value = report.sample_source || '';
+        document.getElementById('editSampleStatus').value = report.sample_status || '';
+        document.getElementById('editSampler').value = report.sampler || '';
+        document.getElementById('editSamplingDate').value = report.sampling_date || '';
+        document.getElementById('editSampleReceivedDate').value = report.sample_received_date || '';
+        document.getElementById('editDetectionDate').value = report.detection_date || '';
+        document.getElementById('editSamplingLocation').value = report.sampling_location || '';
+        document.getElementById('editSamplingBasis').value = report.sampling_basis || '';
+        document.getElementById('editProductStandard').value = report.product_standard || '';
+        document.getElementById('editTestConclusion').value = report.test_conclusion || '';
+        document.getElementById('editAdditionalInfo').value = report.additional_info || '';
 
-        // 显示表单内容区域
-        document.getElementById('reportFormContent').style.display = 'block';
-
-        // 如果有模板，加载模板字段
-        if (report.template_id) {
-            await onReportTemplateChange();
-
-            // 填充模板字段值
-            if (report.template_fields && report.template_fields.length > 0) {
-                report.template_fields.forEach(field => {
-                    const input = document.getElementById(`field_${field.field_mapping_id}`);
-                    if (input) {
-                        input.value = field.field_value || '';
-                    }
-                });
+        // 解析并填充客户信息
+        try {
+            if (report.remark) {
+                const customerInfo = JSON.parse(report.remark);
+                document.getElementById('editCustomerUnit').value = customerInfo.customer_unit || '';
+                document.getElementById('editCustomerPlant').value = customerInfo.customer_plant || '';
+                document.getElementById('editCustomerAddress').value = customerInfo.customer_address || '';
+                document.getElementById('editCustomerContact').value = customerInfo.customer_contact || '';
+                document.getElementById('editCustomerPhone').value = customerInfo.customer_phone || '';
+                document.getElementById('editCustomerEmail').value = customerInfo.customer_email || '';
             }
+        } catch (e) {
+            // 如果remark不是JSON格式，清空客户信息字段
+            document.getElementById('editCustomerUnit').value = '';
+            document.getElementById('editCustomerPlant').value = '';
+            document.getElementById('editCustomerAddress').value = '';
+            document.getElementById('editCustomerContact').value = '';
+            document.getElementById('editCustomerPhone').value = '';
+            document.getElementById('editCustomerEmail').value = '';
         }
 
-        // 加载检测项目并填充数据
-        await onSampleTypeChange();
-
-        // 填充检测数据
+        // 填充检测项目数据
         if (report.data && report.data.length > 0) {
-            report.data.forEach(item => {
-                const input = document.querySelector(`.indicator-input[data-indicator-id="${item.indicator_id}"]`);
-                if (input) {
-                    input.value = item.measured_value || '';
-                }
+            // 按sort_order排序
+            editReportIndicators = report.data.sort((a, b) => a.sort_order - b.sort_order);
+            renderEditIndicatorsTable();
+        }
+
+        showToast('报告数据已加载，可以开始编辑');
+    } catch (error) {
+        console.error('加载报告详情失败:', error);
+        showToast('加载报告详情失败: ' + error.message, 'error');
+    }
+}
+
+// 渲染编辑页面的检测项目表格
+function renderEditIndicatorsTable() {
+    const tbody = document.getElementById('editIndicatorsTableBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = editReportIndicators.map((ind, index) => `
+        <tr data-index="${index}">
+            <td class="text-center">${index + 1}</td>
+            <td>
+                <input type="text" class="form-control form-control-sm"
+                       value="${escapeHtml(ind.indicator_name || '')}"
+                       onchange="updateEditIndicatorField(${index}, 'indicator_name', this.value)"
+                       placeholder="检测项目名称">
+            </td>
+            <td>
+                <input type="text" class="form-control form-control-sm"
+                       value="${escapeHtml(ind.unit || '')}"
+                       onchange="updateEditIndicatorField(${index}, 'unit', this.value)">
+            </td>
+            <td>
+                <input type="text" class="form-control form-control-sm"
+                       value="${escapeHtml(ind.measured_value || '')}"
+                       onchange="updateEditIndicatorField(${index}, 'measured_value', this.value)">
+            </td>
+            <td>
+                <input type="text" class="form-control form-control-sm"
+                       value="${escapeHtml(ind.limit_value || '')}"
+                       onchange="updateEditIndicatorField(${index}, 'limit_value', this.value)">
+            </td>
+            <td>
+                <input type="text" class="form-control form-control-sm"
+                       value="${escapeHtml(ind.detection_method || '')}"
+                       onchange="updateEditIndicatorField(${index}, 'detection_method', this.value)">
+            </td>
+            <td class="text-center">
+                <button class="btn btn-sm btn-outline-primary" onclick="moveEditIndicator(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>
+                    <i class="bi bi-arrow-up"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-primary" onclick="moveEditIndicator(${index}, 'down')"
+                        ${index === editReportIndicators.length - 1 ? 'disabled' : ''}>
+                    <i class="bi bi-arrow-down"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// 更新编辑页面的指标字段
+function updateEditIndicatorField(index, field, value) {
+    if (editReportIndicators[index]) {
+        editReportIndicators[index][field] = value;
+    }
+}
+
+// 移动编辑页面的检测项目顺序
+function moveEditIndicator(index, direction) {
+    if (direction === 'up' && index > 0) {
+        [editReportIndicators[index], editReportIndicators[index - 1]] =
+        [editReportIndicators[index - 1], editReportIndicators[index]];
+    } else if (direction === 'down' && index < editReportIndicators.length - 1) {
+        [editReportIndicators[index], editReportIndicators[index + 1]] =
+        [editReportIndicators[index + 1], editReportIndicators[index]];
+    }
+    renderEditIndicatorsTable();
+}
+
+// 取消编辑报告
+function cancelEditReport() {
+    // 隐藏编辑标签页
+    document.getElementById('edit-report-tab-li').style.display = 'none';
+
+    // 切换回待提交报告标签
+    const pendingTab = new bootstrap.Tab(document.getElementById('pending-reports-tab'));
+    pendingTab.show();
+
+    // 清空编辑数据
+    editingReportData = null;
+    editReportIndicators = [];
+}
+
+// 保存编辑的报告
+async function saveEditReport(submitAfterSave = false) {
+    try {
+        if (!editingReportData) {
+            showToast('没有正在编辑的报告', 'error');
+            return;
+        }
+
+        // 验证必填字段
+        const sampleNumber = document.getElementById('editSampleNumber').value.trim();
+        if (!sampleNumber) {
+            showToast('请填写样品编号', 'error');
+            return;
+        }
+
+        // 收集基本信息（新字段）
+        const reportDate = document.getElementById('editReportDate').value || null;
+        const sampleSource = document.getElementById('editSampleSource').value.trim();
+        const sampler = document.getElementById('editSampler').value.trim();
+        const samplingDate = document.getElementById('editSamplingDate').value || null;
+        const samplingBasis = document.getElementById('editSamplingBasis').value.trim();
+        const sampleReceivedDate = document.getElementById('editSampleReceivedDate').value || null;
+        const samplingLocation = document.getElementById('editSamplingLocation').value.trim();
+        const sampleStatus = document.getElementById('editSampleStatus').value.trim();
+        const detectionDate = document.getElementById('editDetectionDate').value || new Date().toISOString().split('T')[0];
+        const productStandard = document.getElementById('editProductStandard').value.trim();
+        const testConclusion = document.getElementById('editTestConclusion').value;
+        const additionalInfo = document.getElementById('editAdditionalInfo').value.trim();
+
+        // 收集客户信息
+        const customerUnit = document.getElementById('editCustomerUnit').value.trim();
+        const customerPlant = document.getElementById('editCustomerPlant').value.trim();
+        const customerAddress = document.getElementById('editCustomerAddress').value.trim();
+        const customerContact = document.getElementById('editCustomerContact').value.trim();
+        const customerPhone = document.getElementById('editCustomerPhone').value.trim();
+        const customerEmail = document.getElementById('editCustomerEmail').value.trim();
+
+        // 构建报告数据
+        const reportData = {
+            sample_number: sampleNumber,
+            sample_type_id: editingReportData.sample_type_id,
+            report_date: reportDate,
+            sample_source: sampleSource,
+            sampler: sampler,
+            sampling_date: samplingDate,
+            sampling_basis: samplingBasis,
+            sample_received_date: sampleReceivedDate,
+            sampling_location: samplingLocation,
+            sample_status: sampleStatus,
+            detection_date: detectionDate,
+            product_standard: productStandard,
+            test_conclusion: testConclusion,
+            additional_info: additionalInfo,
+            detection_person: '',
+            review_person: '',
+            remark: JSON.stringify({
+                customer_unit: customerUnit,
+                customer_plant: customerPlant,
+                customer_address: customerAddress,
+                customer_contact: customerContact,
+                customer_phone: customerPhone,
+                customer_email: customerEmail
+            }),
+            review_status: 'draft',
+            data: editReportIndicators.map((ind, index) => ({
+                indicator_id: ind.indicator_id,
+                indicator_name: ind.indicator_name,
+                unit: ind.unit,
+                measured_value: ind.measured_value || '',
+                limit_value: ind.limit_value,
+                detection_method: ind.detection_method,
+                remark: '',
+                sort_order: index
+            }))
+        };
+
+        // 更新报告
+        await apiRequest(`/api/reports/${editingReportData.id}`, {
+            method: 'PUT',
+            body: JSON.stringify(reportData)
+        });
+
+        showToast('报告保存成功');
+
+        // 如果需要提交审核
+        if (submitAfterSave) {
+            await apiRequest(`/api/reports/${editingReportData.id}/submit`, {
+                method: 'POST'
             });
+            showToast('报告已提交审核');
         }
 
-        // 修改提交按钮文本
-        const submitBtn = document.querySelector('#reportForm button[type="submit"]');
-        if (submitBtn) {
-            submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> 更新报告';
-        }
-
-        // 修改保存草稿按钮文本
-        const draftBtn = document.getElementById('saveDraftBtn');
-        if (draftBtn) {
-            draftBtn.innerHTML = '<i class="bi bi-save"></i> 保存修改';
-        }
-
-        showToast('报告已加载，可以开始编辑');
+        // 返回待提交报告列表
+        cancelEditReport();
+        loadPendingReports();
 
     } catch (error) {
-        console.error('加载报告失败:', error);
-        showToast('加载报告失败: ' + error.message, 'error');
+        console.error('保存报告失败:', error);
+        showToast('保存报告失败: ' + error.message, 'error');
     }
 }
 
@@ -3052,6 +3250,16 @@ async function showReviewDetailModal(reportId) {
     try {
         const data = await apiRequest(`/api/reports/${reportId}/review-detail`);
 
+        // 解析客户信息
+        let customerInfo = {};
+        try {
+            if (data.report.remark) {
+                customerInfo = JSON.parse(data.report.remark);
+            }
+        } catch (e) {
+            console.error('解析客户信息失败:', e);
+        }
+
         // 创建详情模态框
         const modalHTML = `
             <div class="modal fade" id="reviewDetailModal" tabindex="-1">
@@ -3061,41 +3269,86 @@ async function showReviewDetailModal(reportId) {
                             <h5 class="modal-title">报告详情 - ${data.report.report_number}</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
-                        <div class="modal-body">
+                        <div class="modal-body" style="max-height: 80vh; overflow-y: auto;">
                             <h6 class="mb-3"><i class="bi bi-card-list"></i> 基本信息</h6>
-                            <div class="row mb-3">
-                                <div class="col-md-4"><strong>样品编号：</strong>${data.report.sample_number}</div>
-                                <div class="col-md-4"><strong>样品类型：</strong>${data.report.sample_type_name || '-'}</div>
-                                <div class="col-md-4"><strong>委托单位：</strong>${data.report.company_name || '-'}</div>
+                            <div class="row mb-2">
+                                <div class="col-md-4"><strong>报告编号：</strong>${data.report.report_number || '-'}</div>
+                                <div class="col-md-4"><strong>报告编制日期：</strong>${data.report.report_date || '-'}</div>
+                                <div class="col-md-4"><strong>样品编号：</strong>${data.report.sample_number || '-'}</div>
                             </div>
-                            <div class="row mb-3">
+                            <div class="row mb-2">
+                                <div class="col-md-4"><strong>样品类型：</strong>${data.report.sample_type_name || '-'}</div>
+                                <div class="col-md-4"><strong>样品来源：</strong>${data.report.sample_source || '-'}</div>
+                                <div class="col-md-4"><strong>样品状态：</strong>${data.report.sample_status || '-'}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-md-4"><strong>采样人：</strong>${data.report.sampler || '-'}</div>
+                                <div class="col-md-4"><strong>采样日期：</strong>${data.report.sampling_date || '-'}</div>
+                                <div class="col-md-4"><strong>收样日期：</strong>${data.report.sample_received_date || '-'}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-md-4"><strong>采样地点：</strong>${data.report.sampling_location || '-'}</div>
+                                <div class="col-md-4"><strong>采样依据：</strong>${data.report.sampling_basis || '-'}</div>
                                 <div class="col-md-4"><strong>检测日期：</strong>${data.report.detection_date || '-'}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-md-6"><strong>产品标准：</strong>${data.report.product_standard || '-'}</div>
+                                <div class="col-md-6"><strong>委托单位：</strong>${data.report.company_name || '-'}</div>
+                            </div>
+                            <div class="row mb-2">
                                 <div class="col-md-4"><strong>检测人员：</strong>${data.report.detection_person || '-'}</div>
                                 <div class="col-md-4"><strong>审核人员：</strong>${data.report.review_person || '-'}</div>
+                                <div class="col-md-4"><strong>创建时间：</strong>${data.report.created_at ? new Date(data.report.created_at).toLocaleString('zh-CN') : '-'}</div>
+                            </div>
+                            ${data.report.test_conclusion ? `
+                                <div class="row mb-2">
+                                    <div class="col-md-12"><strong>检测结论：</strong><br>${data.report.test_conclusion}</div>
+                                </div>
+                            ` : ''}
+                            ${data.report.additional_info ? `
+                                <div class="row mb-2">
+                                    <div class="col-md-12"><strong>附加信息：</strong><br>${data.report.additional_info}</div>
+                                </div>
+                            ` : ''}
+
+                            <hr>
+
+                            <h6 class="mb-3"><i class="bi bi-people"></i> 客户信息</h6>
+                            <div class="row mb-2">
+                                <div class="col-md-4"><strong>被检单位：</strong>${customerInfo.customer_unit || '-'}</div>
+                                <div class="col-md-4"><strong>被检水厂：</strong>${customerInfo.customer_plant || '-'}</div>
+                                <div class="col-md-4"><strong>联系人：</strong>${customerInfo.customer_contact || '-'}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-md-4"><strong>联系电话：</strong>${customerInfo.customer_phone || '-'}</div>
+                                <div class="col-md-4"><strong>电子邮箱：</strong>${customerInfo.customer_email || '-'}</div>
+                                <div class="col-md-4"><strong>地址：</strong>${customerInfo.customer_address || '-'}</div>
                             </div>
 
                             <hr>
 
-                            <h6 class="mb-3"><i class="bi bi-clipboard-data"></i> 检测数据</h6>
+                            <h6 class="mb-3"><i class="bi bi-clipboard-data"></i> 检测数据 (${data.detection_data.length} 项)</h6>
                             <div class="table-responsive">
-                                <table class="table table-sm table-bordered">
+                                <table class="table table-sm table-bordered table-hover">
                                     <thead class="table-light">
                                         <tr>
-                                            <th>检测项目</th>
-                                            <th>检测值</th>
-                                            <th>单位</th>
-                                            <th>限值</th>
-                                            <th>检测方法</th>
+                                            <th style="width: 5%;">序号</th>
+                                            <th style="width: 20%;">检测项目</th>
+                                            <th style="width: 15%;">检测值</th>
+                                            <th style="width: 10%;">单位</th>
+                                            <th style="width: 15%;">限值</th>
+                                            <th style="width: 35%;">检测方法</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        ${data.detection_data.map(item => `
+                                        ${data.detection_data.map((item, index) => `
                                             <tr>
+                                                <td class="text-center">${index + 1}</td>
                                                 <td>${item.indicator_name}</td>
-                                                <td>${item.measured_value}</td>
+                                                <td>${item.measured_value || '-'}</td>
                                                 <td>${item.unit || '-'}</td>
                                                 <td>${item.limit_value || '-'}</td>
-                                                <td>${item.detection_method || '-'}</td>
+                                                <td class="small">${item.detection_method || '-'}</td>
                                             </tr>
                                         `).join('')}
                                     </tbody>
@@ -3333,5 +3586,616 @@ async function deleteReport(reportId, module) {
         showToast('删除报告失败: ' + error.message, 'error');
     }
 }
+
+// ==================== 新建报告功能 ====================
+let reportIndicators = []; // 存储当前报告的检测项目列表
+let allCustomers = []; // 存储所有客户数据
+let selectedCustomerId = null; // 当前选中的客户ID
+
+// 初始化新建报告页面
+function initNewReportPage() {
+    // 加载样品类型列表
+    loadSampleTypesForNewReport();
+
+    // 加载客户列表
+    loadCustomersForReport();
+
+    // 设置默认值
+    setNewReportDefaults();
+
+    // 绑定事件
+    const sampleTypeSelect = document.getElementById('newReportSampleType');
+    const loadBtn = document.getElementById('loadIndicatorsBtn');
+    const saveBtn = document.getElementById('saveNewReportBtn');
+    const resetBtn = document.getElementById('resetNewReportBtn');
+
+    // 客户信息相关事件
+    const customerPlantSelect = document.getElementById('customerPlantSelect');
+    const loadCustomerBtn = document.getElementById('loadCustomerInfoBtn');
+
+    if (sampleTypeSelect) {
+        sampleTypeSelect.addEventListener('change', function() {
+            loadBtn.disabled = !this.value;
+        });
+    }
+
+    if (loadBtn) {
+        loadBtn.addEventListener('click', loadReportIndicators);
+    }
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', saveNewReport);
+    }
+
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetNewReportForm);
+    }
+
+    // 客户信息事件绑定
+    if (customerPlantSelect) {
+        customerPlantSelect.addEventListener('change', onCustomerPlantChange);
+    }
+
+    if (loadCustomerBtn) {
+        loadCustomerBtn.addEventListener('click', loadCustomerInfo);
+    }
+
+    // 样品来源下拉菜单事件绑定
+    initSampleSourceDropdown();
+}
+
+// 设置新建报告的默认值
+function setNewReportDefaults() {
+    // 设置报告编制日期为当天
+    const today = new Date().toISOString().split('T')[0];
+    const reportDateInput = document.getElementById('newReportDate');
+    if (reportDateInput) {
+        reportDateInput.value = today;
+    }
+
+    // 设置样品来源默认值
+    const sampleSourceInput = document.getElementById('newSampleSource');
+    if (sampleSourceInput && !sampleSourceInput.value) {
+        sampleSourceInput.value = '委托采样';
+    }
+}
+
+// 初始化样品来源下拉菜单
+function initSampleSourceDropdown() {
+    const sourceInput = document.getElementById('newSampleSource');
+    const sourceDropdown = document.getElementById('sampleSourceDropdown');
+
+    if (!sourceInput || !sourceDropdown) return;
+
+    // 点击输入框显示下拉菜单
+    sourceInput.addEventListener('focus', function() {
+        sourceDropdown.classList.add('show');
+    });
+
+    // 点击输入框显示下拉菜单
+    sourceInput.addEventListener('click', function() {
+        sourceDropdown.classList.add('show');
+    });
+
+    // 点击外部区域关闭下拉菜单
+    document.addEventListener('click', function(e) {
+        if (!sourceInput.contains(e.target) && !sourceDropdown.contains(e.target)) {
+            sourceDropdown.classList.remove('show');
+        }
+    });
+}
+
+// 选择样品来源
+function selectSampleSource(source) {
+    const sourceInput = document.getElementById('newSampleSource');
+    const sourceDropdown = document.getElementById('sampleSourceDropdown');
+
+    if (sourceInput) {
+        sourceInput.value = source;
+    }
+
+    if (sourceDropdown) {
+        sourceDropdown.classList.remove('show');
+    }
+}
+
+// 加载样品类型列表
+async function loadSampleTypesForNewReport() {
+    try {
+        const sampleTypes = await apiRequest('/api/sample-types');
+        const select = document.getElementById('newReportSampleType');
+
+        if (select) {
+            select.innerHTML = '<option value="">请选择样品类型...</option>';
+            sampleTypes.forEach(st => {
+                const option = document.createElement('option');
+                option.value = st.id;
+                option.textContent = `${st.name} (${st.code})`;
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('加载样品类型失败:', error);
+        showToast('加载样品类型失败', 'error');
+    }
+}
+
+// 存储所有被检单位列表
+let allUnits = [];
+let selectedUnit = '';
+
+// 加载客户列表
+async function loadCustomersForReport() {
+    try {
+        allCustomers = await apiRequest('/api/customers');
+
+        // 获取所有不重复的被检单位
+        allUnits = [...new Set(allCustomers.map(c => c.inspected_unit).filter(u => u))];
+
+        // 初始化搜索下拉框
+        initCustomerUnitSearch();
+    } catch (error) {
+        console.error('加载客户列表失败:', error);
+        showToast('加载客户列表失败', 'error');
+    }
+}
+
+// 初始化被检单位搜索下拉框
+function initCustomerUnitSearch() {
+    const unitInput = document.getElementById('customerUnitInput');
+    const dropdown = document.getElementById('customerUnitDropdown');
+
+    if (!unitInput || !dropdown) return;
+
+    // 输入事件 - 实时筛选
+    unitInput.addEventListener('input', function() {
+        const searchText = this.value.trim().toLowerCase();
+
+        if (searchText === '') {
+            // 如果清空了输入，显示所有选项
+            renderUnitDropdown(allUnits);
+        } else {
+            // 筛选匹配的被检单位
+            const filtered = allUnits.filter(unit =>
+                unit.toLowerCase().includes(searchText)
+            );
+            renderUnitDropdown(filtered);
+        }
+
+        // 显示下拉菜单
+        dropdown.classList.add('show');
+    });
+
+    // 获得焦点时显示所有选项
+    unitInput.addEventListener('focus', function() {
+        renderUnitDropdown(allUnits);
+        dropdown.classList.add('show');
+    });
+
+    // 点击外部关闭下拉菜单
+    document.addEventListener('click', function(e) {
+        if (!unitInput.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.classList.remove('show');
+        }
+    });
+}
+
+// 渲染被检单位下拉列表
+function renderUnitDropdown(units) {
+    const dropdown = document.getElementById('customerUnitDropdown');
+    if (!dropdown) return;
+
+    if (units.length === 0) {
+        dropdown.innerHTML = '<div class="dropdown-item disabled">无匹配结果</div>';
+        return;
+    }
+
+    dropdown.innerHTML = units.map(unit =>
+        `<a class="dropdown-item" href="javascript:void(0)" onclick="selectCustomerUnit('${escapeHtml(unit)}')">${escapeHtml(unit)}</a>`
+    ).join('');
+}
+
+// 选择被检单位
+function selectCustomerUnit(unit) {
+    selectedUnit = unit;
+
+    // 更新输入框
+    const unitInput = document.getElementById('customerUnitInput');
+    if (unitInput) {
+        unitInput.value = unit;
+    }
+
+    // 关闭下拉菜单
+    const dropdown = document.getElementById('customerUnitDropdown');
+    if (dropdown) {
+        dropdown.classList.remove('show');
+    }
+
+    // 触发单位变化事件
+    onCustomerUnitChange();
+}
+
+// 被检单位选择变化
+function onCustomerUnitChange() {
+    const plantSelect = document.getElementById('customerPlantSelect');
+    const loadBtn = document.getElementById('loadCustomerInfoBtn');
+
+    if (!selectedUnit) {
+        plantSelect.innerHTML = '<option value="">请先选择被检单位...</option>';
+        plantSelect.disabled = true;
+        loadBtn.disabled = true;
+        return;
+    }
+
+    // 筛选该被检单位下的所有水厂
+    const customers = allCustomers.filter(c => c.inspected_unit === selectedUnit);
+
+    plantSelect.innerHTML = '<option value="">请选择被检水厂...</option>';
+    customers.forEach(customer => {
+        const option = document.createElement('option');
+        option.value = customer.id;
+        option.textContent = customer.water_plant || '（无水厂名称）';
+        plantSelect.appendChild(option);
+    });
+
+    plantSelect.disabled = false;
+    loadBtn.disabled = true;
+}
+
+// 被检水厂选择变化
+function onCustomerPlantChange() {
+    const plantSelect = document.getElementById('customerPlantSelect');
+    const loadBtn = document.getElementById('loadCustomerInfoBtn');
+
+    const customerId = plantSelect.value;
+    loadBtn.disabled = !customerId;
+
+    if (customerId) {
+        selectedCustomerId = parseInt(customerId);
+    } else {
+        selectedCustomerId = null;
+    }
+}
+
+// 加载客户信息
+function loadCustomerInfo() {
+    if (!selectedCustomerId) {
+        showToast('请先选择被检水厂', 'warning');
+        return;
+    }
+
+    const customer = allCustomers.find(c => c.id === selectedCustomerId);
+
+    if (!customer) {
+        showToast('未找到客户信息', 'error');
+        return;
+    }
+
+    // 填充客户信息字段
+    document.getElementById('customerAddress').value = customer.unit_address || '';
+    document.getElementById('customerContact').value = customer.contact_person || '';
+    document.getElementById('customerPhone').value = customer.contact_phone || '';
+    document.getElementById('customerEmail').value = customer.email || '';
+
+    // 显示客户信息字段
+    document.getElementById('customerInfoFields').style.display = 'block';
+
+    showToast('客户信息已加载，可手动编辑', 'success');
+}
+
+// 加载检测项目
+async function loadReportIndicators() {
+    const sampleTypeId = document.getElementById('newReportSampleType').value;
+
+    if (!sampleTypeId) {
+        showToast('请先选择样品类型', 'warning');
+        return;
+    }
+
+    try {
+        const indicators = await apiRequest(`/api/template-indicators?sample_type_id=${sampleTypeId}`);
+
+        if (indicators.length === 0) {
+            showToast('该样品类型没有配置检测项目', 'warning');
+            return;
+        }
+
+        reportIndicators = indicators.map((ind, index) => ({
+            ...ind,
+            order: index,
+            measured_value: ind.default_value || ''
+        }));
+
+        renderIndicatorsTable();
+        document.getElementById('indicatorsCard').style.display = 'block';
+
+    } catch (error) {
+        console.error('加载检测项目失败:', error);
+        showToast('加载检测项目失败: ' + error.message, 'error');
+    }
+}
+
+// 渲染检测项目表格
+function renderIndicatorsTable() {
+    const tbody = document.getElementById('indicatorsTableBody');
+
+    if (!tbody) return;
+
+    tbody.innerHTML = reportIndicators.map((ind, index) => `
+        <tr data-index="${index}">
+            <td class="text-center">${index + 1}</td>
+            <td>
+                <input type="text" class="form-control form-control-sm"
+                       value="${escapeHtml(ind.indicator_name || '')}"
+                       onchange="updateIndicatorField(${index}, 'indicator_name', this.value)"
+                       placeholder="检测项目名称">
+            </td>
+            <td>
+                <input type="text" class="form-control form-control-sm"
+                       value="${escapeHtml(ind.unit || '')}"
+                       onchange="updateIndicatorField(${index}, 'unit', this.value)"
+                       placeholder="单位">
+            </td>
+            <td>
+                <input type="text" class="form-control form-control-sm"
+                       value="${escapeHtml(ind.measured_value || '')}"
+                       onchange="updateIndicatorField(${index}, 'measured_value', this.value)"
+                       placeholder="检测结果">
+            </td>
+            <td>
+                <input type="text" class="form-control form-control-sm"
+                       value="${escapeHtml(ind.limit_value || '')}"
+                       onchange="updateIndicatorField(${index}, 'limit_value', this.value)"
+                       placeholder="限值">
+            </td>
+            <td>
+                <input type="text" class="form-control form-control-sm"
+                       value="${escapeHtml(ind.detection_method || '')}"
+                       onchange="updateIndicatorField(${index}, 'detection_method', this.value)"
+                       placeholder="检测方法">
+            </td>
+            <td class="text-center">
+                <button class="btn btn-sm btn-outline-primary"
+                        onclick="moveIndicator(${index}, 'up')"
+                        ${index === 0 ? 'disabled' : ''}
+                        title="上移">
+                    <i class="bi bi-arrow-up"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-primary"
+                        onclick="moveIndicator(${index}, 'down')"
+                        ${index === reportIndicators.length - 1 ? 'disabled' : ''}
+                        title="下移">
+                    <i class="bi bi-arrow-down"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// HTML转义函数
+function escapeHtml(text) {
+    if (!text) return '';
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+// 更新检测项目字段（通用）
+function updateIndicatorField(index, field, value) {
+    if (reportIndicators[index]) {
+        reportIndicators[index][field] = value;
+    }
+}
+
+// 移动检测项目顺序
+function moveIndicator(index, direction) {
+    if (direction === 'up' && index > 0) {
+        [reportIndicators[index], reportIndicators[index - 1]] =
+        [reportIndicators[index - 1], reportIndicators[index]];
+    } else if (direction === 'down' && index < reportIndicators.length - 1) {
+        [reportIndicators[index], reportIndicators[index + 1]] =
+        [reportIndicators[index + 1], reportIndicators[index]];
+    }
+
+    renderIndicatorsTable();
+}
+
+// 保存新报告
+async function saveNewReport() {
+    // 获取基本信息
+    const sampleNumber = document.getElementById('newReportSampleNumber').value.trim();
+    const sampleTypeId = document.getElementById('newReportSampleType').value;
+
+    // 验证必填字段
+    if (!sampleNumber) {
+        showToast('样品编号不能为空', 'warning');
+        return;
+    }
+
+    if (!sampleTypeId) {
+        showToast('请选择样品类型', 'warning');
+        return;
+    }
+
+    if (reportIndicators.length === 0) {
+        showToast('请先加载检测项目', 'warning');
+        return;
+    }
+
+    // 验证至少有一个检测项目有名称
+    const validIndicators = reportIndicators.filter(ind => ind.indicator_name && ind.indicator_name.trim());
+    if (validIndicators.length === 0) {
+        showToast('至少需要一个有效的检测项目', 'warning');
+        return;
+    }
+
+    // 获取基本信息（新字段）
+    const reportDate = document.getElementById('newReportDate').value || null;
+    const sampleSource = document.getElementById('newSampleSource').value.trim();
+    const sampler = document.getElementById('newSampler').value.trim();
+    const samplingDate = document.getElementById('newSamplingDate').value || null;
+    const samplingBasis = document.getElementById('newSamplingBasis').value.trim();
+    const sampleReceivedDate = document.getElementById('newSampleReceivedDate').value || null;
+    const samplingLocation = document.getElementById('newSamplingLocation').value.trim();
+    const sampleStatus = document.getElementById('newSampleStatus').value.trim();
+    const detectionDate = document.getElementById('newDetectionDate').value || new Date().toISOString().split('T')[0];
+    const productStandard = document.getElementById('newProductStandard').value.trim();
+    const testConclusion = document.getElementById('newTestConclusion').value;
+    const additionalInfo = document.getElementById('newAdditionalInfo').value.trim();
+
+    // 获取客户信息（可选）
+    const customerUnit = document.getElementById('customerUnitInput').value.trim() || '';
+    const customerPlant = document.getElementById('customerPlantSelect').options[
+        document.getElementById('customerPlantSelect').selectedIndex
+    ]?.text || '';
+    const customerAddress = document.getElementById('customerAddress').value.trim();
+    const customerContact = document.getElementById('customerContact').value.trim();
+    const customerPhone = document.getElementById('customerPhone').value.trim();
+    const customerEmail = document.getElementById('customerEmail').value.trim();
+
+    // 构建报告数据
+    const reportData = {
+        sample_number: sampleNumber,
+        sample_type_id: parseInt(sampleTypeId),
+        report_date: reportDate,
+        sample_source: sampleSource,
+        sampler: sampler,
+        sampling_date: samplingDate,
+        sampling_basis: samplingBasis,
+        sample_received_date: sampleReceivedDate,
+        sampling_location: samplingLocation,
+        sample_status: sampleStatus,
+        detection_date: detectionDate,
+        product_standard: productStandard,
+        test_conclusion: testConclusion,
+        additional_info: additionalInfo,
+        detection_person: '',
+        review_person: '',
+        remark: JSON.stringify({
+            customer_unit: customerUnit,
+            customer_plant: customerPlant === '（无水厂名称）' ? '' : customerPlant,
+            customer_address: customerAddress,
+            customer_contact: customerContact,
+            customer_phone: customerPhone,
+            customer_email: customerEmail
+        }), // 将客户信息存储在备注字段中
+        review_status: 'draft',
+        data: reportIndicators.map((ind, index) => ({
+            indicator_id: ind.indicator_id,
+            measured_value: ind.measured_value || '',
+            remark: '',
+            sort_order: index
+        }))
+    };
+
+    try {
+        const result = await apiRequest('/api/reports', {
+            method: 'POST',
+            body: JSON.stringify(reportData)
+        });
+
+        showToast('报告创建成功！报告编号: ' + result.report_number, 'success');
+
+        // 重置表单
+        resetNewReportForm();
+
+    } catch (error) {
+        console.error('保存报告失败:', error);
+        showToast('保存报告失败: ' + error.message, 'error');
+    }
+}
+
+// 重置表单
+function resetNewReportForm() {
+    document.getElementById('newReportSampleNumber').value = '';
+    document.getElementById('newReportSampleType').value = '';
+
+    // 重置客户信息
+    document.getElementById('customerUnitInput').value = '';
+    selectedUnit = '';
+    document.getElementById('customerPlantSelect').value = '';
+    document.getElementById('customerPlantSelect').disabled = true;
+    document.getElementById('loadCustomerInfoBtn').disabled = true;
+    document.getElementById('customerInfoFields').style.display = 'none';
+    document.getElementById('customerAddress').value = '';
+    document.getElementById('customerContact').value = '';
+    document.getElementById('customerPhone').value = '';
+    document.getElementById('customerEmail').value = '';
+
+    document.getElementById('loadIndicatorsBtn').disabled = true;
+    document.getElementById('indicatorsCard').style.display = 'none';
+
+    reportIndicators = [];
+    selectedCustomerId = null;
+
+    // 重新设置默认值
+    setNewReportDefaults();
+}
+
+// 选择编辑页面的样品来源
+function selectEditSampleSource(source) {
+    const sourceInput = document.getElementById('editSampleSource');
+    const sourceDropdown = document.getElementById('editSampleSourceDropdown');
+
+    if (sourceInput) {
+        sourceInput.value = source;
+    }
+
+    if (sourceDropdown) {
+        sourceDropdown.classList.remove('show');
+    }
+}
+
+// 初始化编辑页面的样品来源下拉菜单
+function initEditSampleSourceDropdown() {
+    const sourceInput = document.getElementById('editSampleSource');
+    const sourceDropdown = document.getElementById('editSampleSourceDropdown');
+
+    if (!sourceInput || !sourceDropdown) return;
+
+    // 点击输入框显示下拉菜单
+    sourceInput.addEventListener('focus', function() {
+        sourceDropdown.classList.add('show');
+    });
+
+    sourceInput.addEventListener('click', function() {
+        sourceDropdown.classList.add('show');
+    });
+
+    // 点击外部区域关闭下拉菜单
+    document.addEventListener('click', function(e) {
+        if (!sourceInput.contains(e.target) && !sourceDropdown.contains(e.target)) {
+            sourceDropdown.classList.remove('show');
+        }
+    });
+}
+
+// 页面加载时初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 检查是否在报告填写页面
+    if (document.getElementById('newReportSampleNumber')) {
+        initNewReportPage();
+    }
+
+    // 绑定编辑报告页面的按钮事件
+    const saveEditBtn = document.getElementById('saveEditReportBtn');
+    const submitEditBtn = document.getElementById('submitEditReportBtn');
+
+    if (saveEditBtn) {
+        saveEditBtn.addEventListener('click', () => saveEditReport(false));
+    }
+
+    if (submitEditBtn) {
+        submitEditBtn.addEventListener('click', () => saveEditReport(true));
+    }
+
+    // 初始化编辑页面的样品来源下拉菜单
+    initEditSampleSourceDropdown();
+});
 
 console.log('水质检测报告系统V2前端已加载');
