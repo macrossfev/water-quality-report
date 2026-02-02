@@ -302,7 +302,7 @@
                                 <div class="mb-4">
                                     <h6>创建导出模板</h6>
                                     <div class="row">
-                                        <div class="col-md-6">
+                                        <div class="col-md-4">
                                             <div class="mb-3">
                                                 <label class="form-label">选择分类</label>
                                                 <select class="form-select" id="templateCategory">
@@ -310,17 +310,25 @@
                                                 </select>
                                             </div>
                                         </div>
-                                        <div class="col-md-6">
+                                        <div class="col-md-4">
                                             <div class="mb-3">
-                                                <label class="form-label">模板名称</label>
+                                                <label class="form-label">选择样品类型 <span class="text-danger">*</span></label>
+                                                <select class="form-select" id="templateSampleType">
+                                                    <option value="">请选择样品类型</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label">模板名称 <span class="text-danger">*</span></label>
                                                 <input type="text" class="form-control" id="templateName" placeholder="如：常规9项">
                                             </div>
                                         </div>
                                     </div>
                                     <div class="mb-3">
-                                        <label class="form-label">选择检测指标（样品编号和采样日期自动包含）</label>
+                                        <label class="form-label">选择检测指标 <span class="text-danger">*</span></label>
                                         <div id="indicatorCheckboxes" class="border rounded p-3 bg-light" style="max-height: 300px; overflow-y: auto;">
-                                            <p class="text-muted">请先导入数据以初始化列名</p>
+                                            <p class="text-muted">请先选择样品类型</p>
                                         </div>
                                     </div>
                                     <button class="btn btn-success" id="createTemplateBtn">
@@ -350,90 +358,63 @@
                                 <h5><i class="bi bi-download"></i> 筛选并导出数据</h5>
                             </div>
                             <div class="card-body">
-                                <!-- 选择模板 -->
-                                <div class="mb-3">
+                                <!-- 步骤1：选择导出模板 -->
+                                <div class="mb-4">
                                     <label class="form-label"><strong>1. 选择导出模板</strong></label>
                                     <select class="form-select" id="exportTemplate">
                                         <option value="">请选择导出模板</option>
+                                    </select>
+                                    <div id="templateInfo" class="mt-2 small text-muted" style="display: none;">
+                                        样品类型：<span id="templateSampleTypeName"></span>
+                                    </div>
+                                </div>
+
+                                <hr>
+
+                                <!-- 步骤2：选择被检单位 -->
+                                <div class="mb-4">
+                                    <label class="form-label"><strong>2. 选择被检单位</strong></label>
+                                    <select class="form-select" id="exportCompany">
+                                        <option value="">请先选择导出模板</option>
                                     </select>
                                 </div>
 
                                 <hr>
 
-                                <!-- 筛选条件 -->
-                                <div class="mb-3">
-                                    <label class="form-label"><strong>2. 设置筛选条件（单一维度）</strong></label>
-                                    <div class="row">
-                                        <div class="col-md-4">
-                                            <select class="form-select" id="filterField">
-                                                <option value="">不筛选（导出全部）</option>
-                                                <option value="company_name">被检单位</option>
-                                                <option value="plant_name">被检水厂</option>
-                                                <option value="sample_type">样品类型</option>
-                                                <option value="date_range">采样日期范围</option>
-                                            </select>
+                                <!-- 步骤3：选择被检水厂 -->
+                                <div class="mb-4">
+                                    <label class="form-label"><strong>3. 选择被检水厂（可选）</strong></label>
+                                    <select class="form-select" id="exportPlant">
+                                        <option value="">请先选择被检单位</option>
+                                    </select>
+                                </div>
+
+                                <hr>
+
+                                <!-- 步骤4：勾选样品编号 -->
+                                <div class="mb-4">
+                                    <label class="form-label"><strong>4. 勾选要导出的样品编号</strong></label>
+                                    <div id="sampleListArea" style="display: none;">
+                                        <div class="mb-2">
+                                            <input type="checkbox" class="form-check-input" id="selectAllExportSamples">
+                                            <label class="form-check-label" for="selectAllExportSamples">全选</label>
                                         </div>
-                                        <div class="col-md-8">
-                                            <div id="filterValueDiv" style="display: none;">
-                                                <input type="text" class="form-control" id="filterValue" placeholder="输入筛选值（支持模糊匹配）">
-                                            </div>
-                                            <div id="dateRangeDiv" style="display: none;">
-                                                <div class="row">
-                                                    <div class="col-md-6">
-                                                        <input type="date" class="form-control" id="dateStart">
-                                                    </div>
-                                                    <div class="col-md-6">
-                                                        <input type="date" class="form-control" id="dateEnd">
-                                                    </div>
-                                                </div>
-                                            </div>
+                                        <div id="exportSampleList" class="border rounded p-3 bg-light" style="max-height: 300px; overflow-y: auto;">
                                         </div>
                                     </div>
-                                    <button class="btn btn-secondary mt-2" id="previewBtn">
-                                        <i class="bi bi-eye"></i> 预览筛选结果
+                                    <div id="noSamplesMsg" class="text-muted">
+                                        请先完成上述筛选条件
+                                    </div>
+                                </div>
+
+                                <hr>
+
+                                <!-- 导出按钮 -->
+                                <div class="d-grid">
+                                    <button class="btn btn-primary btn-lg" id="exportBtn" disabled>
+                                        <i class="bi bi-download"></i> 导出选中的样品数据
                                     </button>
                                 </div>
-
-                                <!-- 筛选预览 -->
-                                <div id="filterPreview" class="mb-3" style="display: none;">
-                                    <h6>筛选结果预览（共 <span id="previewCount">0</span> 条）：</h6>
-                                    <div class="border rounded p-2 bg-light" style="max-height: 300px; overflow-y: auto;">
-                                        <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="selectAllSamples">
-                                            <label class="form-check-label" for="selectAllSamples">
-                                                <strong>全选</strong>
-                                            </label>
-                                        </div>
-                                        <hr>
-                                        <div id="sampleCheckboxes"></div>
-                                    </div>
-                                </div>
-
-                                <hr>
-
-                                <!-- 排序 -->
-                                <div class="mb-3">
-                                    <label class="form-label"><strong>3. 选择排序方式</strong></label>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="sortOrder" id="sortAsc" value="asc" checked>
-                                        <label class="form-check-label" for="sortAsc">
-                                            采样日期升序（从早到晚）
-                                        </label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="sortOrder" id="sortDesc" value="desc">
-                                        <label class="form-check-label" for="sortDesc">
-                                            采样日期降序（从晚到早）
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <hr>
-
-                                <!-- 导出 -->
-                                <button class="btn btn-success btn-lg w-100" id="exportBtn">
-                                    <i class="bi bi-download"></i> 导出Excel
-                                </button>
                             </div>
                         </div>
                     </div>
@@ -457,6 +438,7 @@
             loadCurrentSchema();
             loadCategories();
             loadTemplates();
+            loadSampleTypes();
         });
 
         // 检查登录状态
@@ -1258,10 +1240,61 @@
             });
         }
 
+        // 加载样品类型
+        let sampleTypes = [];
+        function loadSampleTypes() {
+            fetch('/api/sample-types')
+                .then(response => response.json())
+                .then(data => {
+                    sampleTypes = data.sample_types;
+                    const select = document.getElementById('templateSampleType');
+                    select.innerHTML = '<option value="">请选择样品类型</option>' +
+                        sampleTypes.map(st => `<option value="${st.id}">${st.name}</option>`).join('');
+                });
+        }
+
+        // 当选择样品类型时，加载该类型的检测指标
+        document.getElementById('templateSampleType').addEventListener('change', function() {
+            const sampleTypeId = this.value;
+            const container = document.getElementById('indicatorCheckboxes');
+
+            if (!sampleTypeId) {
+                container.innerHTML = '<p class="text-muted">请先选择样品类型</p>';
+                return;
+            }
+
+            fetch(`/api/sample-types/${sampleTypeId}/indicators`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.indicators && data.indicators.length > 0) {
+                        container.innerHTML = data.indicators.map((ind, idx) => `
+                            <div class="form-check">
+                                <input class="form-check-input indicator-checkbox" type="checkbox"
+                                       value="${ind.name}" id="ind_${idx}">
+                                <label class="form-check-label" for="ind_${idx}">
+                                    ${ind.name} ${ind.unit ? `(${ind.unit})` : ''}
+                                </label>
+                            </div>
+                        `).join('');
+                    } else {
+                        container.innerHTML = '<p class="text-muted">该样品类型暂无配置的检测指标</p>';
+                    }
+                })
+                .catch(error => {
+                    container.innerHTML = '<p class="text-danger">加载检测指标失败</p>';
+                });
+        });
+
         // 创建模板
         document.getElementById('createTemplateBtn').addEventListener('click', function() {
             const categoryId = document.getElementById('templateCategory').value;
+            const sampleTypeId = document.getElementById('templateSampleType').value;
             const name = document.getElementById('templateName').value.trim();
+
+            if (!sampleTypeId) {
+                alert('请选择样品类型');
+                return;
+            }
 
             if (!name) {
                 alert('请输入模板名称');
@@ -1281,6 +1314,7 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     category_id: categoryId || null,
+                    sample_type_id: parseInt(sampleTypeId),
                     name: name,
                     columns: columns
                 })
@@ -1290,7 +1324,8 @@
                 if (data.message) {
                     alert(data.message);
                     document.getElementById('templateName').value = '';
-                    document.querySelectorAll('.indicator-checkbox').forEach(cb => cb.checked = false);
+                    document.getElementById('templateSampleType').value = '';
+                    document.getElementById('indicatorCheckboxes').innerHTML = '<p class="text-muted">请先选择样品类型</p>';
                     loadTemplates();
                 } else {
                     alert(data.error);
@@ -1324,6 +1359,7 @@
                             <div>
                                 <h6>${tpl.name}
                                     ${tpl.category_name ? `<span class="badge bg-secondary">${tpl.category_name}</span>` : ''}
+                                    ${tpl.sample_type_name ? `<span class="badge bg-info">${tpl.sample_type_name}</span>` : ''}
                                 </h6>
                                 <small class="text-muted">包含 ${tpl.columns.length} 个指标</small>
                                 <div class="mt-2">
@@ -1343,7 +1379,10 @@
         function updateExportTemplateSelect() {
             const select = document.getElementById('exportTemplate');
             select.innerHTML = '<option value="">请选择导出模板</option>' +
-                templates.map(tpl => `<option value="${tpl.id}">${tpl.name}${tpl.category_name ? ' (' + tpl.category_name + ')' : ''}</option>`).join('');
+                templates.map(tpl => {
+                    const label = `${tpl.name} [${tpl.sample_type_name || '未知类型'}]`;
+                    return `<option value="${tpl.id}" data-sample-type-id="${tpl.sample_type_id}" data-sample-type-name="${tpl.sample_type_name}">${label}</option>`;
+                }).join('');
         }
 
         // 删除模板
@@ -1363,104 +1402,197 @@
             });
         }
 
-        // 筛选字段变化
-        document.getElementById('filterField').addEventListener('change', function() {
-            const filterValueDiv = document.getElementById('filterValueDiv');
-            const dateRangeDiv = document.getElementById('dateRangeDiv');
+        // ========== 筛选导出逻辑 ==========
+        let currentSampleTypeId = null;
+        let exportSamples = [];
 
-            if (this.value === 'date_range') {
-                filterValueDiv.style.display = 'none';
-                dateRangeDiv.style.display = 'block';
-            } else if (this.value) {
-                filterValueDiv.style.display = 'block';
-                dateRangeDiv.style.display = 'none';
-            } else {
-                filterValueDiv.style.display = 'none';
-                dateRangeDiv.style.display = 'none';
-            }
-        });
+        // 步骤1：选择导出模板
+        document.getElementById('exportTemplate').addEventListener('change', function() {
+            const templateId = this.value;
+            const option = this.selectedOptions[0];
 
-        // 预览筛选结果
-        document.getElementById('previewBtn').addEventListener('click', function() {
-            const filterField = document.getElementById('filterField').value;
-            const filterValue = document.getElementById('filterValue').value;
-            const dateStart = document.getElementById('dateStart').value;
-            const dateEnd = document.getElementById('dateEnd').value;
-
-            fetch('/api/raw-data/filter-preview', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    filter_field: filterField,
-                    filter_value: filterValue,
-                    date_start: dateStart,
-                    date_end: dateEnd
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    alert(data.error);
-                    return;
-                }
-
-                const previewDiv = document.getElementById('filterPreview');
-                const countSpan = document.getElementById('previewCount');
-                const checkboxesDiv = document.getElementById('sampleCheckboxes');
-
-                countSpan.textContent = data.total;
-
-                if (data.total === 0) {
-                    checkboxesDiv.innerHTML = '<p class="text-muted">无匹配结果</p>';
-                } else {
-                    checkboxesDiv.innerHTML = data.results.map(item => `
-                        <div class="form-check">
-                            <input class="form-check-input sample-checkbox" type="checkbox" value="${item.sample_number}" id="sample_${item.sample_number}">
-                            <label class="form-check-label" for="sample_${item.sample_number}">
-                                ${item.sample_number} - ${item.company_name || ''} - ${item.plant_name || ''} - ${item.sample_type || ''} - ${item.sampling_date}
-                            </label>
-                        </div>
-                    `).join('');
-                }
-
-                previewDiv.style.display = 'block';
-            });
-        });
-
-        // 全选样品
-        document.getElementById('selectAllSamples').addEventListener('change', function() {
-            document.querySelectorAll('.sample-checkbox').forEach(cb => {
-                cb.checked = this.checked;
-            });
-        });
-
-        // 导出
-        document.getElementById('exportBtn').addEventListener('click', function() {
-            const templateId = document.getElementById('exportTemplate').value;
             if (!templateId) {
-                alert('请选择导出模板');
+                document.getElementById('templateInfo').style.display = 'none';
+                document.getElementById('exportCompany').innerHTML = '<option value="">请先选择导出模板</option>';
+                document.getElementById('exportCompany').disabled = true;
+                resetExportSteps();
                 return;
             }
 
-            const filterField = document.getElementById('filterField').value;
-            const filterValue = document.getElementById('filterValue').value;
-            const dateStart = document.getElementById('dateStart').value;
-            const dateEnd = document.getElementById('dateEnd').value;
-            const sortOrder = document.querySelector('input[name="sortOrder"]:checked').value;
+            currentSampleTypeId = option.getAttribute('data-sample-type-id');
+            const sampleTypeName = option.getAttribute('data-sample-type-name');
 
-            const selectedSamples = Array.from(document.querySelectorAll('.sample-checkbox:checked')).map(cb => cb.value);
+            document.getElementById('templateSampleTypeName').textContent = sampleTypeName;
+            document.getElementById('templateInfo').style.display = 'block';
+
+            // 加载被检单位列表
+            fetch('/api/raw-data/companies')
+                .then(response => response.json())
+                .then(data => {
+                    const select = document.getElementById('exportCompany');
+                    select.innerHTML = '<option value="">请选择被检单位</option>' +
+                        data.companies.map(c => `<option value="${c}">${c}</option>`).join('');
+                    select.disabled = false;
+                })
+                .catch(error => {
+                    alert('加载被检单位失败: ' + error.message);
+                });
+
+            resetExportSteps();
+        });
+
+        // 步骤2：选择被检单位
+        document.getElementById('exportCompany').addEventListener('change', function() {
+            const companyName = this.value;
+
+            if (!companyName) {
+                document.getElementById('exportPlant').innerHTML = '<option value="">请先选择被检单位</option>';
+                document.getElementById('exportPlant').disabled = true;
+                resetSampleList();
+                return;
+            }
+
+            // 加载水厂列表
+            fetch('/api/raw-data/plants', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({company_name: companyName})
+            })
+                .then(response => response.json())
+                .then(data => {
+                    const select = document.getElementById('exportPlant');
+                    select.innerHTML = '<option value="">全部水厂</option>' +
+                        data.plants.map(p => `<option value="${p}">${p}</option>`).join('');
+                    select.disabled = false;
+
+                    // 自动加载样品列表
+                    loadExportSamples();
+                })
+                .catch(error => {
+                    alert('加载水厂列表失败: ' + error.message);
+                });
+        });
+
+        // 步骤3：选择被检水厂（可选）
+        document.getElementById('exportPlant').addEventListener('change', function() {
+            loadExportSamples();
+        });
+
+        // 加载样品列表
+        function loadExportSamples() {
+            const companyName = document.getElementById('exportCompany').value;
+            const plantName = document.getElementById('exportPlant').value;
+
+            if (!companyName) return;
+
+            fetch('/api/raw-data/samples', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    company_name: companyName,
+                    plant_name: plantName || null,
+                    sample_type_id: currentSampleTypeId
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    exportSamples = data.samples || [];
+                    displayExportSamples();
+                })
+                .catch(error => {
+                    alert('加载样品列表失败: ' + error.message);
+                });
+        }
+
+        // 显示样品列表
+        function displayExportSamples() {
+            const listArea = document.getElementById('sampleListArea');
+            const listDiv = document.getElementById('exportSampleList');
+            const noMsg = document.getElementById('noSamplesMsg');
+            const exportBtn = document.getElementById('exportBtn');
+
+            if (exportSamples.length === 0) {
+                listArea.style.display = 'none';
+                noMsg.style.display = 'block';
+                noMsg.textContent = '该筛选条件下无可导出的样品';
+                exportBtn.disabled = true;
+                return;
+            }
+
+            noMsg.style.display = 'none';
+            listArea.style.display = 'block';
+
+            listDiv.innerHTML = exportSamples.map(sample => `
+                <div class="form-check mb-2">
+                    <input class="form-check-input export-sample-checkbox" type="checkbox"
+                           value="${sample.id}" id="export_sample_${sample.id}">
+                    <label class="form-check-label" for="export_sample_${sample.id}">
+                        <strong>${sample.sample_number}</strong>
+                        ${sample.report_number ? `[${sample.report_number}]` : ''}
+                        - ${sample.sampling_date}
+                    </label>
+                </div>
+            `).join('');
+
+            document.getElementById('selectAllExportSamples').checked = false;
+            exportBtn.disabled = true;
+
+            // 监听复选框变化
+            document.querySelectorAll('.export-sample-checkbox').forEach(cb => {
+                cb.addEventListener('change', updateExportButton);
+            });
+        }
+
+        // 全选样品
+        document.getElementById('selectAllExportSamples').addEventListener('change', function() {
+            document.querySelectorAll('.export-sample-checkbox').forEach(cb => {
+                cb.checked = this.checked;
+            });
+            updateExportButton();
+        });
+
+        // 更新导出按钮状态
+        function updateExportButton() {
+            const selected = document.querySelectorAll('.export-sample-checkbox:checked');
+            document.getElementById('exportBtn').disabled = selected.length === 0;
+        }
+
+        // 重置导出步骤
+        function resetExportSteps() {
+            document.getElementById('exportPlant').innerHTML = '<option value="">请先选择被检单位</option>';
+            document.getElementById('exportPlant').disabled = true;
+            resetSampleList();
+        }
+
+        // 重置样品列表
+        function resetSampleList() {
+            document.getElementById('sampleListArea').style.display = 'none';
+            document.getElementById('noSamplesMsg').style.display = 'block';
+            document.getElementById('noSamplesMsg').textContent = '请先完成上述筛选条件';
+            document.getElementById('exportBtn').disabled = true;
+            exportSamples = [];
+        }
+
+        // 步骤4：导出
+        document.getElementById('exportBtn').addEventListener('click', function() {
+            const templateId = document.getElementById('exportTemplate').value;
+            const selectedSampleIds = Array.from(document.querySelectorAll('.export-sample-checkbox:checked'))
+                .map(cb => parseInt(cb.value));
+
+            if (!templateId || selectedSampleIds.length === 0) {
+                alert('请选择导出模板和至少一个样品');
+                return;
+            }
+
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 正在导出...';
 
             fetch('/api/raw-data/filter-export', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    template_id: templateId,
-                    filter_field: filterField,
-                    filter_value: filterValue,
-                    date_start: dateStart,
-                    date_end: dateEnd,
-                    selected_samples: selectedSamples,
-                    sort_order: sortOrder
+                    template_id: parseInt(templateId),
+                    selected_sample_ids: selectedSampleIds
                 })
             })
             .then(response => {
@@ -1477,9 +1609,19 @@
                 a.href = url;
                 a.download = `导出数据_${new Date().getTime()}.xlsx`;
                 a.click();
+
+                // 恢复按钮状态
+                const btn = document.getElementById('exportBtn');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-download"></i> 导出选中的样品数据';
             })
             .catch(error => {
                 alert('导出失败: ' + error.message);
+
+                // 恢复按钮状态
+                const btn = document.getElementById('exportBtn');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-download"></i> 导出选中的样品数据';
             });
         });
     </script>

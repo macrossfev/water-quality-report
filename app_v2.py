@@ -4747,9 +4747,11 @@ def api_export_templates_list():
             cursor = conn.cursor()
             cursor.execute('''
                 SELECT et.id, et.category_id, etc.name as category_name,
+                       et.sample_type_id, st.name as sample_type_name,
                        et.name, et.description, et.created_at, et.updated_at
                 FROM export_templates et
                 LEFT JOIN export_template_categories etc ON et.category_id = etc.id
+                LEFT JOIN sample_types st ON et.sample_type_id = st.id
                 ORDER BY etc.sort_order, et.id
             ''')
 
@@ -4771,11 +4773,13 @@ def api_export_templates_list():
                     'id': row[0],
                     'category_id': row[1],
                     'category_name': row[2],
-                    'name': row[3],
-                    'description': row[4],
+                    'sample_type_id': row[3],
+                    'sample_type_name': row[4],
+                    'name': row[5],
+                    'description': row[6],
                     'columns': columns,
-                    'created_at': row[5],
-                    'updated_at': row[6]
+                    'created_at': row[7],
+                    'updated_at': row[8]
                 })
 
             conn.close()
@@ -4785,6 +4789,7 @@ def api_export_templates_list():
             # 创建新模板
             data = request.json
             category_id = data.get('category_id')
+            sample_type_id = data.get('sample_type_id')
             name = data.get('name', '').strip()
             description = data.get('description', '').strip()
             columns = data.get('columns', [])
@@ -4792,6 +4797,10 @@ def api_export_templates_list():
             if not name:
                 conn.close()
                 return jsonify({'error': '模板名称不能为空'}), 400
+
+            if not sample_type_id:
+                conn.close()
+                return jsonify({'error': '请选择样品类型'}), 400
 
             if not columns:
                 conn.close()
@@ -4801,9 +4810,9 @@ def api_export_templates_list():
 
             # 插入模板
             cursor.execute('''
-                INSERT INTO export_templates (category_id, name, description)
-                VALUES (?, ?, ?)
-            ''', (category_id, name, description))
+                INSERT INTO export_templates (category_id, sample_type_id, name, description)
+                VALUES (?, ?, ?, ?)
+            ''', (category_id, sample_type_id, name, description))
 
             template_id = cursor.lastrowid
 
@@ -4817,7 +4826,7 @@ def api_export_templates_list():
             conn.commit()
             conn.close()
 
-            log_operation('创建导出模板', f'模板名称: {name}，包含{len(columns)}个指标')
+            log_operation('创建导出模板', f'模板名称: {name}，样品类型ID: {sample_type_id}，包含{len(columns)}个指标')
 
             return jsonify({'message': '模板创建成功', 'template_id': template_id})
 
@@ -4835,6 +4844,7 @@ def api_export_template_detail(template_id):
         if request.method == 'PUT':
             # 修改模板
             data = request.json
+            sample_type_id = data.get('sample_type_id')
             name = data.get('name', '').strip()
             description = data.get('description', '').strip()
             columns = data.get('columns', [])
@@ -4843,14 +4853,18 @@ def api_export_template_detail(template_id):
                 conn.close()
                 return jsonify({'error': '模板名称不能为空'}), 400
 
+            if not sample_type_id:
+                conn.close()
+                return jsonify({'error': '请选择样品类型'}), 400
+
             cursor = conn.cursor()
 
             # 更新模板基本信息
             cursor.execute('''
                 UPDATE export_templates
-                SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP
+                SET sample_type_id = ?, name = ?, description = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            ''', (name, description, template_id))
+            ''', (sample_type_id, name, description, template_id))
 
             # 删除旧的列配置
             cursor.execute('DELETE FROM export_template_columns WHERE template_id = ?', (template_id,))
@@ -4884,27 +4898,169 @@ def api_export_template_detail(template_id):
         conn.close()
         return jsonify({'error': f'操作失败: {str(e)}'}), 500
 
-@app.route('/api/raw-data/filter-export', methods=['POST'])
+@app.route('/api/sample-types/<int:sample_type_id>/indicators', methods=['GET'])
 @login_required
-def api_raw_data_filter_export():
-    """筛选并导出原始数据"""
+def api_sample_type_indicators(sample_type_id):
+    """获取指定样品类型的所有检测指标"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 获取该样品类型关联的检测指标
+        cursor.execute('''
+            SELECT i.id, i.name, i.unit, ti.is_required, ti.sort_order
+            FROM template_indicators ti
+            JOIN indicators i ON ti.indicator_id = i.id
+            WHERE ti.sample_type_id = ?
+            ORDER BY ti.sort_order, i.name
+        ''', (sample_type_id,))
+
+        indicators = []
+        for row in cursor.fetchall():
+            indicators.append({
+                'id': row[0],
+                'name': row[1],
+                'unit': row[2],
+                'is_required': bool(row[3]),
+                'sort_order': row[4]
+            })
+
+        conn.close()
+        return jsonify({'indicators': indicators})
+
+    except Exception as e:
+        return jsonify({'error': f'获取指标失败: {str(e)}'}), 500
+
+@app.route('/api/raw-data/companies', methods=['GET'])
+@login_required
+def api_raw_data_companies():
+    """获取所有被检单位"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT DISTINCT company_name
+            FROM raw_data_records
+            WHERE company_name IS NOT NULL AND company_name != ''
+            ORDER BY company_name
+        ''')
+
+        companies = [row[0] for row in cursor.fetchall()]
+        conn.close()
+
+        return jsonify({'companies': companies})
+
+    except Exception as e:
+        return jsonify({'error': f'获取被检单位失败: {str(e)}'}), 500
+
+@app.route('/api/raw-data/plants', methods=['POST'])
+@login_required
+def api_raw_data_plants():
+    """获取指定被检单位的所有水厂"""
     try:
         data = request.json
-        template_id = data.get('template_id')
-        filter_field = data.get('filter_field')  # company_name, plant_name, sample_type, date_range
-        filter_value = data.get('filter_value', '').strip()
-        date_start = data.get('date_start')
-        date_end = data.get('date_end')
-        selected_samples = data.get('selected_samples', [])  # 手动选择的样品编号列表
-        sort_order = data.get('sort_order', 'asc')  # asc 或 desc
+        company_name = data.get('company_name', '').strip()
 
-        if not template_id:
-            return jsonify({'error': '请选择导出模板'}), 400
+        if not company_name:
+            return jsonify({'error': '被检单位不能为空'}), 400
 
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # 获取模板配置
+        cursor.execute('''
+            SELECT DISTINCT plant_name
+            FROM raw_data_records
+            WHERE company_name = ? AND plant_name IS NOT NULL AND plant_name != ''
+            ORDER BY plant_name
+        ''', (company_name,))
+
+        plants = [row[0] for row in cursor.fetchall()]
+        conn.close()
+
+        return jsonify({'plants': plants})
+
+    except Exception as e:
+        return jsonify({'error': f'获取水厂失败: {str(e)}'}), 500
+
+@app.route('/api/raw-data/samples', methods=['POST'])
+@login_required
+def api_raw_data_samples():
+    """获取指定条件下的所有样品"""
+    try:
+        data = request.json
+        company_name = data.get('company_name', '').strip()
+        plant_name = data.get('plant_name', '').strip()
+        sample_type_id = data.get('sample_type_id')
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 构建查询
+        query = '''
+            SELECT DISTINCT rdr.id, rdr.sample_number, rdr.report_number,
+                   rdr.sampling_date, st.name as sample_type_name
+            FROM raw_data_records rdr
+            LEFT JOIN sample_types st ON rdr.sample_type = st.name
+            WHERE 1=1
+        '''
+        params = []
+
+        if company_name:
+            query += ' AND rdr.company_name = ?'
+            params.append(company_name)
+
+        if plant_name:
+            query += ' AND rdr.plant_name = ?'
+            params.append(plant_name)
+
+        if sample_type_id:
+            # 根据sample_type_id获取样品类型名称
+            cursor.execute('SELECT name FROM sample_types WHERE id = ?', (sample_type_id,))
+            result = cursor.fetchone()
+            if result:
+                query += ' AND rdr.sample_type = ?'
+                params.append(result[0])
+
+        query += ' ORDER BY rdr.sampling_date DESC, rdr.sample_number'
+
+        cursor.execute(query, params)
+
+        samples = []
+        for row in cursor.fetchall():
+            samples.append({
+                'id': row[0],
+                'sample_number': row[1],
+                'report_number': row[2],
+                'sampling_date': row[3],
+                'sample_type_name': row[4]
+            })
+
+        conn.close()
+        return jsonify({'samples': samples})
+
+    except Exception as e:
+        return jsonify({'error': f'获取样品失败: {str(e)}'}), 500
+
+@app.route('/api/raw-data/filter-export', methods=['POST'])
+@login_required
+def api_raw_data_filter_export():
+    """筛选并导出原始数据 - 新版：行为样品编号，列为检测项目"""
+    try:
+        data = request.json
+        template_id = data.get('template_id')
+        selected_sample_ids = data.get('selected_sample_ids', [])  # 选中的样品ID列表
+
+        if not template_id:
+            return jsonify({'error': '请选择导出模板'}), 400
+
+        if not selected_sample_ids:
+            return jsonify({'error': '请至少选择一个样品'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 获取模板配置的检测指标
         cursor.execute('''
             SELECT column_name
             FROM export_template_columns
@@ -4912,90 +5068,73 @@ def api_raw_data_filter_export():
             ORDER BY column_order
         ''', (template_id,))
 
-        template_columns = [row[0] for row in cursor.fetchall()]
+        template_indicators = [row[0] for row in cursor.fetchall()]
 
-        if not template_columns:
+        if not template_indicators:
             conn.close()
-            return jsonify({'error': '模板配置错误：未包含任何列'}), 400
+            return jsonify({'error': '模板配置错误：未包含任何检测指标'}), 400
 
-        # 构建查询条件
-        query = 'SELECT id, sample_number, company_name, plant_name, sample_type, sampling_date FROM raw_data_records WHERE 1=1'
-        params = []
+        # 查询选中的样品记录
+        placeholders = ','.join(['?'] * len(selected_sample_ids))
+        query = f'''
+            SELECT id, sample_number, report_number, company_name, plant_name,
+                   sample_type, sampling_date
+            FROM raw_data_records
+            WHERE id IN ({placeholders})
+            ORDER BY sampling_date, sample_number
+        '''
 
-        if filter_field == 'company_name' and filter_value:
-            query += ' AND company_name LIKE ?'
-            params.append(f'%{filter_value}%')
-        elif filter_field == 'plant_name' and filter_value:
-            query += ' AND plant_name LIKE ?'
-            params.append(f'%{filter_value}%')
-        elif filter_field == 'sample_type' and filter_value:
-            query += ' AND sample_type LIKE ?'
-            params.append(f'%{filter_value}%')
-        elif filter_field == 'date_range' and date_start and date_end:
-            query += ' AND sampling_date BETWEEN ? AND ?'
-            params.append(date_start)
-            params.append(date_end)
-
-        # 如果有手动选择的样品，添加过滤
-        if selected_samples:
-            placeholders = ','.join(['?'] * len(selected_samples))
-            query += f' AND sample_number IN ({placeholders})'
-            params.extend(selected_samples)
-
-        # 排序
-        if sort_order == 'desc':
-            query += ' ORDER BY sampling_date DESC'
-        else:
-            query += ' ORDER BY sampling_date ASC'
-
-        cursor.execute(query, params)
+        cursor.execute(query, selected_sample_ids)
         records = cursor.fetchall()
 
         if not records:
             conn.close()
-            return jsonify({'error': '未找到符合条件的数据'}), 404
+            return jsonify({'error': '未找到选中的样品数据'}), 404
 
-        # 准备导出数据
+        # 准备导出数据：行为样品编号，列为检测项目
         export_data = []
 
         for record in records:
             record_id = record[0]
             row_data = {
                 '样品编号': record[1],
-                '所属公司': record[2],
-                '所属水厂': record[3],
-                '水样类型': record[4],
-                '采样时间': record[5]
+                '报告编号': record[2] or '',
+                '被检单位': record[3] or '',
+                '被检水厂': record[4] or '',
+                '样品类型': record[5] or '',
+                '采样日期': record[6]
             }
 
-            # 获取检测指标值
+            # 获取该样品的所有检测指标值
             cursor.execute('''
                 SELECT column_name, value
                 FROM raw_data_values
                 WHERE record_id = ?
             ''', (record_id,))
 
-            for col_row in cursor.fetchall():
-                row_data[col_row[0]] = col_row[1]
+            indicator_values = dict(cursor.fetchall())
+
+            # 只导出模板中选择的检测指标
+            for indicator in template_indicators:
+                row_data[indicator] = indicator_values.get(indicator, '')
 
             export_data.append(row_data)
 
         conn.close()
 
-        # 确保基础字段在模板列中
-        base_fields = ['样品编号', '采样时间']
-        final_columns = base_fields + [col for col in template_columns if col not in base_fields]
+        # 构建列顺序：基础字段 + 检测指标
+        columns = ['样品编号', '报告编号', '被检单位', '被检水厂', '样品类型', '采样日期'] + template_indicators
 
         # 创建DataFrame
-        df = pd.DataFrame(export_data, columns=final_columns)
+        df = pd.DataFrame(export_data, columns=columns)
 
         # 生成文件
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        filename = f'{timestamp}.xlsx'
+        filename = f'导出数据_{timestamp}.xlsx'
         filepath = os.path.join('exports', filename)
         df.to_excel(filepath, index=False, engine='openpyxl')
 
-        log_operation('筛选导出原始数据', f'导出{len(records)}条记录')
+        log_operation('筛选导出原始数据', f'导出{len(records)}条记录，包含{len(template_indicators)}个检测指标')
 
         return send_file(filepath, as_attachment=True, download_name=filename)
 

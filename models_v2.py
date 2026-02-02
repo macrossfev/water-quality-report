@@ -241,11 +241,13 @@ def init_database():
         CREATE TABLE IF NOT EXISTS export_templates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             category_id INTEGER,
+            sample_type_id INTEGER,
             name TEXT NOT NULL,
             description TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (category_id) REFERENCES export_template_categories (id) ON DELETE SET NULL,
+            FOREIGN KEY (sample_type_id) REFERENCES sample_types (id) ON DELETE SET NULL,
             UNIQUE(category_id, name)
         )
     ''')
@@ -261,6 +263,16 @@ def init_database():
             UNIQUE(template_id, column_name)
         )
     ''')
+
+    # ==================== 数据库迁移 ====================
+    # 检查export_templates表是否有sample_type_id列
+    cursor.execute("PRAGMA table_info(export_templates)")
+    columns = [row[1] for row in cursor.fetchall()]
+
+    if 'sample_type_id' not in columns:
+        print("正在迁移export_templates表，添加sample_type_id列...")
+        cursor.execute('ALTER TABLE export_templates ADD COLUMN sample_type_id INTEGER')
+        print("export_templates表迁移完成！")
 
     conn.commit()
 
