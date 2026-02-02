@@ -153,38 +153,98 @@
                                     <div class="btn-group w-100" role="group">
                                         <input type="radio" class="btn-check" name="searchType" id="searchTypeSample" value="sample" checked>
                                         <label class="btn btn-outline-success" for="searchTypeSample">
-                                            <i class="bi bi-hash"></i> 样品编号
+                                            <i class="bi bi-hash"></i> 样品编号（精确查询）
                                         </label>
                                         <input type="radio" class="btn-check" name="searchType" id="searchTypeCompany" value="company">
                                         <label class="btn btn-outline-success" for="searchTypeCompany">
-                                            <i class="bi bi-building"></i> 被检单位
-                                        </label>
-                                        <input type="radio" class="btn-check" name="searchType" id="searchTypePlant" value="plant">
-                                        <label class="btn btn-outline-success" for="searchTypePlant">
-                                            <i class="bi bi-water"></i> 被检水厂
+                                            <i class="bi bi-building"></i> 单位/水厂（分步查询）
                                         </label>
                                     </div>
                                 </div>
 
-                                <!-- 查询输入框 -->
-                                <div class="input-group mb-3">
-                                    <input type="text" class="form-control" id="searchInput" placeholder="输入样品编号">
-                                    <button class="btn btn-success" type="button" id="searchBtn">
-                                        <i class="bi bi-search"></i> 查询
-                                    </button>
+                                <!-- 样品编号查询区域 -->
+                                <div id="sampleNumberSearchArea">
+                                    <div class="input-group mb-3">
+                                        <input type="text" class="form-control" id="sampleNumberInput" placeholder="输入样品编号（精确匹配）">
+                                        <button class="btn btn-success" type="button" id="sampleNumberSearchBtn">
+                                            <i class="bi bi-search"></i> 查询
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- 单位/水厂分步查询区域 -->
+                                <div id="companySearchArea" style="display: none;">
+                                    <!-- 第一步：搜索单位 -->
+                                    <div class="mb-3">
+                                        <label class="form-label"><strong>第1步：搜索被检单位</strong></label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="companyKeywordInput" placeholder="输入单位名称关键词（支持模糊搜索）">
+                                            <button class="btn btn-primary" type="button" id="searchCompaniesBtn">
+                                                <i class="bi bi-search"></i> 搜索
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- 单位列表 -->
+                                    <div id="companyListArea" style="display: none;" class="mb-3">
+                                        <label class="form-label"><strong>选择被检单位</strong></label>
+                                        <select class="form-select" id="companySelect" size="5">
+                                        </select>
+                                        <button class="btn btn-success btn-sm mt-2" id="confirmCompanyBtn">
+                                            <i class="bi bi-check-circle"></i> 确认单位
+                                        </button>
+                                    </div>
+
+                                    <!-- 第二步：选择水厂 -->
+                                    <div id="plantSelectArea" style="display: none;" class="mb-3">
+                                        <label class="form-label"><strong>第2步：选择被检水厂</strong> <span class="text-muted small">（已选单位：<span id="selectedCompanyName"></span>）</span></label>
+                                        <div class="border rounded p-2 bg-light" style="max-height: 200px; overflow-y: auto;">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="selectAllPlants">
+                                                <label class="form-check-label fw-bold" for="selectAllPlants">
+                                                    全选水厂
+                                                </label>
+                                            </div>
+                                            <hr class="my-2">
+                                            <div id="plantCheckboxes">
+                                            </div>
+                                        </div>
+                                        <button class="btn btn-success btn-sm mt-2" id="confirmPlantsBtn">
+                                            <i class="bi bi-arrow-right-circle"></i> 下一步：选择样品类型
+                                        </button>
+                                        <button class="btn btn-secondary btn-sm mt-2" id="backToCompanyBtn">
+                                            <i class="bi bi-arrow-left"></i> 返回
+                                        </button>
+                                    </div>
+
+                                    <!-- 第三步：选择样品类型 -->
+                                    <div id="sampleTypeSelectArea" style="display: none;" class="mb-3">
+                                        <label class="form-label"><strong>第3步：选择样品类型</strong></label>
+                                        <div class="border rounded p-2 bg-light" style="max-height: 200px; overflow-y: auto;">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="selectAllTypes">
+                                                <label class="form-check-label fw-bold" for="selectAllTypes">
+                                                    全选类型
+                                                </label>
+                                            </div>
+                                            <hr class="my-2">
+                                            <div id="sampleTypeCheckboxes">
+                                            </div>
+                                        </div>
+                                        <button class="btn btn-success btn-sm mt-2" id="executeSearchBtn">
+                                            <i class="bi bi-search"></i> 执行查询
+                                        </button>
+                                        <button class="btn btn-secondary btn-sm mt-2" id="backToPlantsBtn">
+                                            <i class="bi bi-arrow-left"></i> 返回
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <!-- 查询结果列表 -->
                                 <div id="searchResultList" style="display: none;">
                                     <hr>
                                     <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6>查询结果 (显示 <span id="filteredCount">0</span> / <span id="resultCount">0</span> 条)</h6>
-                                        <div class="d-flex align-items-center">
-                                            <label class="me-2 mb-0 small">水样类型筛选：</label>
-                                            <select class="form-select form-select-sm" id="sampleTypeFilter" style="width: auto;">
-                                                <option value="">全部类型</option>
-                                            </select>
-                                        </div>
+                                        <h6>查询结果 (<span id="resultCount">0</span> 条)</h6>
                                     </div>
                                     <div class="table-responsive">
                                         <table class="table table-hover table-striped">
@@ -574,44 +634,41 @@
         // 查询类型切换
         document.querySelectorAll('input[name="searchType"]').forEach(radio => {
             radio.addEventListener('change', function() {
-                const searchInput = document.getElementById('searchInput');
+                const sampleArea = document.getElementById('sampleNumberSearchArea');
+                const companyArea = document.getElementById('companySearchArea');
+                const resultList = document.getElementById('searchResultList');
+                const notFound = document.getElementById('searchNotFound');
+
                 if (this.value === 'sample') {
-                    searchInput.placeholder = '输入样品编号';
-                } else if (this.value === 'company') {
-                    searchInput.placeholder = '输入被检单位名称（支持模糊查询）';
-                } else if (this.value === 'plant') {
-                    searchInput.placeholder = '输入被检水厂名称（支持模糊查询）';
+                    sampleArea.style.display = 'block';
+                    companyArea.style.display = 'none';
+                } else {
+                    sampleArea.style.display = 'none';
+                    companyArea.style.display = 'block';
+                    resetCompanySearch();
                 }
-                // 清空之前的搜索结果
-                document.getElementById('searchResultList').style.display = 'none';
-                document.getElementById('searchNotFound').style.display = 'none';
+
+                resultList.style.display = 'none';
+                notFound.style.display = 'none';
             });
         });
 
-        // 样品查询
-        document.getElementById('searchBtn').addEventListener('click', function() {
-            const searchType = document.querySelector('input[name="searchType"]:checked').value;
-            const searchValue = document.getElementById('searchInput').value.trim();
+        // 重置单位查询区域
+        function resetCompanySearch() {
+            document.getElementById('companyKeywordInput').value = '';
+            document.getElementById('companyListArea').style.display = 'none';
+            document.getElementById('plantSelectArea').style.display = 'none';
+            document.getElementById('sampleTypeSelectArea').style.display = 'none';
+        }
 
-            if (!searchValue) {
-                let alertMsg = '请输入样品编号';
-                if (searchType === 'company') alertMsg = '请输入被检单位名称';
-                if (searchType === 'plant') alertMsg = '请输入被检水厂名称';
-                alert(alertMsg);
+        // 样品编号查询
+        document.getElementById('sampleNumberSearchBtn').addEventListener('click', function() {
+            const sampleNumber = document.getElementById('sampleNumberInput').value.trim();
+            if (!sampleNumber) {
+                alert('请输入样品编号');
                 return;
             }
 
-            if (searchType === 'sample') {
-                searchBySampleNumber(searchValue);
-            } else if (searchType === 'company') {
-                searchByCompanyName(searchValue);
-            } else if (searchType === 'plant') {
-                searchByPlantName(searchValue);
-            }
-        });
-
-        // 按样品编号查询
-        function searchBySampleNumber(sampleNumber) {
             fetch('/api/raw-data/search', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -620,7 +677,6 @@
             .then(response => response.json())
             .then(data => {
                 if (data.found) {
-                    // 将单条结果转换为列表格式展示
                     displaySearchResults([data.data]);
                 } else {
                     showNoResults();
@@ -629,14 +685,173 @@
             .catch(error => {
                 alert('查询失败: ' + error.message);
             });
-        }
+        });
 
-        // 按被检单位查询
-        function searchByCompanyName(companyName) {
-            fetch('/api/raw-data/search-by-company', {
+        // 第1步：搜索被检单位
+        document.getElementById('searchCompaniesBtn').addEventListener('click', function() {
+            const keyword = document.getElementById('companyKeywordInput').value.trim();
+            if (!keyword) {
+                alert('请输入单位名称关键词');
+                return;
+            }
+
+            fetch('/api/raw-data/search-companies', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({company_name: companyName})
+                body: JSON.stringify({keyword: keyword})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.companies && data.companies.length > 0) {
+                    const select = document.getElementById('companySelect');
+                    select.innerHTML = data.companies.map(c =>
+                        `<option value="${c}">${c}</option>`
+                    ).join('');
+                    document.getElementById('companyListArea').style.display = 'block';
+                } else {
+                    alert('未找到匹配的单位');
+                }
+            })
+            .catch(error => {
+                alert('搜索失败: ' + error.message);
+            });
+        });
+
+        // 确认选择的单位，进入第2步
+        document.getElementById('confirmCompanyBtn').addEventListener('click', function() {
+            const select = document.getElementById('companySelect');
+            const selectedCompany = select.value;
+
+            if (!selectedCompany) {
+                alert('请选择一个单位');
+                return;
+            }
+
+            document.getElementById('selectedCompanyName').textContent = selectedCompany;
+
+            // 获取该单位的水厂列表
+            fetch('/api/raw-data/get-plants', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({company_name: selectedCompany})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.plants && data.plants.length > 0) {
+                    const container = document.getElementById('plantCheckboxes');
+                    container.innerHTML = data.plants.map((plant, idx) => `
+                        <div class="form-check">
+                            <input class="form-check-input plant-checkbox" type="checkbox"
+                                   value="${plant}" id="plant_${idx}" checked>
+                            <label class="form-check-label" for="plant_${idx}">
+                                ${plant}
+                            </label>
+                        </div>
+                    `).join('');
+
+                    // 全选水厂复选框事件
+                    document.getElementById('selectAllPlants').checked = true;
+                    document.getElementById('selectAllPlants').addEventListener('change', function() {
+                        document.querySelectorAll('.plant-checkbox').forEach(cb => {
+                            cb.checked = this.checked;
+                        });
+                    });
+
+                    document.getElementById('plantSelectArea').style.display = 'block';
+                } else {
+                    alert('该单位没有水厂数据');
+                }
+            })
+            .catch(error => {
+                alert('获取水厂列表失败: ' + error.message);
+            });
+        });
+
+        // 返回单位选择
+        document.getElementById('backToCompanyBtn').addEventListener('click', function() {
+            document.getElementById('plantSelectArea').style.display = 'none';
+        });
+
+        // 确认选择的水厂，进入第3步
+        document.getElementById('confirmPlantsBtn').addEventListener('click', function() {
+            const selectedPlants = Array.from(document.querySelectorAll('.plant-checkbox:checked'))
+                .map(cb => cb.value);
+
+            if (selectedPlants.length === 0) {
+                alert('请至少选择一个水厂');
+                return;
+            }
+
+            const selectedCompany = document.getElementById('selectedCompanyName').textContent;
+
+            // 获取样品类型列表
+            fetch('/api/raw-data/get-sample-types', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    company_name: selectedCompany,
+                    plant_names: selectedPlants
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.sample_types && data.sample_types.length > 0) {
+                    const container = document.getElementById('sampleTypeCheckboxes');
+                    container.innerHTML = data.sample_types.map((type, idx) => `
+                        <div class="form-check">
+                            <input class="form-check-input type-checkbox" type="checkbox"
+                                   value="${type}" id="type_${idx}" checked>
+                            <label class="form-check-label" for="type_${idx}">
+                                ${type}
+                            </label>
+                        </div>
+                    `).join('');
+
+                    // 全选样品类型复选框事件
+                    document.getElementById('selectAllTypes').checked = true;
+                    document.getElementById('selectAllTypes').addEventListener('change', function() {
+                        document.querySelectorAll('.type-checkbox').forEach(cb => {
+                            cb.checked = this.checked;
+                        });
+                    });
+
+                    document.getElementById('sampleTypeSelectArea').style.display = 'block';
+                } else {
+                    alert('没有找到样品类型数据');
+                }
+            })
+            .catch(error => {
+                alert('获取样品类型失败: ' + error.message);
+            });
+        });
+
+        // 返回水厂选择
+        document.getElementById('backToPlantsBtn').addEventListener('click', function() {
+            document.getElementById('sampleTypeSelectArea').style.display = 'none';
+        });
+
+        // 执行查询
+        document.getElementById('executeSearchBtn').addEventListener('click', function() {
+            const selectedCompany = document.getElementById('selectedCompanyName').textContent;
+            const selectedPlants = Array.from(document.querySelectorAll('.plant-checkbox:checked'))
+                .map(cb => cb.value);
+            const selectedTypes = Array.from(document.querySelectorAll('.type-checkbox:checked'))
+                .map(cb => cb.value);
+
+            if (selectedTypes.length === 0) {
+                alert('请至少选择一个样品类型');
+                return;
+            }
+
+            // 执行查询
+            fetch('/api/raw-data/search-by-filters', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    company_name: selectedCompany,
+                    plant_names: selectedPlants,
+                    sample_types: selectedTypes
+                })
             })
             .then(response => response.json())
             .then(data => {
@@ -649,79 +864,18 @@
             .catch(error => {
                 alert('查询失败: ' + error.message);
             });
-        }
-
-        // 按被检水厂查询
-        function searchByPlantName(plantName) {
-            fetch('/api/raw-data/search-by-plant', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({plant_name: plantName})
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.found && data.records.length > 0) {
-                    displaySearchResults(data.records);
-                } else {
-                    showNoResults();
-                }
-            })
-            .catch(error => {
-                alert('查询失败: ' + error.message);
-            });
-        }
+        });
 
         // 显示查询结果列表
         function displaySearchResults(records) {
             const resultListDiv = document.getElementById('searchResultList');
             const notFoundDiv = document.getElementById('searchNotFound');
+            const tableBody = document.getElementById('searchResultTableBody');
             const countSpan = document.getElementById('resultCount');
-
-            // 保存所有记录
-            allSearchRecords = records;
 
             notFoundDiv.style.display = 'none';
             resultListDiv.style.display = 'block';
             countSpan.textContent = records.length;
-
-            // 提取所有唯一的水样类型
-            const sampleTypes = [...new Set(records.map(r => r.sample_type).filter(t => t))];
-
-            // 填充水样类型筛选器
-            const filterSelect = document.getElementById('sampleTypeFilter');
-            filterSelect.innerHTML = '<option value="">全部类型</option>';
-            sampleTypes.forEach(type => {
-                filterSelect.innerHTML += `<option value="${type}">${type}</option>`;
-            });
-
-            // 绑定筛选器事件（先移除旧的事件监听）
-            const newFilterSelect = filterSelect.cloneNode(true);
-            filterSelect.parentNode.replaceChild(newFilterSelect, filterSelect);
-            newFilterSelect.addEventListener('change', function() {
-                filterRecordsBySampleType(this.value);
-            });
-
-            // 显示所有记录
-            renderRecords(records);
-        }
-
-        // 根据水样类型筛选记录
-        function filterRecordsBySampleType(sampleType) {
-            let filteredRecords = allSearchRecords;
-
-            if (sampleType) {
-                filteredRecords = allSearchRecords.filter(r => r.sample_type === sampleType);
-            }
-
-            renderRecords(filteredRecords);
-        }
-
-        // 渲染记录表格
-        function renderRecords(records) {
-            const tableBody = document.getElementById('searchResultTableBody');
-            const filteredCountSpan = document.getElementById('filteredCount');
-
-            filteredCountSpan.textContent = records.length;
 
             let html = '';
             records.forEach(record => {
@@ -746,10 +900,6 @@
                     </tr>
                 `;
             });
-
-            if (records.length === 0) {
-                html = '<tr><td colspan="6" class="text-center text-muted">没有符合条件的记录</td></tr>';
-            }
 
             tableBody.innerHTML = html;
         }

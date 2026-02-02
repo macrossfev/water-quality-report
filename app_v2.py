@@ -4258,6 +4258,186 @@ def api_raw_data_search_by_plant():
     except Exception as e:
         return jsonify({'error': f'查询失败: {str(e)}'}), 500
 
+@app.route('/api/raw-data/search-companies', methods=['POST'])
+@login_required
+def api_raw_data_search_companies():
+    """根据关键词模糊查找被检单位列表"""
+    try:
+        data = request.json
+        keyword = data.get('keyword', '').strip()
+
+        if not keyword:
+            return jsonify({'error': '搜索关键词不能为空'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 模糊查询所有匹配的单位
+        cursor.execute('''
+            SELECT DISTINCT company_name
+            FROM raw_data_records
+            WHERE company_name LIKE ?
+            ORDER BY company_name
+        ''', (f'%{keyword}%',))
+
+        companies = [row[0] for row in cursor.fetchall() if row[0]]
+        conn.close()
+
+        return jsonify({
+            'companies': companies,
+            'count': len(companies)
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'查询失败: {str(e)}'}), 500
+
+@app.route('/api/raw-data/get-plants', methods=['POST'])
+@login_required
+def api_raw_data_get_plants():
+    """根据被检单位获取水厂列表"""
+    try:
+        data = request.json
+        company_name = data.get('company_name', '').strip()
+
+        if not company_name:
+            return jsonify({'error': '被检单位不能为空'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 查询该单位下的所有水厂
+        cursor.execute('''
+            SELECT DISTINCT plant_name
+            FROM raw_data_records
+            WHERE company_name = ?
+            ORDER BY plant_name
+        ''', (company_name,))
+
+        plants = [row[0] for row in cursor.fetchall() if row[0]]
+        conn.close()
+
+        return jsonify({
+            'plants': plants,
+            'count': len(plants)
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'查询失败: {str(e)}'}), 500
+
+@app.route('/api/raw-data/get-sample-types', methods=['POST'])
+@login_required
+def api_raw_data_get_sample_types():
+    """根据被检单位和水厂获取样品类型列表"""
+    try:
+        data = request.json
+        company_name = data.get('company_name', '').strip()
+        plant_names = data.get('plant_names', [])  # 可以是多个水厂
+
+        if not company_name:
+            return jsonify({'error': '被检单位不能为空'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if plant_names:
+            # 查询指定水厂的样品类型
+            placeholders = ','.join(['?' for _ in plant_names])
+            query = f'''
+                SELECT DISTINCT sample_type
+                FROM raw_data_records
+                WHERE company_name = ? AND plant_name IN ({placeholders})
+                ORDER BY sample_type
+            '''
+            cursor.execute(query, [company_name] + plant_names)
+        else:
+            # 查询该单位下所有样品类型
+            cursor.execute('''
+                SELECT DISTINCT sample_type
+                FROM raw_data_records
+                WHERE company_name = ?
+                ORDER BY sample_type
+            ''', (company_name,))
+
+        sample_types = [row[0] for row in cursor.fetchall() if row[0]]
+        conn.close()
+
+        return jsonify({
+            'sample_types': sample_types,
+            'count': len(sample_types)
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'查询失败: {str(e)}'}), 500
+
+@app.route('/api/raw-data/search-by-filters', methods=['POST'])
+@login_required
+def api_raw_data_search_by_filters():
+    """根据单位、水厂、样品类型组合查询"""
+    try:
+        data = request.json
+        company_name = data.get('company_name', '').strip()
+        plant_names = data.get('plant_names', [])
+        sample_types = data.get('sample_types', [])
+
+        if not company_name:
+            return jsonify({'error': '被检单位不能为空'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 构建查询条件
+        conditions = ['company_name = ?']
+        params = [company_name]
+
+        if plant_names:
+            placeholders = ','.join(['?' for _ in plant_names])
+            conditions.append(f'plant_name IN ({placeholders})')
+            params.extend(plant_names)
+
+        if sample_types:
+            placeholders = ','.join(['?' for _ in sample_types])
+            conditions.append(f'sample_type IN ({placeholders})')
+            params.extend(sample_types)
+
+        where_clause = ' AND '.join(conditions)
+
+        query = f'''
+            SELECT id, sample_number, company_name, plant_name, sample_type, sampling_date,
+                   created_at, updated_at
+            FROM raw_data_records
+            WHERE {where_clause}
+            ORDER BY company_name, plant_name, sampling_date DESC
+        '''
+
+        cursor.execute(query, params)
+        records = cursor.fetchall()
+        conn.close()
+
+        if not records:
+            return jsonify({'found': False, 'message': '未找到匹配的数据', 'records': []})
+
+        result_list = []
+        for record in records:
+            result_list.append({
+                'id': record[0],
+                'sample_number': record[1],
+                'company_name': record[2],
+                'plant_name': record[3],
+                'sample_type': record[4],
+                'sampling_date': record[5],
+                'created_at': record[6],
+                'updated_at': record[7]
+            })
+
+        return jsonify({
+            'found': True,
+            'count': len(result_list),
+            'records': result_list
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'查询失败: {str(e)}'}), 500
+
 @app.route('/api/raw-data/detail/<int:record_id>', methods=['GET'])
 @login_required
 def api_raw_data_detail(record_id):
