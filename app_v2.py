@@ -4680,6 +4680,73 @@ def api_raw_data_search_by_filters():
     except Exception as e:
         return jsonify({'error': f'查询失败: {str(e)}'}), 500
 
+@app.route('/api/raw-data/search-by-time', methods=['POST'])
+@login_required
+def api_raw_data_search_by_time():
+    """按录入时间查询所有样品数据"""
+    try:
+        data = request.json
+        created_start = data.get('created_start', '').strip()
+        created_end = data.get('created_end', '').strip()
+
+        if not created_start and not created_end:
+            return jsonify({'error': '请至少选择开始日期或结束日期'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 构建查询条件
+        conditions = []
+        params = []
+
+        if created_start:
+            conditions.append('DATE(created_at) >= ?')
+            params.append(created_start)
+
+        if created_end:
+            conditions.append('DATE(created_at) <= ?')
+            params.append(created_end)
+
+        where_clause = ' AND '.join(conditions)
+
+        query = f'''
+            SELECT id, sample_number, report_number, company_name, plant_name, sample_type, sampling_date,
+                   created_at, updated_at
+            FROM raw_data_records
+            WHERE {where_clause}
+            ORDER BY created_at DESC, sample_number
+        '''
+
+        cursor.execute(query, params)
+        records = cursor.fetchall()
+        conn.close()
+
+        if not records:
+            return jsonify({'found': False, 'message': '未找到匹配的数据', 'records': []})
+
+        result_list = []
+        for record in records:
+            result_list.append({
+                'id': record[0],
+                'sample_number': record[1],
+                'report_number': record[2],
+                'company_name': record[3],
+                'plant_name': record[4],
+                'sample_type': record[5],
+                'sampling_date': record[6],
+                'created_at': record[7],
+                'updated_at': record[8]
+            })
+
+        return jsonify({
+            'found': True,
+            'count': len(result_list),
+            'records': result_list
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'查询失败: {str(e)}'}), 500
+
 @app.route('/api/raw-data/detail/<int:record_id>', methods=['GET'])
 @login_required
 def api_raw_data_detail(record_id):

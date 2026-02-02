@@ -153,11 +153,15 @@
                                     <div class="btn-group w-100" role="group">
                                         <input type="radio" class="btn-check" name="searchType" id="searchTypeSample" value="sample" checked>
                                         <label class="btn btn-outline-success" for="searchTypeSample">
-                                            <i class="bi bi-hash"></i> 样品编号（精确查询）
+                                            <i class="bi bi-hash"></i> 样品编号
                                         </label>
                                         <input type="radio" class="btn-check" name="searchType" id="searchTypeCompany" value="company">
                                         <label class="btn btn-outline-success" for="searchTypeCompany">
-                                            <i class="bi bi-building"></i> 单位/水厂（分步查询）
+                                            <i class="bi bi-building"></i> 单位/水厂
+                                        </label>
+                                        <input type="radio" class="btn-check" name="searchType" id="searchTypeTime" value="time">
+                                        <label class="btn btn-outline-success" for="searchTypeTime">
+                                            <i class="bi bi-calendar-range"></i> 录入时间
                                         </label>
                                     </div>
                                 </div>
@@ -240,8 +244,45 @@
                                     </div>
                                 </div>
 
-                                <!-- 高级筛选：录入时间 -->
-                                <div class="card mt-3 border-info">
+                                <!-- 录入时间查询区域 -->
+                                <div id="timeSearchArea" style="display: none;">
+                                    <div class="card border-info">
+                                        <div class="card-header bg-info bg-opacity-10">
+                                            <h6 class="mb-0">
+                                                <i class="bi bi-calendar-range"></i> 按录入时间查询
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">开始日期</label>
+                                                    <input type="date" class="form-control" id="timeStartDate" placeholder="选择开始日期">
+                                                    <small class="text-muted">不选则不限制开始时间</small>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">结束日期</label>
+                                                    <input type="date" class="form-control" id="timeEndDate" placeholder="选择结束日期">
+                                                    <small class="text-muted">不选则不限制结束时间</small>
+                                                </div>
+                                            </div>
+                                            <div class="mt-3">
+                                                <button class="btn btn-sm btn-outline-secondary" id="timeTodayBtn">今天</button>
+                                                <button class="btn btn-sm btn-outline-secondary" id="timeLast7DaysBtn">最近7天</button>
+                                                <button class="btn btn-sm btn-outline-secondary" id="timeLast30DaysBtn">最近30天</button>
+                                                <button class="btn btn-sm btn-outline-secondary" id="timeThisMonthBtn">本月</button>
+                                                <button class="btn btn-sm btn-outline-secondary" id="timeClearDateBtn">清除</button>
+                                            </div>
+                                            <div class="mt-3">
+                                                <button class="btn btn-success" id="timeSearchBtn">
+                                                    <i class="bi bi-search"></i> 查询
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 高级筛选：录入时间（用于单位/水厂查询的附加筛选） -->
+                                <div class="card mt-3 border-info" id="advancedTimeFilter" style="display: none;">
                                     <div class="card-header bg-info bg-opacity-10">
                                         <h6 class="mb-0">
                                             <i class="bi bi-calendar-range"></i> 高级筛选：录入时间
@@ -642,16 +683,27 @@
             radio.addEventListener('change', function() {
                 const sampleArea = document.getElementById('sampleNumberSearchArea');
                 const companyArea = document.getElementById('companySearchArea');
+                const timeArea = document.getElementById('timeSearchArea');
+                const advancedTimeFilter = document.getElementById('advancedTimeFilter');
                 const resultList = document.getElementById('searchResultList');
                 const notFound = document.getElementById('searchNotFound');
 
                 if (this.value === 'sample') {
                     sampleArea.style.display = 'block';
                     companyArea.style.display = 'none';
-                } else {
+                    timeArea.style.display = 'none';
+                    advancedTimeFilter.style.display = 'none';
+                } else if (this.value === 'company') {
                     sampleArea.style.display = 'none';
                     companyArea.style.display = 'block';
+                    timeArea.style.display = 'none';
+                    advancedTimeFilter.style.display = 'block';
                     resetCompanySearch();
+                } else if (this.value === 'time') {
+                    sampleArea.style.display = 'none';
+                    companyArea.style.display = 'none';
+                    timeArea.style.display = 'block';
+                    advancedTimeFilter.style.display = 'none';
                 }
 
                 resultList.style.display = 'none';
@@ -958,6 +1010,73 @@
         document.getElementById('clearDateBtn').addEventListener('click', function() {
             document.getElementById('createdStartDate').value = '';
             document.getElementById('createdEndDate').value = '';
+        });
+
+        // 录入时间查询的快捷按钮
+        document.getElementById('timeTodayBtn').addEventListener('click', function() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('timeStartDate').value = today;
+            document.getElementById('timeEndDate').value = today;
+        });
+
+        document.getElementById('timeLast7DaysBtn').addEventListener('click', function() {
+            const today = new Date();
+            const last7Days = new Date(today);
+            last7Days.setDate(today.getDate() - 6);
+            document.getElementById('timeStartDate').value = last7Days.toISOString().split('T')[0];
+            document.getElementById('timeEndDate').value = today.toISOString().split('T')[0];
+        });
+
+        document.getElementById('timeLast30DaysBtn').addEventListener('click', function() {
+            const today = new Date();
+            const last30Days = new Date(today);
+            last30Days.setDate(today.getDate() - 29);
+            document.getElementById('timeStartDate').value = last30Days.toISOString().split('T')[0];
+            document.getElementById('timeEndDate').value = today.toISOString().split('T')[0];
+        });
+
+        document.getElementById('timeThisMonthBtn').addEventListener('click', function() {
+            const today = new Date();
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            document.getElementById('timeStartDate').value = firstDay.toISOString().split('T')[0];
+            document.getElementById('timeEndDate').value = today.toISOString().split('T')[0];
+        });
+
+        document.getElementById('timeClearDateBtn').addEventListener('click', function() {
+            document.getElementById('timeStartDate').value = '';
+            document.getElementById('timeEndDate').value = '';
+        });
+
+        // 按录入时间查询
+        document.getElementById('timeSearchBtn').addEventListener('click', function() {
+            const startDate = document.getElementById('timeStartDate').value;
+            const endDate = document.getElementById('timeEndDate').value;
+
+            if (!startDate && !endDate) {
+                alert('请至少选择开始日期或结束日期');
+                return;
+            }
+
+            // 执行查询
+            fetch('/api/raw-data/search-by-time', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    created_start: startDate,
+                    created_end: endDate
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.found && data.records.length > 0) {
+                    displaySearchResults(data.records);
+                } else {
+                    showNoResults();
+                }
+            })
+            .catch(error => {
+                alert('查询失败: ' + error.message);
+            });
         });
 
         // 查看详情
