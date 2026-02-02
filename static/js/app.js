@@ -4076,16 +4076,10 @@ function moveIndicator(index, direction) {
 // 保存新报告
 async function saveNewReport() {
     // 获取基本信息
-    const reportNumber = document.getElementById('newReportNumber').value.trim();
     const sampleNumber = document.getElementById('newReportSampleNumber').value.trim();
     const sampleTypeId = document.getElementById('newReportSampleType').value;
 
     // 验证必填字段
-    if (!reportNumber) {
-        showToast('报告编号不能为空', 'warning');
-        return;
-    }
-
     if (!sampleNumber) {
         showToast('样品编号不能为空', 'warning');
         return;
@@ -4134,7 +4128,6 @@ async function saveNewReport() {
 
     // 构建报告数据
     const reportData = {
-        report_number: reportNumber,
         sample_number: sampleNumber,
         sample_type_id: parseInt(sampleTypeId),
         report_date: reportDate,

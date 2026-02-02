@@ -798,11 +798,20 @@ def api_reports():
         test_conclusion = data.get('test_conclusion', '')
         additional_info = data.get('additional_info', '')
 
-        # 获取用户输入的报告编号
-        report_number = data.get('report_number', '').strip()
+        if not sample_number or not sample_type_id:
+            return jsonify({'error': '样品编号和样品类型不能为空'}), 400
 
-        if not report_number or not sample_number or not sample_type_id:
-            return jsonify({'error': '报告编号、样品编号和样品类型不能为空'}), 400
+        # 生成报告编号
+        sample_type = conn.execute(
+            'SELECT code FROM sample_types WHERE id = ?',
+            (sample_type_id,)
+        ).fetchone()
+
+        if not sample_type:
+            conn.close()
+            return jsonify({'error': '样品类型不存在'}), 404
+
+        report_number = f"{sample_number}-{sample_type['code']}"
 
         # 检查报告编号是否已存在
         existing = conn.execute(
@@ -2016,11 +2025,10 @@ def api_import_reports_excel():
 
         # 查找固定列的索引
         try:
-            report_number_idx = headers.index('报告编号')
             sample_number_idx = headers.index('样品编号')
             sample_type_idx = headers.index('样品类型')
         except ValueError:
-            return jsonify({'error': 'Excel格式错误：必须包含"报告编号"、"样品编号"和"样品类型"列'}), 400
+            return jsonify({'error': 'Excel格式错误：必须包含"样品编号"和"样品类型"列'}), 400
 
         # 可选列
         company_idx = headers.index('委托单位') if '委托单位' in headers else None
@@ -2030,7 +2038,7 @@ def api_import_reports_excel():
         remark_idx = headers.index('备注') if '备注' in headers else None
 
         # 检测指标列（除了固定列之外的列都视为检测指标）
-        fixed_cols = {'报告编号', '样品编号', '样品类型', '委托单位', '检测日期', '检测人员', '审核人员', '备注'}
+        fixed_cols = {'样品编号', '样品类型', '委托单位', '检测日期', '检测人员', '审核人员', '备注'}
         indicator_cols = [(idx, col) for idx, col in enumerate(headers) if col and col not in fixed_cols]
 
         # 从第2行开始读取数据
@@ -2039,14 +2047,8 @@ def api_import_reports_excel():
                 continue
 
             try:
-                report_number = str(row[report_number_idx]).strip() if row[report_number_idx] else ''
                 sample_number = str(row[sample_number_idx]).strip()
                 sample_type_value = str(row[sample_type_idx]).strip()
-
-                # 验证报告编号不能为空
-                if not report_number:
-                    error_rows.append(f'第{row_idx}行: 报告编号不能为空')
-                    continue
 
                 # 查找样品类型（支持名称或代码）
                 sample_type = sample_type_name_map.get(sample_type_value) or sample_type_code_map.get(sample_type_value)
@@ -2073,6 +2075,9 @@ def api_import_reports_excel():
                 review_person = str(row[review_person_idx]).strip() if review_person_idx is not None and row[review_person_idx] else ''
                 detection_date = str(row[detection_date_idx]) if detection_date_idx is not None and row[detection_date_idx] else None
                 remark = str(row[remark_idx]).strip() if remark_idx is not None and row[remark_idx] else ''
+
+                # 生成报告编号
+                report_number = f"{sample_number}-{sample_type['code']}"
 
                 # 检查报告编号是否已存在
                 existing = cursor.execute('SELECT id FROM reports WHERE report_number = ?', (report_number,)).fetchone()
