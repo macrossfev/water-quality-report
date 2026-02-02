@@ -256,7 +256,7 @@
                                                     <th>被检水厂</th>
                                                     <th>样品类型</th>
                                                     <th>采样日期</th>
-                                                    <th width="200">操作</th>
+                                                    <th width="120">操作</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="searchResultTableBody">
@@ -888,16 +888,18 @@
                         <td>${record.plant_name || '-'}</td>
                         <td>${record.sample_type || '-'}</td>
                         <td>${record.sampling_date}</td>
-                        <td>
-                            <button class="btn btn-sm btn-info" onclick="viewRecordDetail(${record.id})">
-                                <i class="bi bi-eye"></i> 查看
-                            </button>
-                            <button class="btn btn-sm btn-warning" onclick="editRecord(${record.id})">
-                                <i class="bi bi-pencil"></i> 修改
-                            </button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteRecord(${record.id}, '${record.sample_number}')">
-                                <i class="bi bi-trash"></i> 删除
-                            </button>
+                        <td class="text-nowrap">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button class="btn btn-info" onclick="viewRecordDetail(${record.id})" title="查看">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <button class="btn btn-warning" onclick="editRecord(${record.id})" title="修改">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-danger" onclick="deleteRecord(${record.id}, '${record.sample_number}')" title="删除">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -936,6 +938,7 @@
                                     <div class="modal-body">
                                         <h6>基本信息</h6>
                                         <table class="table table-bordered table-sm">
+                                            <tr><th width="150">报告编号</th><td>${record.report_number || '-'}</td></tr>
                                             <tr><th width="150">样品编号</th><td>${record.sample_number}</td></tr>
                                             <tr><th>被检单位</th><td>${record.company_name || '-'}</td></tr>
                                             <tr><th>被检水厂</th><td>${record.plant_name || '-'}</td></tr>
@@ -1026,6 +1029,11 @@
                                         <h6>基本信息</h6>
                                         <div class="row mb-3">
                                             <div class="col-md-6 mb-2">
+                                                <label class="form-label">报告编号</label>
+                                                <input type="text" class="form-control" id="editReportNumber"
+                                                       value="${record.report_number || ''}">
+                                            </div>
+                                            <div class="col-md-6 mb-2">
                                                 <label class="form-label">样品编号 <span class="text-danger">*</span></label>
                                                 <input type="text" class="form-control" id="editSampleNumber"
                                                        value="${record.sample_number}" required>
@@ -1084,6 +1092,7 @@
 
         // 保存修改
         function saveRecord(recordId) {
+            const reportNumber = document.getElementById('editReportNumber').value.trim();
             const sampleNumber = document.getElementById('editSampleNumber').value.trim();
             const companyName = document.getElementById('editCompanyName').value.trim();
             const plantName = document.getElementById('editPlantName').value.trim();
@@ -1115,6 +1124,7 @@
                 method: 'PUT',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
+                    report_number: reportNumber,
                     sample_number: sampleNumber,
                     company_name: companyName,
                     plant_name: plantName,
