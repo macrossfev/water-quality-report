@@ -3547,13 +3547,19 @@ async function loadGenReports() {
                 : '<span class="badge bg-secondary">未生成</span>';
 
             const actionButtons = report.generated_report_path
-                ? `<button class="btn btn-sm btn-primary" onclick="downloadReport(${report.id})">
+                ? `<button class="btn btn-sm btn-info me-1" onclick="previewGeneratedReport(${report.id})">
+                       <i class="bi bi-eye"></i> 预览
+                   </button>
+                   <button class="btn btn-sm btn-primary me-1" onclick="downloadReport(${report.id})">
                        <i class="bi bi-download"></i> 下载
                    </button>
                    <button class="btn btn-sm btn-danger" onclick="deleteReport(${report.id}, 'gen')">
                        <i class="bi bi-trash"></i> 删除
                    </button>`
-                : `<button class="btn btn-sm btn-success" onclick="generateReport(${report.id})">
+                : `<button class="btn btn-sm btn-info me-1" onclick="previewBeforeGenerate(${report.id})">
+                       <i class="bi bi-eye"></i> 预览
+                   </button>
+                   <button class="btn btn-sm btn-success me-1" onclick="generateReport(${report.id})">
                        <i class="bi bi-file-earmark-plus"></i> 生成报告
                    </button>
                    <button class="btn btn-sm btn-danger" onclick="deleteReport(${report.id}, 'gen')">
@@ -3576,6 +3582,37 @@ async function loadGenReports() {
     } catch (error) {
         console.error('加载报告生成列表失败:', error);
         showToast('加载报告生成列表失败', 'error');
+    }
+}
+
+// 生成前预览（未生成的报告）
+async function previewBeforeGenerate(reportId) {
+    try {
+        // 显示模板选择对话框，然后可以预览或生成
+        await showTemplateSelectModal(reportId);
+    } catch (error) {
+        console.error('预览失败:', error);
+        showToast('预览失败: ' + error.message, 'error');
+    }
+}
+
+// 预览已生成的报告
+async function previewGeneratedReport(reportId) {
+    try {
+        // 获取报告详情
+        const report = await apiRequest(`/api/reports/${reportId}/review-detail`);
+
+        if (!report.report.template_id) {
+            showToast('该报告没有关联模板信息', 'warning');
+            return;
+        }
+
+        // 直接显示预览
+        await showReportPreview(reportId, report.report.template_id);
+
+    } catch (error) {
+        console.error('预览失败:', error);
+        showToast('预览失败: ' + error.message, 'error');
     }
 }
 
