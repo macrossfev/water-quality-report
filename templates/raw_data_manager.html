@@ -977,6 +977,23 @@
             document.getElementById('searchNotFound').style.display = 'block';
         }
 
+        // 日期格式化函数
+        function formatDateCN(dateStr) {
+            if (!dateStr) return '-';
+            try {
+                // 如果已经是中文格式，直接返回
+                if (dateStr.includes('年') && dateStr.includes('月')) {
+                    return dateStr;
+                }
+                // 处理 YYYY-MM-DD 格式
+                const date = new Date(dateStr);
+                if (isNaN(date.getTime())) return dateStr;
+                return `${date.getFullYear()}年${(date.getMonth() + 1).toString().padStart(2, '0')}月${date.getDate().toString().padStart(2, '0')}日`;
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
         // 录入时间快捷按钮
         document.getElementById('todayBtn').addEventListener('click', function() {
             const today = new Date().toISOString().split('T')[0];
