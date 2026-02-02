@@ -861,7 +861,7 @@
                         <td>${record.company_name || '-'}</td>
                         <td>${record.plant_name || '-'}</td>
                         <td>${record.sample_type || '-'}</td>
-                        <td>${record.sampling_date}</td>
+                        <td>${formatDateCN(record.sampling_date)}</td>
                         <td class="text-nowrap">
                             <div class="btn-group btn-group-sm" role="group">
                                 <button class="btn btn-info" onclick="viewRecordDetail(${record.id})" title="查看">
@@ -917,7 +917,7 @@
                                             <tr><th>被检单位</th><td>${record.company_name || '-'}</td></tr>
                                             <tr><th>被检水厂</th><td>${record.plant_name || '-'}</td></tr>
                                             <tr><th>样品类型</th><td>${record.sample_type || '-'}</td></tr>
-                                            <tr><th>采样日期</th><td>${record.sampling_date}</td></tr>
+                                            <tr><th>采样日期</th><td>${formatDateCN(record.sampling_date)}</td></tr>
                                         </table>
 
                                         <h6 class="mt-3">检测指标</h6>
@@ -1030,7 +1030,7 @@
                                             <div class="col-md-6 mb-2">
                                                 <label class="form-label">采样日期 <span class="text-danger">*</span></label>
                                                 <input type="date" class="form-control" id="editSamplingDate"
-                                                       value="${record.sampling_date}" required>
+                                                       value="${formatDateCN(record.sampling_date)}" required>
                                             </div>
                                         </div>
 
@@ -1425,7 +1425,7 @@
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">创建时间</label>
-                                    <p class="small text-muted">${template.created_at}</p>
+                                    <p class="small text-muted">${formatDateCN(template.created_at)}</p>
                                 </div>
                             </div>
                             <div class="modal-footer">
@@ -1702,7 +1702,7 @@
                     <label class="form-check-label" for="export_sample_${sample.id}">
                         <strong>${sample.sample_number}</strong>
                         ${sample.report_number ? `[${sample.report_number}]` : ''}
-                        - ${sample.sampling_date}
+                        - ${formatDateCN(sample.sampling_date)}
                     </label>
                 </div>
             `).join('');
