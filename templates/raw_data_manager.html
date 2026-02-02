@@ -1238,10 +1238,14 @@
             fetch('/api/sample-types')
                 .then(response => response.json())
                 .then(data => {
-                    sampleTypes = data.sample_types;
+                    sampleTypes = data;  // API直接返回数组
                     const select = document.getElementById('templateSampleType');
-                    select.innerHTML = '<option value="">请选择样品类型</option>' +
+                    select.innerHTML = '<option value="">请选择水样类型</option>' +
                         sampleTypes.map(st => `<option value="${st.id}">${st.name}</option>`).join('');
+                })
+                .catch(error => {
+                    console.error('加载样品类型失败:', error);
+                    alert('加载水样类型失败，请刷新页面重试');
                 });
         }
 
