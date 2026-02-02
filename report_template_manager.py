@@ -61,11 +61,15 @@ class ReportTemplateManager:
             # 分析工作表结构
             self._analyze_template_structure(template_id, wb)
 
+            # 扫描并保存字段映射
+            field_count = self._scan_and_save_fields(template_id, new_file_path)
+
             conn.commit()
             conn.close()
 
             print(f"✓ 模版导入成功: {template_name}")
             print(f"  工作表数量: {len(wb.sheetnames)}")
+            print(f"  识别字段数量: {field_count}")
             print(f"  文件路径: {new_file_path}")
 
             return template_id
@@ -135,6 +139,74 @@ class ReportTemplateManager:
         import re
         match = re.search(r'\d+', sheet_name)
         return int(match.group()) if match else 0
+
+    def _scan_and_save_fields(self, template_id, template_file_path):
+        """
+        扫描模板文件中的所有字段并保存到数据库
+
+        Args:
+            template_id: 模板ID
+            template_file_path: 模板文件路径
+
+        Returns:
+            int: 识别到的字段数量
+        """
+        from template_field_parser import TemplateFieldParser
+
+        # 提取所有字段
+        fields = TemplateFieldParser.extract_template_fields(template_file_path)
+
+        if not fields:
+            print("  ⚠ 未在模板中发现任何字段标记")
+            return 0
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        saved_count = 0
+        reference_count = 0
+
+        for field in fields:
+            try:
+                # 检查是否为引用字段
+                is_reference = field.get('is_reference', False)
+
+                # 保存字段映射
+                cursor.execute('''
+                    INSERT INTO template_field_mappings
+                    (template_id, field_name, field_display_name, field_type,
+                     sheet_name, cell_address, placeholder, default_value,
+                     is_required, is_reference, description)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    template_id,
+                    field['field_name'],
+                    field.get('display_name', field['field_name']),
+                    'text',  # 默认类型
+                    field['sheet_name'],
+                    field['cell_address'],
+                    field.get('placeholder', ''),
+                    field.get('default_value', ''),
+                    1 if field.get('is_required', False) else 0,
+                    1 if is_reference else 0,
+                    f"工作表: {field['sheet_name']}, 位置: {field['cell_address']}"
+                ))
+
+                saved_count += 1
+                if is_reference:
+                    reference_count += 1
+                    print(f"  ✓ 引用字段: [*{field['field_name']}] 在 {field['sheet_name']}!{field['cell_address']}")
+
+            except Exception as e:
+                print(f"  ✗ 保存字段失败 {field.get('field_name', 'unknown')}: {e}")
+
+        conn.commit()
+        conn.close()
+
+        if reference_count > 0:
+            print(f"  ℹ 其中引用字段（[*xx]格式）: {reference_count} 个")
+
+        return saved_count
 
     def add_field_mapping(self, template_id, field_name, field_type, sheet_name,
                          cell_address=None, start_row=None, start_col=None,

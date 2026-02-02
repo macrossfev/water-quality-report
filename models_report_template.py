@@ -35,13 +35,16 @@ def create_report_template_tables():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             template_id INTEGER NOT NULL,
             field_name TEXT NOT NULL,
+            field_display_name TEXT,
             field_type TEXT NOT NULL,
             sheet_name TEXT NOT NULL,
             cell_address TEXT,
             start_row INTEGER,
             start_col INTEGER,
+            placeholder TEXT,
             description TEXT,
             is_required BOOLEAN DEFAULT 0,
+            is_reference BOOLEAN DEFAULT 0,
             default_value TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (template_id) REFERENCES excel_report_templates (id) ON DELETE CASCADE
@@ -71,6 +74,52 @@ def create_report_template_tables():
     conn.close()
 
     print("报告模版数据表创建成功！")
+
+    # 执行数据库迁移
+    migrate_template_tables()
+
+def migrate_template_tables():
+    """迁移模板表，添加新字段"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+
+    try:
+        # 检查 template_field_mappings 表是否需要添加新字段
+        cursor.execute("PRAGMA table_info(template_field_mappings)")
+        columns = [row[1] for row in cursor.fetchall()]
+
+        migrations_needed = []
+
+        if 'field_display_name' not in columns:
+            migrations_needed.append('field_display_name')
+        if 'placeholder' not in columns:
+            migrations_needed.append('placeholder')
+        if 'is_reference' not in columns:
+            migrations_needed.append('is_reference')
+
+        if migrations_needed:
+            print(f"正在迁移 template_field_mappings 表，添加字段: {', '.join(migrations_needed)}")
+
+            if 'field_display_name' in migrations_needed:
+                cursor.execute('ALTER TABLE template_field_mappings ADD COLUMN field_display_name TEXT')
+                print("  ✓ 添加字段 field_display_name")
+
+            if 'placeholder' in migrations_needed:
+                cursor.execute('ALTER TABLE template_field_mappings ADD COLUMN placeholder TEXT')
+                print("  ✓ 添加字段 placeholder")
+
+            if 'is_reference' in migrations_needed:
+                cursor.execute('ALTER TABLE template_field_mappings ADD COLUMN is_reference BOOLEAN DEFAULT 0')
+                print("  ✓ 添加字段 is_reference")
+
+            conn.commit()
+            print("模板表迁移完成！")
+
+    except Exception as e:
+        print(f"迁移失败: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
 
 def init_template_field_types():
     """

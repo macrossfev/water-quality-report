@@ -7,11 +7,14 @@
 2. [字段名]默认值;(占位符说明) - 有默认值，可编辑
 3. [字段名](占位符说明) - 必填字段（简化格式）
 4. [字段名] - 必填字段（最简格式）
+5. [*字段名] - 引用字段，从已审核报告中查找数据（不可编辑）
 
 示例:
 - [报告编号];(请输入报告编号) - 必填
 - [检测日期]2025-01-15;(检测日期) - 默认值为2025-01-15，可编辑
 - [检测人]张三;() - 默认值为张三，可编辑
+- [*被检单位] - 从已审核报告中引用被检单位数据
+- [*采样日期] - 从已审核报告中引用采样日期
 """
 import re
 from typing import Dict, List, Optional, Tuple
@@ -25,7 +28,7 @@ class TemplateFieldParser:
         解析单个字段文本
 
         Args:
-            field_text: 字段文本，如 "[报告编号];(请输入报告编号)"
+            field_text: 字段文本，如 "[报告编号];(请输入报告编号)" 或 "[*被检单位]"
 
         Returns:
             dict: {
@@ -34,7 +37,8 @@ class TemplateFieldParser:
                 'default_value': None,
                 'placeholder': '请输入报告编号',
                 'is_required': True,
-                'is_editable': True
+                'is_editable': True,
+                'is_reference': False  # 是否为引用字段
             }
         """
         result = {
@@ -43,7 +47,8 @@ class TemplateFieldParser:
             'default_value': None,
             'placeholder': '',
             'is_required': True,
-            'is_editable': True
+            'is_editable': True,
+            'is_reference': False  # 新增：标记是否为引用字段
         }
 
         if not field_text:
@@ -52,8 +57,22 @@ class TemplateFieldParser:
         # 1. 提取字段名（方括号内容）
         field_name_match = re.search(r'\[(.*?)\]', field_text)
         if field_name_match:
-            result['field_name'] = field_name_match.group(1).strip()
-            result['display_name'] = result['field_name']
+            raw_field_name = field_name_match.group(1).strip()
+
+            # 检查是否为引用字段（以 * 开头）
+            if raw_field_name.startswith('*'):
+                result['is_reference'] = True
+                result['is_editable'] = False  # 引用字段不可编辑
+                result['is_required'] = False  # 引用字段由系统自动填充
+                # 去掉 * 号，得到实际字段名
+                result['field_name'] = raw_field_name[1:].strip()
+                result['display_name'] = result['field_name']
+                result['placeholder'] = f"从已审核报告中引用{result['field_name']}"
+                # 引用字段不需要继续解析其他部分，直接返回
+                return result
+            else:
+                result['field_name'] = raw_field_name
+                result['display_name'] = result['field_name']
         else:
             # 没有方括号，使用整个文本作为字段名
             result['field_name'] = field_text.strip()

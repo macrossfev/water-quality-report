@@ -166,6 +166,7 @@ class ReportGenerator:
             field_type = field['field_type']
             sheet_name = field['sheet_name']
             cell_address = field['cell_address']
+            is_reference = field.get('is_reference', False)  # 检查是否为引用字段
 
             # 如果没有字段映射配置，跳过
             if not cell_address or sheet_name not in self.workbook.sheetnames:
@@ -179,13 +180,143 @@ class ReportGenerator:
                 # 表格数据特殊处理
                 self._fill_table_data(ws, field)
             else:
-                # 简单字段直接填充
-                value = self.report_data.get(field_name, field.get('default_value', ''))
+                # 获取字段值
+                if is_reference:
+                    # 引用字段：从已审核报告中查询数据
+                    value = self._get_reference_value(field_name)
+                else:
+                    # 普通字段：从当前报告数据中获取
+                    value = self.report_data.get(field_name, field.get('default_value', ''))
+
                 if value and cell_address:
                     try:
                         ws[cell_address] = value
                     except Exception as e:
                         print(f"填充字段失败 {field_name}: {e}")
+
+    def _get_reference_value(self, field_name):
+        """
+        从已审核报告中获取引用字段的值
+
+        Args:
+            field_name: 字段名（如：被检单位、采样日期等）
+
+        Returns:
+            str: 字段值，如果找不到返回空字符串
+        """
+        conn = get_db_connection()
+
+        # 字段名到数据库字段的映射
+        field_mapping = {
+            '报告编号': 'report_number',
+            '样品编号': 'sample_number',
+            '样品类型': 'sample_type_name',
+            '被检单位': 'customer_unit',
+            '被检水厂': 'customer_plant',
+            '单位地址': 'unit_address',
+            '委托单位': 'company_name',
+            '采样人': 'sampler',
+            '采样日期': 'sampling_date',
+            '采样地点': 'sampling_location',
+            '采样依据': 'sampling_basis',
+            '样品来源': 'sample_source',
+            '样品状态': 'sample_status',
+            '收样日期': 'sample_received_date',
+            '检测日期': 'detection_date',
+            '检测人': 'detection_person',
+            '检测人员': 'detection_person',
+            '审核人': 'review_person',
+            '审核人员': 'review_person',
+            '报告编制日期': 'report_date',
+            '产品标准': 'product_standard',
+            '检测结论': 'test_conclusion',
+            '附加信息': 'additional_info',
+            '备注': 'remark'
+        }
+
+        db_field = field_mapping.get(field_name)
+
+        if not db_field:
+            print(f"警告: 未知的引用字段 '{field_name}'")
+            conn.close()
+            return ''
+
+        try:
+            # 从最近的已审核报告中查询数据
+            # 优先查找相同样品编号的已审核报告
+            sample_number = self.report_data.get('sample_number', '')
+
+            if sample_number:
+                # 先尝试查找相同样品编号的已审核报告
+                query = f'''
+                    SELECT r.{db_field}, r.remark
+                    FROM reports r
+                    LEFT JOIN sample_types st ON r.sample_type_id = st.id
+                    WHERE r.review_status = 'approved'
+                    AND r.sample_number = ?
+                    ORDER BY r.created_at DESC
+                    LIMIT 1
+                '''
+                result = conn.execute(query, (sample_number,)).fetchone()
+
+                if result and result[db_field]:
+                    value = result[db_field]
+
+                    # 如果字段为空但在remark的JSON中，尝试从remark中提取
+                    if not value and result['remark']:
+                        try:
+                            import json
+                            remark_data = json.loads(result['remark'])
+                            # 检查是否有customer_unit和customer_plant
+                            if field_name == '被检单位' and 'customer_unit' in remark_data:
+                                value = remark_data['customer_unit']
+                            elif field_name == '被检水厂' and 'customer_plant' in remark_data:
+                                value = remark_data['customer_plant']
+                            elif field_name == '单位地址' and 'unit_address' in remark_data:
+                                value = remark_data['unit_address']
+                        except:
+                            pass
+
+                    conn.close()
+                    return value or ''
+
+            # 如果找不到相同样品编号的，查找最近的已审核报告
+            query = f'''
+                SELECT r.{db_field}, r.remark
+                FROM reports r
+                WHERE r.review_status = 'approved'
+                ORDER BY r.created_at DESC
+                LIMIT 1
+            '''
+            result = conn.execute(query).fetchone()
+
+            if result:
+                value = result[db_field] or ''
+
+                # 如果字段为空但在remark的JSON中，尝试从remark中提取
+                if not value and result['remark']:
+                    try:
+                        import json
+                        remark_data = json.loads(result['remark'])
+                        if field_name == '被检单位' and 'customer_unit' in remark_data:
+                            value = remark_data['customer_unit']
+                        elif field_name == '被检水厂' and 'customer_plant' in remark_data:
+                            value = remark_data['customer_plant']
+                        elif field_name == '单位地址' and 'unit_address' in remark_data:
+                            value = remark_data['unit_address']
+                    except:
+                        pass
+
+                conn.close()
+                return value
+
+            conn.close()
+            return ''
+
+        except Exception as e:
+            print(f"查询引用字段失败 {field_name}: {e}")
+            conn.close()
+            return ''
 
     def _fill_table_data(self, worksheet, field):
         """
