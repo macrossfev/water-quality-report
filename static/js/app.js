@@ -3260,54 +3260,64 @@ async function showReviewDetailModal(reportId) {
             console.error('解析客户信息失败:', e);
         }
 
+        // 获取审核状态显示
+        const getStatusBadge = (status) => {
+            const statusMap = {
+                'draft': '<span class="badge bg-secondary">草稿</span>',
+                'pending': '<span class="badge bg-warning">待审核</span>',
+                'approved': '<span class="badge bg-success">已通过</span>',
+                'rejected': '<span class="badge bg-danger">已拒绝</span>'
+            };
+            return statusMap[status] || '<span class="badge bg-secondary">未知</span>';
+        };
+
         // 创建详情模态框
         const modalHTML = `
             <div class="modal fade" id="reviewDetailModal" tabindex="-1">
                 <div class="modal-dialog modal-xl">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">报告详情 - ${data.report.report_number}</h5>
+                            <h5 class="modal-title">报告详情 - ${data.report.report_number} ${getStatusBadge(data.report.review_status)}</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body" style="max-height: 80vh; overflow-y: auto;">
                             <h6 class="mb-3"><i class="bi bi-card-list"></i> 基本信息</h6>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>报告编号：</strong>${data.report.report_number || '-'}</div>
-                                <div class="col-md-4"><strong>报告编制日期：</strong>${data.report.report_date || '-'}</div>
-                                <div class="col-md-4"><strong>样品编号：</strong>${data.report.sample_number || '-'}</div>
+                                <div class="col-md-6"><strong>报告编号：</strong>${data.report.report_number || '-'}</div>
+                                <div class="col-md-6"><strong>报告编制日期：</strong>${data.report.report_date || '-'}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>样品类型：</strong>${data.report.sample_type_name || '-'}</div>
-                                <div class="col-md-4"><strong>样品来源：</strong>${data.report.sample_source || '-'}</div>
-                                <div class="col-md-4"><strong>样品状态：</strong>${data.report.sample_status || '-'}</div>
+                                <div class="col-md-6"><strong>样品编号：</strong>${data.report.sample_number || '-'}</div>
+                                <div class="col-md-6"><strong>样品类型：</strong>${data.report.sample_type_name || '-'}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>采样人：</strong>${data.report.sampler || '-'}</div>
-                                <div class="col-md-4"><strong>采样日期：</strong>${data.report.sampling_date || '-'}</div>
-                                <div class="col-md-4"><strong>收样日期：</strong>${data.report.sample_received_date || '-'}</div>
+                                <div class="col-md-6"><strong>样品来源：</strong>${data.report.sample_source || '-'}</div>
+                                <div class="col-md-6"><strong>样品状态：</strong>${data.report.sample_status || '-'}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>采样地点：</strong>${data.report.sampling_location || '-'}</div>
-                                <div class="col-md-4"><strong>采样依据：</strong>${data.report.sampling_basis || '-'}</div>
-                                <div class="col-md-4"><strong>检测日期：</strong>${data.report.detection_date || '-'}</div>
+                                <div class="col-md-6"><strong>采样人：</strong>${data.report.sampler || '-'}</div>
+                                <div class="col-md-6"><strong>采样日期：</strong>${data.report.sampling_date || '-'}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-md-6"><strong>收样日期：</strong>${data.report.sample_received_date || '-'}</div>
+                                <div class="col-md-6"><strong>检测日期：</strong>${data.report.detection_date || '-'}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-md-6"><strong>采样地点：</strong>${data.report.sampling_location || '-'}</div>
+                                <div class="col-md-6"><strong>采样依据：</strong>${data.report.sampling_basis || '-'}</div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-6"><strong>产品标准：</strong>${data.report.product_standard || '-'}</div>
-                                <div class="col-md-6"><strong>委托单位：</strong>${data.report.company_name || '-'}</div>
-                            </div>
-                            <div class="row mb-2">
-                                <div class="col-md-4"><strong>检测人员：</strong>${data.report.detection_person || '-'}</div>
-                                <div class="col-md-4"><strong>审核人员：</strong>${data.report.review_person || '-'}</div>
-                                <div class="col-md-4"><strong>创建时间：</strong>${data.report.created_at ? new Date(data.report.created_at).toLocaleString('zh-CN') : '-'}</div>
+                                <div class="col-md-6"><strong>创建时间：</strong>${data.report.created_at ? new Date(data.report.created_at).toLocaleString('zh-CN') : '-'}</div>
                             </div>
                             ${data.report.test_conclusion ? `
                                 <div class="row mb-2">
-                                    <div class="col-md-12"><strong>检测结论：</strong><br>${data.report.test_conclusion}</div>
+                                    <div class="col-md-12"><strong>检测结论：</strong><br><div class="p-2 bg-light rounded">${data.report.test_conclusion}</div></div>
                                 </div>
                             ` : ''}
                             ${data.report.additional_info ? `
                                 <div class="row mb-2">
-                                    <div class="col-md-12"><strong>附加信息：</strong><br>${data.report.additional_info}</div>
+                                    <div class="col-md-12"><strong>附加信息：</strong><br><div class="p-2 bg-light rounded">${data.report.additional_info}</div></div>
                                 </div>
                             ` : ''}
 
@@ -3315,14 +3325,16 @@ async function showReviewDetailModal(reportId) {
 
                             <h6 class="mb-3"><i class="bi bi-people"></i> 客户信息</h6>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>被检单位：</strong>${customerInfo.customer_unit || '-'}</div>
-                                <div class="col-md-4"><strong>被检水厂：</strong>${customerInfo.customer_plant || '-'}</div>
-                                <div class="col-md-4"><strong>联系人：</strong>${customerInfo.customer_contact || '-'}</div>
+                                <div class="col-md-6"><strong>被检单位：</strong>${customerInfo.customer_unit || '-'}</div>
+                                <div class="col-md-6"><strong>被检水厂：</strong>${customerInfo.customer_plant || '-'}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>联系电话：</strong>${customerInfo.customer_phone || '-'}</div>
-                                <div class="col-md-4"><strong>电子邮箱：</strong>${customerInfo.customer_email || '-'}</div>
-                                <div class="col-md-4"><strong>地址：</strong>${customerInfo.customer_address || '-'}</div>
+                                <div class="col-md-6"><strong>联系人：</strong>${customerInfo.customer_contact || '-'}</div>
+                                <div class="col-md-6"><strong>联系电话：</strong>${customerInfo.customer_phone || '-'}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-md-6"><strong>电子邮箱：</strong>${customerInfo.customer_email || '-'}</div>
+                                <div class="col-md-6"><strong>地址：</strong>${customerInfo.customer_address || '-'}</div>
                             </div>
 
                             <hr>
@@ -3355,7 +3367,7 @@ async function showReviewDetailModal(reportId) {
                                 </table>
                             </div>
 
-                            ${data.template_fields.length > 0 ? `
+                            ${data.template_fields && data.template_fields.length > 0 ? `
                                 <hr>
                                 <h6 class="mb-3"><i class="bi bi-file-text"></i> 模板字段</h6>
                                 <div class="row">
@@ -3368,12 +3380,68 @@ async function showReviewDetailModal(reportId) {
                                 </div>
                             ` : ''}
 
-                            ${data.report.review_comment ? `
+                            ${data.review_history && data.review_history.length > 0 || data.report.review_status !== 'draft' ? `
                                 <hr>
-                                <h6 class="mb-2"><i class="bi bi-chat-left-text"></i> 审核意见</h6>
-                                <div class="alert alert-${data.report.review_status === 'rejected' ? 'danger' : 'success'}">
-                                    ${data.report.review_comment}
-                                </div>
+                                <h6 class="mb-3"><i class="bi bi-chat-left-text"></i> 审核信息</h6>
+
+                                ${data.report.review_status === 'pending' ? `
+                                    <div class="alert alert-warning mb-3">
+                                        <strong>当前状态：</strong>等待审核中
+                                    </div>
+                                ` : data.report.review_status === 'draft' ? `
+                                    <div class="alert alert-secondary mb-3">
+                                        <strong>当前状态：</strong>草稿，尚未提交审核
+                                    </div>
+                                ` : ''}
+
+                                ${data.review_history && data.review_history.length > 0 ? `
+                                    <h6 class="small text-muted mb-2">审核历史记录 (${data.review_history.length} 条)</h6>
+                                    ${data.review_history.map((history, index) => `
+                                        <div class="card mb-2 ${index === 0 ? 'border-primary' : ''}">
+                                            <div class="card-body py-2 px-3">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <div class="flex-grow-1">
+                                                        <div class="mb-1">
+                                                            <span class="badge bg-${history.review_status === 'approved' ? 'success' : history.review_status === 'rejected' ? 'danger' : 'warning'}">
+                                                                ${history.review_status === 'approved' ? '通过' : history.review_status === 'rejected' ? '拒绝' : '待审核'}
+                                                            </span>
+                                                            <strong class="ms-2">${history.reviewer_name || '未知审核人'}</strong>
+                                                            ${index === 0 ? '<span class="badge bg-info ms-1">最新</span>' : ''}
+                                                        </div>
+                                                        ${history.review_comment ? `
+                                                            <div class="small text-muted">
+                                                                ${history.review_comment}
+                                                            </div>
+                                                        ` : '<div class="small text-muted fst-italic">无审核意见</div>'}
+                                                    </div>
+                                                    <div class="text-end ms-3">
+                                                        <small class="text-muted">
+                                                            ${new Date(history.reviewed_at).toLocaleString('zh-CN', {
+                                                                year: 'numeric',
+                                                                month: '2-digit',
+                                                                day: '2-digit',
+                                                                hour: '2-digit',
+                                                                minute: '2-digit'
+                                                            })}
+                                                        </small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                ` : data.report.review_comment ? `
+                                    <div class="alert alert-${data.report.review_status === 'rejected' ? 'danger' : 'success'} mb-0">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <strong>${data.report.review_status === 'rejected' ? '拒绝' : '通过'}：</strong>
+                                                ${data.report.review_comment}
+                                            </div>
+                                            ${data.report.reviewed_at ? `
+                                                <small class="text-muted">${new Date(data.report.reviewed_at).toLocaleString('zh-CN')}</small>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                ` : ''}
                             ` : ''}
                         </div>
                         <div class="modal-footer">

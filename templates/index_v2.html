@@ -182,27 +182,29 @@
                                     </div>
                                     <div class="card-body">
                                         <div class="row g-3 mb-3">
-                                            <div class="col-md-4">
+                                            <div class="col-md-6">
                                                 <label class="form-label">报告编号</label>
                                                 <input type="text" class="form-control" id="newReportNumber" placeholder="请输入报告编号">
                                             </div>
-                                            <div class="col-md-4">
+                                            <div class="col-md-6">
                                                 <label class="form-label">报告编制日期</label>
                                                 <input type="date" class="form-control" id="newReportDate">
                                             </div>
-                                            <div class="col-md-4">
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-6">
                                                 <label class="form-label">样品编号 <span class="text-danger">*</span></label>
                                                 <input type="text" class="form-control" id="newReportSampleNumber" placeholder="请输入样品编号">
                                             </div>
-                                        </div>
-                                        <div class="row g-3 mb-3">
-                                            <div class="col-md-4">
+                                            <div class="col-md-6">
                                                 <label class="form-label">样品类型 <span class="text-danger">*</span></label>
                                                 <select class="form-select" id="newReportSampleType">
                                                     <option value="">请选择样品类型...</option>
                                                 </select>
                                             </div>
-                                            <div class="col-md-4">
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-6">
                                                 <label class="form-label">样品来源</label>
                                                 <div class="position-relative">
                                                     <input type="text" class="form-control" id="newSampleSource" placeholder="请选择或输入样品来源" autocomplete="off">
@@ -212,25 +214,27 @@
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div class="col-md-4">
+                                            <div class="col-md-6">
                                                 <label class="form-label">样品状态</label>
                                                 <input type="text" class="form-control" id="newSampleStatus" value="样品完好，液态">
                                             </div>
                                         </div>
                                         <div class="row g-3 mb-3">
-                                            <div class="col-md-3">
+                                            <div class="col-md-6">
                                                 <label class="form-label">采样人</label>
                                                 <input type="text" class="form-control" id="newSampler" placeholder="采样人姓名">
                                             </div>
-                                            <div class="col-md-3">
+                                            <div class="col-md-6">
                                                 <label class="form-label">采样日期</label>
                                                 <input type="date" class="form-control" id="newSamplingDate">
                                             </div>
-                                            <div class="col-md-3">
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-6">
                                                 <label class="form-label">收样日期</label>
                                                 <input type="date" class="form-control" id="newSampleReceivedDate">
                                             </div>
-                                            <div class="col-md-3">
+                                            <div class="col-md-6">
                                                 <label class="form-label">检测日期</label>
                                                 <input type="text" class="form-control" id="newDetectionDate" placeholder="例如: 2024年1月1日">
                                             </div>
@@ -247,14 +251,14 @@
                                         </div>
                                         <div class="row g-3 mb-3">
                                             <div class="col-md-12">
-                                                <label class="form-label">检测项目</label>
-                                                <textarea class="form-control" id="newTestItems" rows="3" readonly>色度、浑浊度、pH、菌落总数、氟化物、硫酸盐、铜、铁、锰、砷、锌、铝、氰化物、溶解性总固体、三氯甲烷等共计43项指标</textarea>
+                                                <label class="form-label">产品标准</label>
+                                                <input type="text" class="form-control" id="newProductStandard" value="《生活饮用水卫生标准》 GB5749-2022">
                                             </div>
                                         </div>
                                         <div class="row g-3 mb-3">
                                             <div class="col-md-12">
-                                                <label class="form-label">产品标准</label>
-                                                <input type="text" class="form-control" id="newProductStandard" value="《生活饮用水卫生标准》 GB5749-2022">
+                                                <label class="form-label">检测项目</label>
+                                                <textarea class="form-control" id="newTestItems" rows="3" readonly>色度、浑浊度、pH、菌落总数、氟化物、硫酸盐、铜、铁、锰、砷、锌、铝、氰化物、溶解性总固体、三氯甲烷等共计43项指标</textarea>
                                             </div>
                                         </div>
                                         <div class="row g-3 mb-3">
@@ -512,25 +516,27 @@
                                     </div>
                                     <div class="card-body">
                                         <div class="row g-3 mb-3">
-                                            <div class="col-md-4">
+                                            <div class="col-md-6">
                                                 <label class="form-label">报告编号</label>
                                                 <input type="text" class="form-control" id="editReportNumber" readonly>
                                             </div>
-                                            <div class="col-md-4">
+                                            <div class="col-md-6">
                                                 <label class="form-label">报告编制日期</label>
                                                 <input type="date" class="form-control" id="editReportDate">
                                             </div>
-                                            <div class="col-md-4">
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-6">
                                                 <label class="form-label">样品编号 <span class="text-danger">*</span></label>
                                                 <input type="text" class="form-control" id="editSampleNumber" placeholder="例如: 2024001">
                                             </div>
-                                        </div>
-                                        <div class="row g-3 mb-3">
-                                            <div class="col-md-4">
+                                            <div class="col-md-6">
                                                 <label class="form-label">样品类型</label>
                                                 <input type="text" class="form-control" id="editSampleType" readonly>
                                             </div>
-                                            <div class="col-md-4">
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-6">
                                                 <label class="form-label">样品来源</label>
                                                 <div class="position-relative">
                                                     <input type="text" class="form-control" id="editSampleSource" placeholder="请选择或输入样品来源" autocomplete="off">
@@ -540,25 +546,27 @@
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div class="col-md-4">
+                                            <div class="col-md-6">
                                                 <label class="form-label">样品状态</label>
                                                 <input type="text" class="form-control" id="editSampleStatus">
                                             </div>
                                         </div>
                                         <div class="row g-3 mb-3">
-                                            <div class="col-md-3">
+                                            <div class="col-md-6">
                                                 <label class="form-label">采样人</label>
                                                 <input type="text" class="form-control" id="editSampler">
                                             </div>
-                                            <div class="col-md-3">
+                                            <div class="col-md-6">
                                                 <label class="form-label">采样日期</label>
                                                 <input type="date" class="form-control" id="editSamplingDate">
                                             </div>
-                                            <div class="col-md-3">
+                                        </div>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-6">
                                                 <label class="form-label">收样日期</label>
                                                 <input type="date" class="form-control" id="editSampleReceivedDate">
                                             </div>
-                                            <div class="col-md-3">
+                                            <div class="col-md-6">
                                                 <label class="form-label">检测日期</label>
                                                 <input type="text" class="form-control" id="editDetectionDate" placeholder="例如: 2024年1月1日">
                                             </div>

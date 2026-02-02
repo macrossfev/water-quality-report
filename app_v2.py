@@ -3639,12 +3639,23 @@ def api_report_review_detail(id):
             WHERE rfv.report_id = ?
         ''', (id,)).fetchall()
 
+    # 获取审核历史记录
+    review_history = conn.execute('''
+        SELECT rh.*,
+               u.username as reviewer_name
+        FROM review_history rh
+        LEFT JOIN users u ON rh.reviewer_id = u.id
+        WHERE rh.report_id = ?
+        ORDER BY rh.reviewed_at DESC
+    ''', (id,)).fetchall()
+
     conn.close()
 
     return jsonify({
         'report': dict(report),
         'detection_data': [dict(d) for d in detection_data],
-        'template_fields': [dict(f) for f in template_fields]
+        'template_fields': [dict(f) for f in template_fields],
+        'review_history': [dict(h) for h in review_history]
     })
 
 @app.route('/api/reports/<int:id>/approve', methods=['POST'])
@@ -3663,18 +3674,28 @@ def api_approve_report(id):
         if not report:
             return jsonify({'error': '报告不存在'}), 404
 
+        review_time = datetime.now()
+        username = session.get('username', 'unknown')
+
         # 更新审核状态
         cursor.execute('''
             UPDATE reports
             SET review_status = 'approved',
                 review_person = ?,
                 review_time = ?,
-                review_comment = ?
+                review_comment = ?,
+                reviewed_at = ?
             WHERE id = ?
-        ''', (session.get('username', 'unknown'), datetime.now(), comment, id))
+        ''', (username, review_time, comment, review_time, id))
+
+        # 记录审核历史
+        cursor.execute('''
+            INSERT INTO review_history (report_id, reviewer_id, review_status, review_comment, reviewed_at)
+            VALUES (?, ?, 'approved', ?, ?)
+        ''', (id, session.get('user_id'), comment, review_time))
 
         conn.commit()
-        log_operation('审核报告', f'报告ID: {id}, 结果: 通过')
+        log_operation('审核报告', f'报告ID: {id}, 结果: 通过', conn=conn)
 
         return jsonify({'message': '审核通过'})
     except Exception as e:
@@ -3702,18 +3723,28 @@ def api_reject_report(id):
         if not report:
             return jsonify({'error': '报告不存在'}), 404
 
+        review_time = datetime.now()
+        username = session.get('username', 'unknown')
+
         # 更新审核状态
         cursor.execute('''
             UPDATE reports
             SET review_status = 'rejected',
                 review_person = ?,
                 review_time = ?,
-                review_comment = ?
+                review_comment = ?,
+                reviewed_at = ?
             WHERE id = ?
-        ''', (session.get('username', 'unknown'), datetime.now(), comment, id))
+        ''', (username, review_time, comment, review_time, id))
+
+        # 记录审核历史
+        cursor.execute('''
+            INSERT INTO review_history (report_id, reviewer_id, review_status, review_comment, reviewed_at)
+            VALUES (?, ?, 'rejected', ?, ?)
+        ''', (id, session.get('user_id'), comment, review_time))
 
         conn.commit()
-        log_operation('审核报告', f'报告ID: {id}, 结果: 拒绝')
+        log_operation('审核报告', f'报告ID: {id}, 结果: 拒绝', conn=conn)
 
         return jsonify({'message': '已拒绝'})
     except Exception as e:
