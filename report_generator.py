@@ -82,16 +82,43 @@ class ReportGenerator:
         ''', (self.report_id,)).fetchone()
 
         if report:
-            # 合并基本信息到report_data
-            self.report_data['report_number'] = report['report_number']
-            self.report_data['sample_number'] = report['sample_number']
-            self.report_data['sample_type'] = report['sample_type_name']
-            self.report_data['sample_type_name'] = report['sample_type_name']
+            # 合并所有基本信息到report_data
+            self.report_data['report_number'] = report['report_number'] or ''
+            self.report_data['sample_number'] = report['sample_number'] or ''
+            self.report_data['sample_type'] = report['sample_type_name'] or ''
+            self.report_data['sample_type_name'] = report['sample_type_name'] or ''
             self.report_data['company_name'] = report['company_name'] or ''
             self.report_data['detection_date'] = report['detection_date'] or ''
             self.report_data['detection_person'] = report['detection_person'] or ''
             self.report_data['review_person'] = report['review_person'] or ''
             self.report_data['remark'] = report['remark'] or ''
+
+            # 添加更多字段
+            self.report_data['sampling_date'] = report['sampling_date'] or ''
+            self.report_data['sampler'] = report['sampler'] or ''
+            self.report_data['sampling_location'] = report['sampling_location'] or ''
+            self.report_data['sampling_basis'] = report['sampling_basis'] or ''
+            self.report_data['sample_source'] = report['sample_source'] or ''
+            self.report_data['sample_status'] = report['sample_status'] or ''
+            self.report_data['sample_received_date'] = report['sample_received_date'] or ''
+            self.report_data['report_date'] = report['report_date'] or ''
+            self.report_data['product_standard'] = report['product_standard'] or ''
+            self.report_data['test_conclusion'] = report['test_conclusion'] or ''
+            self.report_data['additional_info'] = report['additional_info'] or ''
+
+            # 从remark中提取客户信息
+            if report['remark']:
+                try:
+                    import json
+                    remark_data = json.loads(report['remark'])
+                    self.report_data['customer_unit'] = remark_data.get('customer_unit', '')
+                    self.report_data['customer_plant'] = remark_data.get('customer_plant', '')
+                    self.report_data['unit_address'] = remark_data.get('unit_address', '')
+                except:
+                    pass
+
+            print(f"已加载报告数据，字段数量: {len(self.report_data)}")
+            print(f"报告数据键: {list(self.report_data.keys())}")
 
         # 2. 加载模板字段值（关键！之前缺失的部分）
         field_values = conn.execute('''
