@@ -13,7 +13,7 @@ class RawDataImporter:
     """原始数据导入器"""
 
     # 基础字段名称（系统预定义）
-    BASE_FIELDS = ['样品编号', '所属公司', '所属水厂', '水样类型', '采样时间']
+    BASE_FIELDS = ['样品编号', '被检单位', '被检水厂', '样品类型', '采样日期']
 
     def __init__(self):
         self.conn = None
@@ -66,7 +66,7 @@ class RawDataImporter:
             is_base = 1 if col_name in self.BASE_FIELDS else 0
 
             # 判断数据类型
-            if col_name == '采样时间':
+            if col_name == '采样日期':
                 data_type = 'date'
             elif col_name in self.BASE_FIELDS:
                 data_type = 'text'
@@ -199,10 +199,10 @@ class RawDataImporter:
                 try:
                     # 提取基础字段
                     sample_number = str(row['样品编号']).strip() if pd.notna(row['样品编号']) else ''
-                    company_name = str(row['所属公司']).strip() if pd.notna(row['所属公司']) else ''
-                    plant_name = str(row['所属水厂']).strip() if pd.notna(row['所属水厂']) else ''
-                    sample_type = str(row['水样类型']).strip() if pd.notna(row['水样类型']) else ''
-                    sampling_date_raw = row['采样时间']
+                    company_name = str(row['被检单位']).strip() if pd.notna(row['被检单位']) else ''
+                    plant_name = str(row['被检水厂']).strip() if pd.notna(row['被检水厂']) else ''
+                    sample_type = str(row['样品类型']).strip() if pd.notna(row['样品类型']) else ''
+                    sampling_date_raw = row['采样日期']
 
                     # 验证样品编号
                     if not sample_number:
@@ -210,11 +210,11 @@ class RawDataImporter:
                         self.skip_count += 1
                         continue
 
-                    # 验证采样时间格式
+                    # 验证采样日期格式
                     valid_date, sampling_date = self.validate_date_format(sampling_date_raw)
                     if not valid_date:
                         self.errors.append(
-                            f"第{row_num}行: 采样时间'{sampling_date_raw}'格式错误，必须为YYYY-MM-DD格式，跳过该行"
+                            f"第{row_num}行: 采样日期'{sampling_date_raw}'格式错误，必须为YYYY-MM-DD格式，跳过该行"
                         )
                         self.skip_count += 1
                         continue
