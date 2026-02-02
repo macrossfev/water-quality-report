@@ -302,33 +302,25 @@
                                 <div class="mb-4">
                                     <h6>创建导出模板</h6>
                                     <div class="row">
-                                        <div class="col-md-4">
+                                        <div class="col-md-6">
                                             <div class="mb-3">
-                                                <label class="form-label">选择分类</label>
-                                                <select class="form-select" id="templateCategory">
-                                                    <option value="">请选择分类</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <div class="mb-3">
-                                                <label class="form-label">选择样品类型 <span class="text-danger">*</span></label>
-                                                <select class="form-select" id="templateSampleType">
-                                                    <option value="">请选择样品类型</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <div class="mb-3">
-                                                <label class="form-label">模板名称 <span class="text-danger">*</span></label>
+                                                <label class="form-label"><strong>1. 模板名称</strong> <span class="text-danger">*</span></label>
                                                 <input type="text" class="form-control" id="templateName" placeholder="如：常规9项">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label"><strong>2. 选择水样类型</strong> <span class="text-danger">*</span></label>
+                                                <select class="form-select" id="templateSampleType">
+                                                    <option value="">请选择水样类型</option>
+                                                </select>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="mb-3">
-                                        <label class="form-label">选择检测指标 <span class="text-danger">*</span></label>
+                                        <label class="form-label"><strong>3. 勾选检测项目</strong> <span class="text-danger">*</span></label>
                                         <div id="indicatorCheckboxes" class="border rounded p-3 bg-light" style="max-height: 300px; overflow-y: auto;">
-                                            <p class="text-muted">请先选择样品类型</p>
+                                            <p class="text-muted">请先选择水样类型</p>
                                         </div>
                                     </div>
                                     <button class="btn btn-success" id="createTemplateBtn">
