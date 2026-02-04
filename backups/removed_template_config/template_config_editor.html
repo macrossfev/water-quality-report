@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模板配置编辑器 - 水质检测报告系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .page-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem 0;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .template-info-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .toolbar {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .fields-table-container {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .table-header {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+        .field-row {
+            transition: background-color 0.2s;
+        }
+        .field-row:hover {
+            background-color: #f8f9fa;
+        }
+        .action-btn {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+        }
+        .badge-field-type {
+            padding: 0.35rem 0.65rem;
+            font-size: 0.75rem;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #6c757d;
+        }
+        .stats-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+        .search-box {
+            max-width: 300px;
+        }
+        .field-type-select {
+            width: 150px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 页面标题 -->
+    <div class="page-header">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h4><i class="bi bi-gear-fill"></i> 模板配置编辑器</h4>
+                    <p class="mb-0 small" id="templateNameDisplay">加载中...</p>
+                </div>
+                <div>
+                    <button class="btn btn-light btn-sm" onclick="window.location.href='/report-templates'">
+                        <i class="bi bi-arrow-left"></i> 返回模板列表
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid">
+        <!-- 模板信息卡片 -->
+        <div class="template-info-card">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h5 class="mb-2" id="templateName">模板名称</h5>
+                    <p class="text-muted mb-0" id="templateDescription">模板描述</p>
+                    <div class="mt-2">
+                        <span class="badge bg-primary" id="sampleTypeBadge">
+                            <i class="bi bi-tag"></i> 样品类型
+                        </span>
+                        <span class="badge bg-info" id="sheetCountBadge">
+                            <i class="bi bi-file-earmark"></i> 工作表数量
+                        </span>
+                    </div>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="stats-badge">
+                        <i class="bi bi-list-check"></i> 字段配置
+                        <h3 class="mb-0 mt-1" id="fieldCount">0</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 工具栏 -->
+        <div class="toolbar">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <button class="btn btn-success" id="addFieldBtn">
+                        <i class="bi bi-plus-circle"></i> 添加字段
+                    </button>
+                    <button class="btn btn-primary" id="importConfigBtn">
+                        <i class="bi bi-upload"></i> 导入配置
+                    </button>
+                    <button class="btn btn-info" id="exportConfigBtn">
+                        <i class="bi bi-download"></i> 导出配置
+                    </button>
+                    <button class="btn btn-warning" id="batchDeleteBtn" disabled>
+                        <i class="bi bi-trash"></i> 批量删除
+                    </button>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex justify-content-end gap-2">
+                        <input type="text" class="form-control search-box" id="searchBox"
+                               placeholder="搜索字段...">
+                        <select class="form-select field-type-select" id="filterByType">
+                            <option value="">所有类型</option>
+                            <option value="text">文本</option>
+                            <option value="date">日期</option>
+                            <option value="selection">选择</option>
+                            <option value="table_data">表格数据</option>
+                            <option value="signature">签名</option>
+                            <option value="constant">常量</option>
+                            <option value="formula">公式</option>
+                        </select>
+                        <button class="btn btn-outline-secondary" id="refreshBtn">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 字段配置表格 -->
+        <div class="fields-table-container">
+            <div class="table-responsive">
+                <table class="table table-hover" id="fieldsTable">
+                    <thead class="table-header">
+                        <tr>
+                            <th width="40">
+                                <input type="checkbox" class="form-check-input" id="selectAllCheckbox">
+                            </th>
+                            <th width="60">序号</th>
+                            <th>字段名称</th>
+                            <th>显示名称</th>
+                            <th>字段类型</th>
+                            <th>工作表</th>
+                            <th>单元格</th>
+                            <th>默认值</th>
+                            <th width="80">必填</th>
+                            <th width="200">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fieldsTableBody">
+                        <!-- 动态加载 -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 空状态 -->
+            <div class="empty-state" id="emptyState" style="display: none;">
+                <i class="bi bi-inbox" style="font-size: 4rem;"></i>
+                <h5 class="mt-3">暂无字段配置</h5>
+                <p class="text-muted">点击"添加字段"按钮开始配置</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑字段模态框 -->
+    <div class="modal fade" id="fieldModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="fieldModalTitle">添加字段</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="fieldForm">
+                        <input type="hidden" id="fieldId">
+                        <input type="hidden" id="templateId">
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">字段名称 <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="fieldName" required>
+                                    <div class="form-text">唯一标识符，如：report_number</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">显示名称</label>
+                                    <input type="text" class="form-control" id="fieldDisplayName">
+                                    <div class="form-text">界面显示名称，如：报告编号</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">字段类型 <span class="text-danger">*</span></label>
+                                    <select class="form-select" id="fieldType" required>
+                                        <option value="">请选择</option>
+                                        <option value="text">文本字段</option>
+                                        <option value="date">日期字段</option>
+                                        <option value="selection">选择字段</option>
+                                        <option value="table_data">表格数据</option>
+                                        <option value="signature">签名字段</option>
+                                        <option value="constant">常量字段</option>
+                                        <option value="formula">公式字段</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">工作表名称 <span class="text-danger">*</span></label>
+                                    <select class="form-select" id="sheetName" required>
+                                        <option value="">请选择</option>
+                                    </select>
+                                    <div class="form-text">字段所在的工作表</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">单元格地址</label>
+                                    <input type="text" class="form-control" id="cellAddress" placeholder="如: A1, B2">
+                                    <div class="form-text">Excel单元格位置</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">是否必填</label>
+                                    <select class="form-select" id="isRequired">
+                                        <option value="1">是</option>
+                                        <option value="0">否</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">占位符</label>
+                            <input type="text" class="form-control" id="placeholder" placeholder="输入框提示文本">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">默认值</label>
+                            <input type="text" class="form-control" id="defaultValue">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">描述</label>
+                            <textarea class="form-control" id="description" rows="2"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="saveFieldBtn">
+                        <i class="bi bi-check-lg"></i> 保存
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 导入配置模态框 -->
+    <div class="modal fade" id="importModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">导入模板配置</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>警告：</strong>导入配置会删除所有现有字段配置，然后重新创建。请确保已备份！
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">配置文件 <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="importFile" accept=".xlsx,.xls" required>
+                        <div class="form-text">请选择之前导出的模板配置Excel文件</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-warning" id="uploadImportBtn">
+                        <i class="bi bi-upload"></i> 开始导入
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 全局变量
+        let templateId = null;
+        let templateData = null;
+        let fieldsData = [];
+        let sheetsData = [];
+        let selectedFieldIds = new Set();
+
+        const fieldModal = new bootstrap.Modal(document.getElementById('fieldModal'));
+        const importModal = new bootstrap.Modal(document.getElementById('importModal'));
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 从URL获取模板ID
+            const urlParams = new URLSearchParams(window.location.search);
+            templateId = urlParams.get('id');
+
+            if (!templateId) {
+                alert('未指定模板ID');
+                window.location.href = '/report-templates';
+                return;
+            }
+
+            document.getElementById('templateId').value = templateId;
+
+            loadTemplateData();
+            initEventListeners();
+        });
+
+        // 初始化事件监听
+        function initEventListeners() {
+            document.getElementById('addFieldBtn').addEventListener('click', showAddFieldModal);
+            document.getElementById('saveFieldBtn').addEventListener('click', saveField);
+            document.getElementById('exportConfigBtn').addEventListener('click', exportConfig);
+            document.getElementById('importConfigBtn').addEventListener('click', () => importModal.show());
+            document.getElementById('uploadImportBtn').addEventListener('click', uploadImport);
+            document.getElementById('refreshBtn').addEventListener('click', loadFields);
+            document.getElementById('batchDeleteBtn').addEventListener('click', batchDelete);
+            document.getElementById('selectAllCheckbox').addEventListener('change', toggleSelectAll);
+            document.getElementById('searchBox').addEventListener('input', filterFields);
+            document.getElementById('filterByType').addEventListener('change', filterFields);
+        }
+
+        // 加载模板数据
+        async function loadTemplateData() {
+            try {
+                const response = await fetch(`/api/report-templates/${templateId}`);
+                if (!response.ok) throw new Error('加载模板失败');
+
+                const data = await response.json();
+                templateData = data.template;
+                sheetsData = data.sheets;
+                fieldsData = data.fields;
+
+                renderTemplateInfo();
+                populateSheetSelect();
+                renderFields();
+            } catch (error) {
+                alert('加载模板数据失败: ' + error.message);
+            }
+        }
+
+        // 加载字段列表
+        async function loadFields() {
+            try {
+                const response = await fetch(`/api/report-templates/${templateId}`);
+                if (!response.ok) throw new Error('加载字段失败');
+
+                const data = await response.json();
+                fieldsData = data.fields;
+                renderFields();
+            } catch (error) {
+                alert('加载字段失败: ' + error.message);
+            }
+        }
+
+        // 渲染模板信息
+        function renderTemplateInfo() {
+            document.getElementById('templateName').textContent = templateData.name;
+            document.getElementById('templateNameDisplay').textContent = templateData.name;
+            document.getElementById('templateDescription').textContent = templateData.description || '暂无描述';
+
+            const sampleTypeBadge = document.getElementById('sampleTypeBadge');
+            if (templateData.sample_type_id) {
+                sampleTypeBadge.innerHTML = `<i class="bi bi-tag"></i> 样品类型ID: ${templateData.sample_type_id}`;
+            } else {
+                sampleTypeBadge.innerHTML = `<i class="bi bi-tag"></i> 未关联样品类型`;
+            }
+
+            document.getElementById('sheetCountBadge').innerHTML =
+                `<i class="bi bi-file-earmark"></i> ${sheetsData.length} 个工作表`;
+
+            updateFieldCount();
+        }
+
+        // 更新字段计数
+        function updateFieldCount() {
+            document.getElementById('fieldCount').textContent = fieldsData.length;
+        }
+
+        // 填充工作表选择框
+        function populateSheetSelect() {
+            const select = document.getElementById('sheetName');
+            select.innerHTML = '<option value="">请选择</option>';
+
+            sheetsData.forEach(sheet => {
+                const option = document.createElement('option');
+                option.value = sheet.sheet_name;
+                option.textContent = `${sheet.sheet_name} (${sheet.sheet_type})`;
+                select.appendChild(option);
+            });
+        }
+
+        // 渲染字段列表
+        function renderFields(filteredFields = null) {
+            const tbody = document.getElementById('fieldsTableBody');
+            const emptyState = document.getElementById('emptyState');
+            const table = document.getElementById('fieldsTable');
+
+            const fields = filteredFields || fieldsData;
+
+            if (fields.length === 0) {
+                tbody.innerHTML = '';
+                table.style.display = 'none';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            table.style.display = 'table';
+            emptyState.style.display = 'none';
+
+            tbody.innerHTML = '';
+
+            fields.forEach((field, index) => {
+                const row = document.createElement('tr');
+                row.className = 'field-row';
+
+                const typeColors = {
+                    'text': 'primary',
+                    'date': 'success',
+                    'selection': 'warning',
+                    'table_data': 'info',
+                    'signature': 'secondary',
+                    'constant': 'dark',
+                    'formula': 'danger'
+                };
+
+                row.innerHTML = `
+                    <td>
+                        <input type="checkbox" class="form-check-input field-checkbox"
+                               data-field-id="${field.id}"
+                               ${selectedFieldIds.has(field.id) ? 'checked' : ''}>
+                    </td>
+                    <td>${index + 1}</td>
+                    <td><strong>${field.field_name}</strong></td>
+                    <td>${field.field_display_name || '-'}</td>
+                    <td>
+                        <span class="badge bg-${typeColors[field.field_type] || 'secondary'} badge-field-type">
+                            ${field.field_type}
+                        </span>
+                    </td>
+                    <td>${field.sheet_name}</td>
+                    <td>${field.cell_address || '-'}</td>
+                    <td>${field.default_value ? '<span class="badge bg-success">' + field.default_value + '</span>' : '-'}</td>
+                    <td>
+                        ${field.is_required ?
+                            '<span class="badge bg-danger">是</span>' :
+                            '<span class="badge bg-secondary">否</span>'}
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary action-btn" onclick="editField(${field.id})">
+                            <i class="bi bi-pencil"></i> 编辑
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger action-btn" onclick="deleteField(${field.id}, '${field.field_name}')">
+                            <i class="bi bi-trash"></i> 删除
+                        </button>
+                    </td>
+                `;
+
+                tbody.appendChild(row);
+            });
+
+            // 添加复选框事件监听
+            document.querySelectorAll('.field-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', handleCheckboxChange);
+            });
+
+            updateFieldCount();
+        }
+
+        // 处理复选框变化
+        function handleCheckboxChange(event) {
+            const fieldId = parseInt(event.target.dataset.fieldId);
+            if (event.target.checked) {
+                selectedFieldIds.add(fieldId);
+            } else {
+                selectedFieldIds.delete(fieldId);
+            }
+            updateBatchDeleteButton();
+        }
+
+        // 更新批量删除按钮状态
+        function updateBatchDeleteButton() {
+            const btn = document.getElementById('batchDeleteBtn');
+            btn.disabled = selectedFieldIds.size === 0;
+            btn.textContent = selectedFieldIds.size > 0 ?
+                `批量删除 (${selectedFieldIds.size})` : '批量删除';
+        }
+
+        // 全选/取消全选
+        function toggleSelectAll(event) {
+            const checkboxes = document.querySelectorAll('.field-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = event.target.checked;
+                const fieldId = parseInt(checkbox.dataset.fieldId);
+                if (event.target.checked) {
+                    selectedFieldIds.add(fieldId);
+                } else {
+                    selectedFieldIds.delete(fieldId);
+                }
+            });
+            updateBatchDeleteButton();
+        }
+
+        // 筛选字段
+        function filterFields() {
+            const searchText = document.getElementById('searchBox').value.toLowerCase();
+            const filterType = document.getElementById('filterByType').value;
+
+            let filtered = fieldsData;
+
+            if (searchText) {
+                filtered = filtered.filter(field =>
+                    field.field_name.toLowerCase().includes(searchText) ||
+                    (field.field_display_name && field.field_display_name.toLowerCase().includes(searchText)) ||
+                    (field.description && field.description.toLowerCase().includes(searchText))
+                );
+            }
+
+            if (filterType) {
+                filtered = filtered.filter(field => field.field_type === filterType);
+            }
+
+            renderFields(filtered);
+        }
+
+        // 显示添加字段模态框
+        function showAddFieldModal() {
+            document.getElementById('fieldModalTitle').textContent = '添加字段';
+            document.getElementById('fieldForm').reset();
+            document.getElementById('fieldId').value = '';
+            document.getElementById('templateId').value = templateId;
+            fieldModal.show();
+        }
+
+        // 编辑字段
+        function editField(fieldId) {
+            const field = fieldsData.find(f => f.id === fieldId);
+            if (!field) return;
+
+            document.getElementById('fieldModalTitle').textContent = '编辑字段';
+            document.getElementById('fieldId').value = field.id;
+            document.getElementById('fieldName').value = field.field_name;
+            document.getElementById('fieldDisplayName').value = field.field_display_name || '';
+            document.getElementById('fieldType').value = field.field_type;
+            document.getElementById('sheetName').value = field.sheet_name;
+            document.getElementById('cellAddress').value = field.cell_address || '';
+            document.getElementById('isRequired').value = field.is_required ? '1' : '0';
+            document.getElementById('placeholder').value = field.placeholder || '';
+            document.getElementById('defaultValue').value = field.default_value || '';
+            document.getElementById('description').value = field.description || '';
+
+            fieldModal.show();
+        }
+
+        // 保存字段
+        async function saveField() {
+            const fieldId = document.getElementById('fieldId').value;
+            const isEdit = !!fieldId;
+
+            const fieldData = {
+                field_name: document.getElementById('fieldName').value.trim(),
+                field_display_name: document.getElementById('fieldDisplayName').value.trim(),
+                field_type: document.getElementById('fieldType').value,
+                sheet_name: document.getElementById('sheetName').value,
+                cell_address: document.getElementById('cellAddress').value.trim(),
+                is_required: parseInt(document.getElementById('isRequired').value),
+                placeholder: document.getElementById('placeholder').value.trim(),
+                default_value: document.getElementById('defaultValue').value.trim(),
+                description: document.getElementById('description').value.trim()
+            };
+
+            // 验证
+            if (!fieldData.field_name || !fieldData.field_type || !fieldData.sheet_name) {
+                alert('请填写必填字段');
+                return;
+            }
+
+            try {
+                let response;
+                if (isEdit) {
+                    // 更新字段
+                    response = await fetch(`/api/template-fields/${fieldId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(fieldData)
+                    });
+                } else {
+                    // 添加字段
+                    response = await fetch(`/api/report-templates/${templateId}/fields`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(fieldData)
+                    });
+                }
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '保存失败');
+                }
+
+                alert(isEdit ? '字段更新成功' : '字段添加成功');
+                fieldModal.hide();
+                loadFields();
+            } catch (error) {
+                alert('保存失败: ' + error.message);
+            }
+        }
+
+        // 删除字段
+        async function deleteField(fieldId, fieldName) {
+            if (!confirm(`确定要删除字段"${fieldName}"吗？`)) return;
+
+            try {
+                const response = await fetch(`/api/template-fields/${fieldId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '删除失败');
+                }
+
+                alert('删除成功');
+                loadFields();
+            } catch (error) {
+                alert('删除失败: ' + error.message);
+            }
+        }
+
+        // 批量删除
+        async function batchDelete() {
+            if (selectedFieldIds.size === 0) return;
+
+            if (!confirm(`确定要删除选中的 ${selectedFieldIds.size} 个字段吗？`)) return;
+
+            try {
+                const promises = Array.from(selectedFieldIds).map(fieldId =>
+                    fetch(`/api/template-fields/${fieldId}`, { method: 'DELETE' })
+                );
+
+                await Promise.all(promises);
+
+                alert('批量删除成功');
+                selectedFieldIds.clear();
+                document.getElementById('selectAllCheckbox').checked = false;
+                updateBatchDeleteButton();
+                loadFields();
+            } catch (error) {
+                alert('批量删除失败: ' + error.message);
+            }
+        }
+
+        // 导出配置
+        async function exportConfig() {
+            try {
+                const response = await fetch(`/api/report-templates/${templateId}/export-config`);
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '导出失败');
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${templateData.name}_配置_${new Date().toISOString().slice(0,10)}.xlsx`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                alert('配置导出成功');
+            } catch (error) {
+                alert('导出失败: ' + error.message);
+            }
+        }
+
+        // 上传导入
+        async function uploadImport() {
+            const fileInput = document.getElementById('importFile');
+
+            if (!fileInput.files[0]) {
+                alert('请选择配置文件');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            const uploadBtn = document.getElementById('uploadImportBtn');
+            const originalText = uploadBtn.innerHTML;
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 导入中...';
+
+            try {
+                const response = await fetch(`/api/report-templates/${templateId}/import-config`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '导入失败');
+                }
+
+                const result = await response.json();
+                alert(`导入成功！共导入 ${result.inserted_count} 个字段配置`);
+
+                importModal.hide();
+                loadFields();
+            } catch (error) {
+                alert('导入失败: ' + error.message);
+            } finally {
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = originalText;
+            }
+        }
+    </script>
+</body>
+</html>

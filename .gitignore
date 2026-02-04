@@ -6,29 +6,40 @@ __pycache__/
 .Python
 env/
 venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 *.egg-info/
+.installed.cfg
+*.egg
 
-# Database
-*.db
+# Flask
+instance/
+.webassets-cache
+
+# 数据库
 *.db-journal
-database/*.db
-database/*.db-journal
+*.db-wal
+*.db-shm
 
-# Logs
+# 日志
 *.log
 logs/
 
-# Uploads and Exports
-uploads/
+# 运行时生成的文件
 exports/
-*.xlsx
-*.xls
-templates/excel_reports/*.xlsx
-templates/excel_reports/*.xls
-
-# Backups
-backups/
-*.bak
+uploads/
+tmp/
 
 # IDE
 .vscode/
@@ -36,20 +47,21 @@ backups/
 *.swp
 *.swo
 *~
-
-# OS
 .DS_Store
-Thumbs.db
 
-# Environment variables
+# 环境变量
 .env
 .env.local
 
-# Temporary files
-tmp/
-temp/
-*.tmp
+# 测试覆盖
+.coverage
+htmlcov/
+.pytest_cache/
 
-# Flask
-instance/
-.webassets-cache
+# 文档生成
+docs/_build/
+
+# 临时文件
+*.tmp
+*.bak
+*.orig
