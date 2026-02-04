@@ -11,6 +11,11 @@
         .page-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem 0; margin-bottom: 2rem; }
         .search-box { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 1.5rem; }
         .table-card { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .indicator-item { cursor: move; padding: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #e9ecef; border-radius: 4px; background: #fff; }
+        .indicator-item:hover { background: #f8f9fa; }
+        .drag-handle { cursor: grab; color: #6c757d; margin-right: 0.5rem; }
+        .drag-handle:active { cursor: grabbing; }
+        .sortable-ghost { opacity: 0.4; background: #e9ecef; }
     </style>
 </head>
 <body>
@@ -132,6 +137,9 @@
                                     </div>
                                     <div class="form-text mt-2">
                                         <span id="selectedCount">0</span> 个项目已选中
+                                        <button type="button" class="btn btn-sm btn-info ms-3" onclick="openSortModal()" id="sortBtn" style="display:none;">
+                                            <i class="bi bi-arrows-move"></i> 调整顺序
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -146,70 +154,31 @@
         </div>
     </div>
 
-    <!-- 导入文件选择 -->
-    <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none">
-
-    <!-- 导入警告模态框 -->
-    <div class="modal fade" id="importWarningModal" tabindex="-1">
+    <!-- 排序模态框 -->
+    <div class="modal fade" id="sortModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
-                <div class="modal-header bg-warning">
-                    <h5 class="modal-title">
-                        <i class="bi bi-exclamation-triangle-fill"></i> 导入功能严格受限 - 请谨慎使用
-                    </h5>
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-arrows-move"></i> 调整检测项目顺序</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="alert alert-danger">
-                        <h6 class="alert-heading"><i class="bi bi-shield-exclamation"></i> 重要警告</h6>
-                        <p class="mb-0">此功能仅用于特殊情况下的批量导入，不建议日常使用！</p>
-                    </div>
-
-                    <h6 class="mt-3"><i class="bi bi-list-check"></i> 严格校验规则：</h6>
                     <div class="alert alert-info">
-                        <p class="mb-2">导入的Excel必须<strong>严格遵守</strong>以下规则，否则将导入失败：</p>
-                        <ol class="mb-0">
-                            <li><strong>样品类型信息</strong>：样品类型名称、样品代码、说明必须填写</li>
-                            <li><strong>检测项目完整匹配</strong>：每个检测项目必须包含以下<strong>所有字段</strong>：
-                                <ul class="mt-2">
-                                    <li>检测项目名称（必填）</li>
-                                    <li>单位</li>
-                                    <li>所属分组</li>
-                                    <li>限值</li>
-                                    <li>检测方法</li>
-                                    <li>默认值</li>
-                                    <li>备注</li>
-                                </ul>
-                            </li>
-                            <li><strong>严格匹配</strong>：导入的检测项目信息必须与"检测指标管理"中已存在的检测项目<strong>完全一致</strong>（包括名称、单位、分组、限值、检测方法、默认值、备注）</li>
-                            <li><strong>不一致则跳过</strong>：任何字段不匹配的检测项目都会被跳过，不会创建关联</li>
-                        </ol>
+                        <i class="bi bi-info-circle"></i> 拖拽下方的项目可以调整顺序，顺序将在保存样品类型时生效
                     </div>
-
-                    <h6 class="mt-3"><i class="bi bi-download"></i> 推荐操作流程：</h6>
-                    <ol>
-                        <li>点击"导出Excel"按钮，获取标准格式的模板文件</li>
-                        <li>参照导出的文件格式填写新数据</li>
-                        <li>确保所有检测项目信息与系统中已存在的检测指标<strong>完全一致</strong></li>
-                        <li>上传文件进行导入</li>
-                    </ol>
-
-                    <div class="alert alert-warning mt-3">
-                        <strong><i class="bi bi-info-circle"></i> 建议：</strong>
-                        <p class="mb-0">如果只是添加少量样品类型，建议使用"添加样品类型"按钮手动创建，通过勾选的方式关联检测项目更安全可靠！</p>
+                    <div id="sortableList" style="max-height: 500px; overflow-y: auto;">
+                        <!-- 排序项目列表 -->
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" class="btn btn-danger" id="confirmImportBtn">
-                        <i class="bi bi-upload"></i> 我已了解风险，继续导入
-                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
                 </div>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script>
         // 全局变量
         let allData = [];
@@ -263,7 +232,7 @@
             }
         }
 
-        // 渲染检测项目列表
+        // 渲染检测项目列表（按分组显示）
         function renderIndicatorsList(selectedIds = []) {
             const container = document.getElementById('indicatorsList');
             container.innerHTML = '';
@@ -302,9 +271,22 @@
 
                 const groupDiv = document.createElement('div');
                 groupDiv.className = 'mb-3';
+                groupDiv.setAttribute('data-group-id', groupId);
                 groupDiv.innerHTML = `
-                    <div class="fw-bold text-primary mb-2">
-                        <i class="bi bi-folder"></i> ${group.name}
+                    <div class="fw-bold text-primary mb-2 d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-folder"></i> ${group.name}</span>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-outline-primary me-1"
+                                    onclick="toggleGroupIndicators('${groupId}', true)"
+                                    title="全选${group.name}">
+                                <i class="bi bi-check-all"></i> 全选此类
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    onclick="toggleGroupIndicators('${groupId}', false)"
+                                    title="取消全选${group.name}">
+                                <i class="bi bi-x-circle"></i> 取消此类
+                            </button>
+                        </div>
                     </div>
                     <div class="ps-3">
                         ${group.indicators.map(ind => `
@@ -333,6 +315,14 @@
             const checkboxes = document.querySelectorAll('.indicator-checkbox');
             const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
             document.getElementById('selectedCount').textContent = checkedCount;
+
+            // 显示或隐藏排序按钮
+            const sortBtn = document.getElementById('sortBtn');
+            if (checkedCount > 0) {
+                sortBtn.style.display = 'inline-block';
+            } else {
+                sortBtn.style.display = 'none';
+            }
         }
 
         // 全选/取消全选
@@ -342,10 +332,41 @@
             updateSelectedCount();
         }
 
-        // 获取选中的检测项目ID列表
+        // 按分组全选/取消全选
+        function toggleGroupIndicators(groupId, select) {
+            const groupDiv = document.querySelector(`[data-group-id="${groupId}"]`);
+            if (groupDiv) {
+                const checkboxes = groupDiv.querySelectorAll('.indicator-checkbox');
+                checkboxes.forEach(cb => cb.checked = select);
+                updateSelectedCount();
+            }
+        }
+
+        // 获取选中的检测项目ID列表（按当前排序后的顺序）
+        let sortedIndicatorIds = [];  // 存储排序后的ID列表
+
         function getSelectedIndicatorIds() {
             const checkboxes = document.querySelectorAll('.indicator-checkbox:checked');
-            return Array.from(checkboxes).map(cb => parseInt(cb.value));
+            const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+            // 如果有排序记录，按排序顺序返回
+            if (sortedIndicatorIds.length > 0) {
+                const orderedIds = [];
+                sortedIndicatorIds.forEach(id => {
+                    if (selectedIds.includes(id)) {
+                        orderedIds.push(id);
+                    }
+                });
+                // 添加排序列表中没有的新选中项
+                selectedIds.forEach(id => {
+                    if (!orderedIds.includes(id)) {
+                        orderedIds.push(id);
+                    }
+                });
+                return orderedIds;
+            }
+
+            return selectedIds;
         }
 
         // 渲染表格
@@ -373,12 +394,6 @@
                     <td>
                         <button class="btn btn-sm btn-outline-primary" onclick="editItem(${item.id})" title="编辑">
                             <i class="bi bi-pencil"></i> 编辑
-                        </button>
-                        <button class="btn btn-sm btn-success" onclick="exportIndicators(${item.id}, '${item.name}')" title="导出检测项目">
-                            <i class="bi bi-download"></i> 导出
-                        </button>
-                        <button class="btn btn-sm btn-warning" onclick="showImportIndicatorsModal(${item.id}, '${item.name}')" title="导入检测项目">
-                            <i class="bi bi-upload"></i> 导入
                         </button>
                         <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.id}, '${item.name}')" title="删除">
                             <i class="bi bi-trash"></i>
@@ -462,6 +477,7 @@
                 document.getElementById('modalTitle').textContent = '添加样品类型';
                 document.getElementById('editForm').reset();
                 document.getElementById('editId').value = '';
+                sortedIndicatorIds = [];  // 清空排序记录
                 renderIndicatorsList([]);  // 清空选择
                 modal.show();
             });
@@ -485,6 +501,9 @@
                 document.getElementById('editCode').value = item.code || '';
                 document.getElementById('editDescription').value = item.description || '';
                 document.getElementById('editRemark').value = item.remark || '';
+
+                // 保存当前的排序顺序
+                sortedIndicatorIds = item.indicator_ids || [];
 
                 // 渲染检测项目列表并选中已关联的项目
                 renderIndicatorsList(item.indicator_ids || []);
@@ -546,18 +565,6 @@
             }
         }
 
-        // 导出检测项目模板
-        async function exportSampleTypeTemplate(id, name) {
-            try {
-                window.location.href = `/api/export-sample-type-template/${id}`;
-                setTimeout(() => {
-                    alert('检测项目模板导出成功！\n\n请在报告填写页面使用此模板导入检测数据。');
-                }, 500);
-            } catch (error) {
-                alert('导出失败: ' + error.message);
-            }
-        }
-
         // 删除项目
         async function deleteItem(id, name) {
             if (!confirm(`确定要删除样品类型"${name}"吗？`)) return;
@@ -579,98 +586,85 @@
             }
         }
 
-        // 导出单个样品类型的检测项目
-        async function exportIndicators(sampleTypeId, sampleTypeName) {
-            try {
-                window.location.href = `/api/sample-types/${sampleTypeId}/indicators/export`;
-                setTimeout(() => {
-                    alert(`样品类型"${sampleTypeName}"的检测项目已导出！`);
-                }, 500);
-            } catch (error) {
-                alert('导出失败: ' + error.message);
-            }
-        }
+        // 排序功能
+        let sortModal = null;
+        let sortableInstance = null;
 
-        // 显示导入检测项目的模态框
-        let currentImportSampleTypeId = null;
-        let currentImportSampleTypeName = null;
+        function openSortModal() {
+            // 获取当前选中的检测项目
+            const checkboxes = document.querySelectorAll('.indicator-checkbox:checked');
+            const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
 
-        function showImportIndicatorsModal(sampleTypeId, sampleTypeName) {
-            currentImportSampleTypeId = sampleTypeId;
-            currentImportSampleTypeName = sampleTypeName;
-
-            const warningModal = new bootstrap.Modal(document.getElementById('importWarningModal'));
-            warningModal.show();
-        }
-
-        // 确认导入
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('confirmImportBtn').addEventListener('click', () => {
-                const warningModal = bootstrap.Modal.getInstance(document.getElementById('importWarningModal'));
-                warningModal.hide();
-                document.getElementById('importFileInput').click();
-            });
-
-            document.getElementById('importFileInput').addEventListener('change', importIndicatorsFile);
-        });
-
-        // 导入检测项目文件
-        async function importIndicatorsFile(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            if (!currentImportSampleTypeId) {
-                alert('错误：未指定样品类型');
-                e.target.value = '';
+            if (selectedIds.length === 0) {
+                alert('请先选择检测项目');
                 return;
             }
 
-            const formData = new FormData();
-            formData.append('file', file);
-
-            try {
-                const response = await fetch(`/api/sample-types/${currentImportSampleTypeId}/indicators/import`, {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || '导入失败');
-                }
-
-                const result = await response.json();
-
-                // 显示详细的导入结果
-                let message = `样品类型"${currentImportSampleTypeName}"的检测项目导入完成！\n\n`;
-                message += `✓ 成功关联: ${result.matched_count || 0} 个检测项目\n`;
-
-                if (result.skipped_indicators && result.skipped_indicators.length > 0) {
-                    message += `\n⚠ 以下检测项目因信息不匹配被跳过 (${result.skipped_indicators.length}个):\n`;
-                    result.skipped_indicators.slice(0, 5).forEach(item => {
-                        message += `  - ${item}\n`;
-                    });
-                    if (result.skipped_indicators.length > 5) {
-                        message += `  ... 还有 ${result.skipped_indicators.length - 5} 项\n`;
+            // 获取选中项目的详细信息（按当前排序或默认顺序）
+            let selectedIndicators = [];
+            if (sortedIndicatorIds.length > 0) {
+                // 按已保存的排序顺序
+                sortedIndicatorIds.forEach(id => {
+                    if (selectedIds.includes(id)) {
+                        const ind = allIndicators.find(i => i.id === id);
+                        if (ind) selectedIndicators.push(ind);
                     }
-                }
-
-                if (result.errors && result.errors.length > 0) {
-                    message += `\n❌ 错误信息:\n`;
-                    result.errors.slice(0, 3).forEach(err => {
-                        message += `  - ${err}\n`;
-                    });
-                }
-
-                alert(message);
-                loadData();
-            } catch (error) {
-                alert('导入失败: ' + error.message);
-            } finally {
-                e.target.value = '';
-                currentImportSampleTypeId = null;
-                currentImportSampleTypeName = null;
+                });
+                // 添加新选中的项目
+                selectedIds.forEach(id => {
+                    if (!sortedIndicatorIds.includes(id)) {
+                        const ind = allIndicators.find(i => i.id === id);
+                        if (ind) selectedIndicators.push(ind);
+                    }
+                });
+            } else {
+                // 默认顺序
+                selectedIndicators = allIndicators.filter(ind => selectedIds.includes(ind.id));
             }
+
+            // 渲染排序列表
+            const sortableList = document.getElementById('sortableList');
+            sortableList.innerHTML = '';
+
+            selectedIndicators.forEach(ind => {
+                const groupName = indicatorGroups.find(g => g.id === ind.group_id)?.name || '未分组';
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'indicator-item';
+                itemDiv.setAttribute('data-id', ind.id);
+                itemDiv.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <span class="drag-handle me-2"><i class="bi bi-grip-vertical"></i></span>
+                        <div class="flex-grow-1">
+                            <strong>${ind.name}</strong>
+                            ${ind.unit ? `<span class="text-muted small"> (${ind.unit})</span>` : ''}
+                            <span class="badge bg-secondary ms-2">${groupName}</span>
+                            ${ind.remark ? `<br><small class="text-muted"><i class="bi bi-info-circle"></i> ${ind.remark}</small>` : ''}
+                        </div>
+                    </div>
+                `;
+                sortableList.appendChild(itemDiv);
+            });
+
+            // 初始化 Sortable.js
+            if (sortableInstance) {
+                sortableInstance.destroy();
+            }
+            sortableInstance = new Sortable(sortableList, {
+                animation: 150,
+                handle: '.drag-handle',
+                ghostClass: 'sortable-ghost',
+                onEnd: function(evt) {
+                    // 保存排序结果
+                    const items = sortableList.querySelectorAll('.indicator-item');
+                    sortedIndicatorIds = Array.from(items).map(item => parseInt(item.getAttribute('data-id')));
+                }
+            });
+
+            // 显示模态框
+            if (!sortModal) {
+                sortModal = new bootstrap.Modal(document.getElementById('sortModal'));
+            }
+            sortModal.show();
         }
 
     </script>

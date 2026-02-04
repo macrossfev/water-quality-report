@@ -3555,7 +3555,10 @@ async function loadGenReports() {
                 : '<span class="badge bg-secondary">未生成</span>';
 
             const actionButtons = report.generated_report_path
-                ? `<button class="btn btn-sm btn-info me-1" onclick="previewGeneratedReport(${report.id})">
+                ? `<button class="btn btn-sm btn-warning me-1" onclick="openSpreadsheetEditor(${report.id})">
+                       <i class="bi bi-pencil-square"></i> 在线编辑
+                   </button>
+                   <button class="btn btn-sm btn-info me-1" onclick="previewGeneratedReport(${report.id})">
                        <i class="bi bi-eye"></i> 预览
                    </button>
                    <button class="btn btn-sm btn-primary me-1" onclick="downloadReport(${report.id})">
@@ -3564,7 +3567,10 @@ async function loadGenReports() {
                    <button class="btn btn-sm btn-danger" onclick="deleteReport(${report.id}, 'gen')">
                        <i class="bi bi-trash"></i> 删除
                    </button>`
-                : `<button class="btn btn-sm btn-info me-1" onclick="previewBeforeGenerate(${report.id})">
+                : `<button class="btn btn-sm btn-warning me-1" onclick="openSpreadsheetEditor(${report.id})">
+                       <i class="bi bi-pencil-square"></i> 在线编辑
+                   </button>
+                   <button class="btn btn-sm btn-info me-1" onclick="previewBeforeGenerate(${report.id})">
                        <i class="bi bi-eye"></i> 预览
                    </button>
                    <button class="btn btn-sm btn-success me-1" onclick="generateReport(${report.id})">
@@ -4480,5 +4486,286 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化编辑页面的样品来源下拉菜单
     initEditSampleSourceDropdown();
 });
+
+// ==================== 表格编辑器功能 ====================
+
+let currentSpreadsheet = null;
+let currentEditingReportId = null;
+let spreadsheetEditorModal = null;
+
+// 打开表格编辑器 - 新方案：加载完整Excel模板
+async function openSpreadsheetEditor(reportId) {
+    try {
+        console.log('开始加载报告模板，报告ID:', reportId);
+        currentEditingReportId = reportId;
+
+        // 显示加载提示
+        const loadingMsg = '正在加载报告模板...';
+
+        // 调用新的API加载完整的Excel模板
+        const templateData = await apiRequest(`/api/reports/${reportId}/load-template`);
+        console.log('模板数据加载成功:', templateData);
+
+        // 显示报告编号
+        document.getElementById('editorReportNumber').textContent = templateData.report_number || '未知';
+
+        // 初始化模态框
+        if (!spreadsheetEditorModal) {
+            spreadsheetEditorModal = new bootstrap.Modal(document.getElementById('spreadsheetEditorModal'));
+        }
+
+        // 显示模态框
+        spreadsheetEditorModal.show();
+
+        // 等待模态框显示后初始化表格
+        setTimeout(() => {
+            const container = document.getElementById('spreadsheetContainer');
+            container.innerHTML = ''; // 清空容器
+
+            // 将后端返回的sheets数据转换为x-spreadsheet格式
+            const sheetsForEditor = templateData.sheets.map(sheet => ({
+                name: sheet.name,
+                rows: sheet.rows,
+                cols: sheet.cols
+            }));
+
+            console.log('正在初始化x-spreadsheet，sheets数量:', sheetsForEditor.length);
+
+            // 初始化x-spreadsheet（支持多个sheet）
+            currentSpreadsheet = x_spreadsheet(container, {
+                mode: 'edit',
+                showToolbar: true,
+                showGrid: true,
+                showContextmenu: true,
+                view: {
+                    height: () => container.clientHeight,
+                    width: () => container.clientWidth
+                },
+                row: {
+                    len: 100,
+                    height: 25
+                },
+                col: {
+                    len: 26,
+                    width: 100,
+                    indexWidth: 60,
+                    minWidth: 60
+                }
+            });
+
+            // 加载所有sheets数据
+            if (sheetsForEditor.length > 0) {
+                currentSpreadsheet.loadData(sheetsForEditor);
+                console.log('表格数据加载完成');
+            }
+        }, 300);
+
+    } catch (error) {
+        console.error('打开表格编辑器失败:', error);
+        alert('打开编辑器失败: ' + error.message);
+    }
+}
+
+// 加载报告基本信息到表单
+function loadReportBasicInfo(report) {
+    // 解析remark JSON（如果存在）
+    let remarkData = {};
+    try {
+        if (report.remark && typeof report.remark === 'string' && report.remark.startsWith('{')) {
+            remarkData = JSON.parse(report.remark);
+        }
+    } catch (e) {
+        console.log('remark不是JSON格式:', report.remark);
+    }
+
+    document.getElementById('edit_report_number').value = report.report_number || '';
+    document.getElementById('edit_sample_number').value = report.sample_number || '';
+    document.getElementById('edit_customer_unit').value = remarkData.customer_unit || '';
+    document.getElementById('edit_customer_plant').value = remarkData.customer_plant || '';
+    document.getElementById('edit_sample_type').value = report.sample_type_name || '';
+    document.getElementById('edit_sample_source').value = report.sample_source || remarkData.sample_source || '';
+    document.getElementById('edit_sampling_location').value = report.sampling_location || remarkData.sampling_location || '';
+    document.getElementById('edit_sampler').value = report.sampler || remarkData.sampler || '';
+    document.getElementById('edit_sampling_date').value = report.sampling_date || remarkData.sampling_date || '';
+    document.getElementById('edit_sample_received_date').value = report.sample_received_date || '';
+    document.getElementById('edit_detection_date').value = report.detection_date || '';
+    document.getElementById('edit_report_date').value = report.report_date || '';
+    document.getElementById('edit_detection_person').value = report.detection_person || '';
+    document.getElementById('edit_review_person').value = report.review_person || '';
+    document.getElementById('edit_sample_status').value = report.sample_status || remarkData.sample_status || '';
+    document.getElementById('edit_sampling_basis').value = report.sampling_basis || '';
+    document.getElementById('edit_product_standard').value = report.product_standard || '';
+    document.getElementById('edit_test_conclusion').value = report.test_conclusion || '';
+
+    // 如果remark不是JSON，显示原始文本
+    if (!report.remark || typeof report.remark !== 'string' || !report.remark.startsWith('{')) {
+        document.getElementById('edit_remark').value = report.remark || '';
+    } else {
+        document.getElementById('edit_remark').value = remarkData.remark || '';
+    }
+}
+
+// 转换报告数据为x-spreadsheet格式
+function convertReportToSpreadsheet(report) {
+    const rows = {};
+    let rowIndex = 0;
+
+    // 表头行
+    rows[rowIndex] = {
+        cells: {
+            0: { text: '序号', style: 0 },
+            1: { text: '检测项目', style: 0 },
+            2: { text: '单位', style: 0 },
+            3: { text: '检测结果', style: 0 },
+            4: { text: '限值', style: 0 },
+            5: { text: '分组', style: 0 },
+            6: { text: '备注', style: 0 }
+        }
+    };
+    rowIndex++;
+
+    // 数据行
+    if (report.data && report.data.length > 0) {
+        report.data.forEach((item, index) => {
+            rows[rowIndex] = {
+                cells: {
+                    0: { text: (index + 1).toString() },
+                    1: { text: item.indicator_name || '' },
+                    2: { text: item.unit || '' },
+                    3: { text: item.measured_value || '', editable: true },
+                    4: { text: item.limit_value || '' },
+                    5: { text: item.group_name || '' },
+                    6: { text: item.remark || '', editable: true }
+                }
+            };
+            rowIndex++;
+        });
+    }
+
+    // 定义样式
+    const styles = [
+        {
+            bgcolor: '#4472C4',
+            color: '#ffffff',
+            bold: true,
+            align: 'center'
+        }
+    ];
+
+    return {
+        name: '检测数据',
+        freeze: 'A2',
+        styles: styles,
+        rows: rows,
+        cols: {
+            len: 7,
+            0: { width: 60 },
+            1: { width: 150 },
+            2: { width: 80 },
+            3: { width: 120 },
+            4: { width: 120 },
+            5: { width: 100 },
+            6: { width: 200 }
+        }
+    };
+}
+
+// 将表格数据转换回报告格式
+function convertSpreadsheetToReport(spreadsheetData) {
+    const reportData = [];
+    const rows = spreadsheetData.rows;
+
+    // 从第二行开始读取（跳过表头）
+    for (let i = 1; i < Object.keys(rows).length; i++) {
+        const row = rows[i];
+        if (!row || !row.cells) continue;
+
+        const cells = row.cells;
+
+        // 只有检测项目名称不为空才添加
+        if (cells[1] && cells[1].text) {
+            reportData.push({
+                indicator_name: cells[1].text || '',
+                unit: cells[2] ? cells[2].text : '',
+                measured_value: cells[3] ? cells[3].text : '',
+                limit_value: cells[4] ? cells[4].text : '',
+                group_name: cells[5] ? cells[5].text : '',
+                remark: cells[6] ? cells[6].text : ''
+            });
+        }
+    }
+
+    return reportData;
+}
+
+// 保存编辑后的Excel（新方案）
+async function saveCompleteReportData() {
+    try {
+        console.log('=== 开始保存编辑后的Excel ===');
+        console.log('当前报告ID:', currentEditingReportId);
+
+        if (!currentEditingReportId) {
+            alert('没有可保存的数据');
+            return;
+        }
+
+        if (!currentSpreadsheet) {
+            alert('编辑器未初始化');
+            return;
+        }
+
+        // 获取所有sheets的数据
+        console.log('正在获取编辑器数据...');
+        const allSheetsData = currentSpreadsheet.getData();
+        console.log('获取到的sheets数据:', allSheetsData);
+
+        // 构建要发送的数据
+        const requestData = {
+            sheets: Array.isArray(allSheetsData) ? allSheetsData : [allSheetsData]
+        };
+
+        console.log('准备发送的数据:', requestData);
+
+        // 调用新的保存API
+        console.log('正在调用保存API...');
+        const result = await apiRequest(`/api/reports/${currentEditingReportId}/save-from-editor`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestData)
+        });
+
+        console.log('保存成功！', result);
+        alert('保存成功！新文件已生成: ' + result.file_path);
+
+        // 刷新报告生成列表
+        if (typeof loadGenReports === 'function') {
+            loadGenReports();
+        }
+
+    } catch (error) {
+        console.error('=== 保存失败 ===');
+        console.error('错误对象:', error);
+        console.error('错误消息:', error.message);
+        console.error('错误堆栈:', error.stack);
+        alert('保存失败: ' + error.message);
+    }
+}
+
+// 保存并关闭编辑器
+async function saveAndRegenerateExcel() {
+    try {
+        // 保存数据
+        await saveCompleteReportData();
+
+        // 关闭模态框
+        if (spreadsheetEditorModal) {
+            spreadsheetEditorModal.hide();
+        }
+
+    } catch (error) {
+        console.error('保存失败:', error);
+        alert('操作失败: ' + error.message);
+    }
+}
 
 console.log('水质检测报告系统V2前端已加载');

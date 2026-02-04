@@ -7,6 +7,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
+    <!-- x-spreadsheet 表格编辑器 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/x-data-spreadsheet@1.1.9/dist/xspreadsheet.css">
 </head>
 <body>
     <!-- 导航栏 -->
@@ -1053,7 +1055,171 @@
         </div>
     </div>
 
+    <!-- 表格编辑模态框 -->
+    <div class="modal fade" id="spreadsheetEditorModal" tabindex="-1">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-table"></i> 在线编辑报告 - <span id="editorReportNumber"></span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <!-- 工具栏 -->
+                    <div class="bg-light border-bottom p-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="badge bg-info">提示：可编辑报告基本信息和检测数据</span>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-success me-2" onclick="saveCompleteReportData()">
+                                    <i class="bi bi-save"></i> 保存修改
+                                </button>
+                                <button class="btn btn-sm btn-primary me-2" onclick="saveAndRegenerateExcel()">
+                                    <i class="bi bi-file-earmark-arrow-down"></i> 保存并重新生成Excel
+                                </button>
+                                <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">
+                                    <i class="bi bi-x-circle"></i> 关闭
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 标签页导航 -->
+                    <ul class="nav nav-tabs px-3 pt-2 bg-light" id="editorTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="basic-info-tab" data-bs-toggle="tab"
+                                    data-bs-target="#basic-info-panel" type="button" role="tab">
+                                <i class="bi bi-info-circle"></i> 报告基本信息
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="test-data-tab" data-bs-toggle="tab"
+                                    data-bs-target="#test-data-panel" type="button" role="tab">
+                                <i class="bi bi-table"></i> 检测数据
+                            </button>
+                        </li>
+                    </ul>
+
+                    <!-- 标签页内容 -->
+                    <div class="tab-content" style="height: calc(100vh - 210px); overflow-y: auto;">
+                        <!-- 报告基本信息标签页 -->
+                        <div class="tab-pane fade show active" id="basic-info-panel" role="tabpanel">
+                            <div class="container-fluid p-4">
+                                <form id="reportBasicInfoForm">
+                                    <div class="row">
+                                        <!-- 左列 -->
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">报告编号</label>
+                                                <input type="text" class="form-control" id="edit_report_number" readonly>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">样品编号 <span class="text-danger">*</span></label>
+                                                <input type="text" class="form-control" id="edit_sample_number" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">委托单位(客户单位)</label>
+                                                <input type="text" class="form-control" id="edit_customer_unit">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">水厂名称</label>
+                                                <input type="text" class="form-control" id="edit_customer_plant">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">样品类型</label>
+                                                <input type="text" class="form-control" id="edit_sample_type" readonly>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">样品来源</label>
+                                                <input type="text" class="form-control" id="edit_sample_source">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">采样地点</label>
+                                                <input type="text" class="form-control" id="edit_sampling_location">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">采样人</label>
+                                                <input type="text" class="form-control" id="edit_sampler">
+                                            </div>
+                                        </div>
+
+                                        <!-- 右列 -->
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">采样日期</label>
+                                                <input type="date" class="form-control" id="edit_sampling_date">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">收样日期</label>
+                                                <input type="date" class="form-control" id="edit_sample_received_date">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">检测日期</label>
+                                                <input type="date" class="form-control" id="edit_detection_date">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">报告日期</label>
+                                                <input type="date" class="form-control" id="edit_report_date">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">检测人</label>
+                                                <input type="text" class="form-control" id="edit_detection_person">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">审核人</label>
+                                                <input type="text" class="form-control" id="edit_review_person">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">样品状态</label>
+                                                <input type="text" class="form-control" id="edit_sample_status">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-12">
+                                            <div class="mb-3">
+                                                <label class="form-label">采样依据</label>
+                                                <textarea class="form-control" id="edit_sampling_basis" rows="2"></textarea>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">产品标准</label>
+                                                <textarea class="form-control" id="edit_product_standard" rows="2"></textarea>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">检测结论</label>
+                                                <textarea class="form-control" id="edit_test_conclusion" rows="2"></textarea>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">备注</label>
+                                                <textarea class="form-control" id="edit_remark" rows="2"></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- 检测数据标签页 -->
+                        <div class="tab-pane fade" id="test-data-panel" role="tabpanel">
+                            <div class="p-2">
+                                <div class="alert alert-info mb-2">
+                                    <i class="bi bi-info-circle"></i> 双击单元格进行编辑。只能编辑"检测结果"和"备注"列。
+                                </div>
+                            </div>
+                            <div id="spreadsheetContainer" style="height: calc(100vh - 280px);"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- x-spreadsheet 表格编辑器 -->
+    <script src="https://cdn.jsdelivr.net/npm/x-data-spreadsheet@1.1.9/dist/xspreadsheet.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>
