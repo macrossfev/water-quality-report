@@ -338,12 +338,12 @@ def api_sample_types():
             )
             sample_type_id = cursor.lastrowid
 
-            # 添加检测项目关联
+            # 添加检测项目关联（使用间隔序号）
             if indicator_ids:
                 for idx, indicator_id in enumerate(indicator_ids):
                     cursor.execute(
                         'INSERT INTO template_indicators (sample_type_id, indicator_id, sort_order) VALUES (?, ?, ?)',
-                        (sample_type_id, indicator_id, idx)
+                        (sample_type_id, indicator_id, idx * 10)  # 使用间隔序号 0, 10, 20, 30...
                     )
 
             conn.commit()
@@ -424,35 +424,64 @@ def api_sample_type_detail(id):
         description = data.get('description', '')
         remark = data.get('remark', '')
         indicator_ids = data.get('indicator_ids', [])  # 检测项目ID列表
+        client_version = data.get('version')  # 客户端的版本号
 
         if not name or not code:
             return jsonify({'error': '样品类型名称和代码不能为空'}), 400
 
         try:
             cursor = conn.cursor()
+
+            # 获取当前版本号进行乐观锁检查
+            current = cursor.execute(
+                'SELECT version FROM sample_types WHERE id = ?', (id,)
+            ).fetchone()
+
+            if not current:
+                conn.close()
+                return jsonify({'error': '样品类型不存在'}), 404
+
+            current_version = current['version'] if current['version'] else 1
+
+            # 版本号检查：如果客户端提供了版本号，检查是否匹配
+            if client_version is not None and current_version != client_version:
+                conn.close()
+                return jsonify({
+                    'error': '数据已被其他用户修改，请刷新页面后重试',
+                    'conflict': True,
+                    'current_version': current_version
+                }), 409  # 409 Conflict
+
+            # 更新样品类型，版本号+1
+            new_version = current_version + 1
             cursor.execute(
-                'UPDATE sample_types SET name = ?, code = ?, description = ?, remark = ? WHERE id = ?',
-                (name, code, description, remark, id)
+                'UPDATE sample_types SET name = ?, code = ?, description = ?, remark = ?, version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                (name, code, description, remark, new_version, id)
             )
 
-            # 更新检测项目关联：先删除旧关联，再添加新关联
+            # 更新检测项目关联：先删除旧关联，再添加新关联（使用间隔序号）
             cursor.execute('DELETE FROM template_indicators WHERE sample_type_id = ?', (id,))
 
             if indicator_ids:
                 for idx, indicator_id in enumerate(indicator_ids):
                     cursor.execute(
                         'INSERT INTO template_indicators (sample_type_id, indicator_id, sort_order) VALUES (?, ?, ?)',
-                        (id, indicator_id, idx)
+                        (id, indicator_id, idx * 10)  # 使用间隔序号 0, 10, 20, 30...
                     )
 
             conn.commit()
             conn.close()
 
-            log_operation('更新样品类型', f'更新样品类型: {name} ({code})，关联{len(indicator_ids)}个检测项目')
-            return jsonify({'message': '样品类型更新成功'})
+            log_operation('更新样品类型', f'更新样品类型: {name} ({code})，关联{len(indicator_ids)}个检测项目 (v{current_version}->v{new_version})')
+            return jsonify({
+                'message': '样品类型更新成功',
+                'version': new_version
+            })
         except Exception as e:
             conn.close()
-            return jsonify({'error': '样品类型名称或代码已存在'}), 400
+            if 'UNIQUE constraint failed' in str(e):
+                return jsonify({'error': '样品类型名称或代码已存在'}), 400
+            return jsonify({'error': f'更新失败: {str(e)}'}), 400
 
 # ==================== 检测项目分组管理 API ====================
 @app.route('/api/indicator-groups', methods=['GET', 'POST'])

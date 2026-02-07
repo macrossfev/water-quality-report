@@ -82,7 +82,9 @@ def init_database():
             code TEXT NOT NULL UNIQUE,
             description TEXT,
             remark TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            version INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
 
@@ -287,6 +289,23 @@ def init_database():
         print("正在迁移reports表，添加attachment_info列...")
         cursor.execute('ALTER TABLE reports ADD COLUMN attachment_info TEXT')
         print("reports表迁移完成（attachment_info）！")
+
+    # 检查sample_types表是否有version和updated_at列
+    cursor.execute("PRAGMA table_info(sample_types)")
+    sample_type_columns = [row[1] for row in cursor.fetchall()]
+
+    if 'version' not in sample_type_columns:
+        print("正在迁移sample_types表，添加version列...")
+        cursor.execute('ALTER TABLE sample_types ADD COLUMN version INTEGER DEFAULT 1')
+        print("sample_types表迁移完成（version）！")
+
+    if 'updated_at' not in sample_type_columns:
+        print("正在迁移sample_types表，添加updated_at列...")
+        # SQLite不支持ALTER TABLE时使用CURRENT_TIMESTAMP，需要分两步
+        cursor.execute('ALTER TABLE sample_types ADD COLUMN updated_at TIMESTAMP')
+        # 为现有记录设置默认值
+        cursor.execute("UPDATE sample_types SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL")
+        print("sample_types表迁移完成（updated_at）！")
 
     conn.commit()
 

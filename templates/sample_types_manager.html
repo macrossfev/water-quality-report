@@ -11,11 +11,10 @@
         .page-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem 0; margin-bottom: 2rem; }
         .search-box { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 1.5rem; }
         .table-card { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .indicator-item { cursor: move; padding: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #e9ecef; border-radius: 4px; background: #fff; }
-        .indicator-item:hover { background: #f8f9fa; }
-        .drag-handle { cursor: grab; color: #6c757d; margin-right: 0.5rem; }
-        .drag-handle:active { cursor: grabbing; }
-        .sortable-ghost { opacity: 0.4; background: #e9ecef; }
+        .sticky-top { position: sticky; top: 0; z-index: 10; background: white; }
+        .sort-order-input::-webkit-outer-spin-button,
+        .sort-order-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .sort-order-input { -moz-appearance: textfield; }
     </style>
 </head>
 <body>
@@ -159,26 +158,51 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-arrows-move"></i> 调整检测项目顺序</h5>
+                    <h5 class="modal-title"><i class="bi bi-list-ol"></i> 调整检测项目顺序</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i> 拖拽下方的项目可以调整顺序，顺序将在保存样品类型时生效
+                        <i class="bi bi-info-circle"></i> 在"序号"列输入数字调整顺序（如1,2,3...），点击"应用排序"按钮生效
                     </div>
-                    <div id="sortableList" style="max-height: 500px; overflow-y: auto;">
-                        <!-- 排序项目列表 -->
+                    <div class="mb-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <button type="button" class="btn btn-sm btn-primary" onclick="applySort()">
+                                <i class="bi bi-check-circle"></i> 应用排序
+                            </button>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="resetSort()">
+                                <i class="bi bi-arrow-counterclockwise"></i> 重置为原始顺序
+                            </button>
+                        </div>
+                        <small class="text-muted">提示：序号相同时保持原有顺序</small>
+                    </div>
+                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th width="15%">序号</th>
+                                    <th width="35%">检测项目名称</th>
+                                    <th width="15%">单位</th>
+                                    <th width="35%">分组</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sortableList">
+                                <!-- 排序项目列表 -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="button" class="btn btn-primary" onclick="applySortAndClose()">
+                        <i class="bi bi-check-lg"></i> 应用并关闭
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script>
         // 全局变量
         let allData = [];
@@ -188,6 +212,7 @@
         const modal = new bootstrap.Modal(document.getElementById('editModal'));
         let allIndicators = [];  // 所有检测项目
         let indicatorGroups = [];  // 检测项目分组
+        let currentVersion = null;  // 当前编辑项的版本号
 
         // 初始化
         document.addEventListener('DOMContentLoaded', function() {
@@ -477,6 +502,7 @@
                 document.getElementById('modalTitle').textContent = '添加样品类型';
                 document.getElementById('editForm').reset();
                 document.getElementById('editId').value = '';
+                currentVersion = null;  // 清空版本号
                 sortedIndicatorIds = [];  // 清空排序记录
                 renderIndicatorsList([]);  // 清空选择
                 modal.show();
@@ -502,7 +528,8 @@
                 document.getElementById('editDescription').value = item.description || '';
                 document.getElementById('editRemark').value = item.remark || '';
 
-                // 保存当前的排序顺序
+                // 保存当前的版本号和排序顺序
+                currentVersion = item.version || 1;
                 sortedIndicatorIds = item.indicator_ids || [];
 
                 // 渲染检测项目列表并选中已关联的项目
@@ -536,6 +563,11 @@
                 indicator_ids  // 包含选中的检测项目ID列表
             };
 
+            // 如果是更新操作，附加版本号
+            if (id && currentVersion !== null) {
+                data.version = currentVersion;
+            }
+
             try {
                 let response;
                 if (id) {
@@ -554,7 +586,33 @@
 
                 if (!response.ok) {
                     const error = await response.json();
+
+                    // 处理版本冲突
+                    if (response.status === 409 && error.conflict) {
+                        const retry = confirm(
+                            '数据已被其他用户修改！\n\n' +
+                            '可能的原因：\n' +
+                            '1. 其他管理员同时编辑了此样品类型\n' +
+                            '2. 您在多个浏览器标签页中打开了编辑界面\n\n' +
+                            '点击"确定"关闭此窗口并刷新列表，查看最新数据\n' +
+                            '点击"取消"留在此页面（您的修改将不会保存）'
+                        );
+
+                        if (retry) {
+                            modal.hide();
+                            loadData();
+                        }
+                        return;
+                    }
+
                     throw new Error(error.error || '保存失败');
+                }
+
+                const result = await response.json();
+
+                // 更新版本号
+                if (result.version) {
+                    currentVersion = result.version;
                 }
 
                 modal.hide();
@@ -588,7 +646,7 @@
 
         // 排序功能
         let sortModal = null;
-        let sortableInstance = null;
+        let originalSortOrder = []; // 保存原始顺序用于重置
 
         function openSortModal() {
             // 获取当前选中的检测项目
@@ -622,49 +680,118 @@
                 selectedIndicators = allIndicators.filter(ind => selectedIds.includes(ind.id));
             }
 
+            // 保存原始顺序
+            originalSortOrder = selectedIndicators.map(ind => ind.id);
+
             // 渲染排序列表
-            const sortableList = document.getElementById('sortableList');
-            sortableList.innerHTML = '';
-
-            selectedIndicators.forEach(ind => {
-                const groupName = indicatorGroups.find(g => g.id === ind.group_id)?.name || '未分组';
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'indicator-item';
-                itemDiv.setAttribute('data-id', ind.id);
-                itemDiv.innerHTML = `
-                    <div class="d-flex align-items-center">
-                        <span class="drag-handle me-2"><i class="bi bi-grip-vertical"></i></span>
-                        <div class="flex-grow-1">
-                            <strong>${ind.name}</strong>
-                            ${ind.unit ? `<span class="text-muted small"> (${ind.unit})</span>` : ''}
-                            <span class="badge bg-secondary ms-2">${groupName}</span>
-                            ${ind.remark ? `<br><small class="text-muted"><i class="bi bi-info-circle"></i> ${ind.remark}</small>` : ''}
-                        </div>
-                    </div>
-                `;
-                sortableList.appendChild(itemDiv);
-            });
-
-            // 初始化 Sortable.js
-            if (sortableInstance) {
-                sortableInstance.destroy();
-            }
-            sortableInstance = new Sortable(sortableList, {
-                animation: 150,
-                handle: '.drag-handle',
-                ghostClass: 'sortable-ghost',
-                onEnd: function(evt) {
-                    // 保存排序结果
-                    const items = sortableList.querySelectorAll('.indicator-item');
-                    sortedIndicatorIds = Array.from(items).map(item => parseInt(item.getAttribute('data-id')));
-                }
-            });
+            renderSortList(selectedIndicators);
 
             // 显示模态框
             if (!sortModal) {
                 sortModal = new bootstrap.Modal(document.getElementById('sortModal'));
             }
             sortModal.show();
+        }
+
+        // 渲染排序列表
+        function renderSortList(selectedIndicators) {
+            const sortableList = document.getElementById('sortableList');
+            sortableList.innerHTML = '';
+
+            selectedIndicators.forEach((ind, index) => {
+                const groupName = indicatorGroups.find(g => g.id === ind.group_id)?.name || '未分组';
+                const row = document.createElement('tr');
+                row.setAttribute('data-id', ind.id);
+                row.innerHTML = `
+                    <td>
+                        <input type="number"
+                               class="form-control form-control-sm sort-order-input"
+                               value="${index + 1}"
+                               min="1"
+                               max="${selectedIndicators.length}"
+                               data-id="${ind.id}"
+                               style="width: 80px;">
+                    </td>
+                    <td>
+                        <strong>${ind.name}</strong>
+                        ${ind.remark ? `<br><small class="text-muted">${ind.remark}</small>` : ''}
+                    </td>
+                    <td>${ind.unit || '-'}</td>
+                    <td><span class="badge bg-secondary">${groupName}</span></td>
+                `;
+                sortableList.appendChild(row);
+            });
+        }
+
+        // 应用排序
+        function applySort() {
+            const inputs = document.querySelectorAll('.sort-order-input');
+
+            // 收集所有项目及其序号
+            const items = Array.from(inputs).map(input => ({
+                id: parseInt(input.getAttribute('data-id')),
+                order: parseInt(input.value) || 999
+            }));
+
+            // 按序号排序
+            items.sort((a, b) => a.order - b.order);
+
+            // 更新排序后的ID列表
+            sortedIndicatorIds = items.map(item => item.id);
+
+            // 重新渲染列表以反映新顺序
+            const selectedIndicators = sortedIndicatorIds.map(id =>
+                allIndicators.find(ind => ind.id === id)
+            ).filter(ind => ind);
+
+            renderSortList(selectedIndicators);
+
+            // 显示提示
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-success alert-dismissible fade show mt-2';
+            alertDiv.innerHTML = `
+                <i class="bi bi-check-circle"></i> 排序已应用！列表已按新序号重新排列
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.querySelector('#sortModal .modal-body').insertBefore(
+                alertDiv,
+                document.querySelector('#sortModal .table-responsive')
+            );
+
+            // 3秒后自动关闭提示
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 3000);
+        }
+
+        // 重置为原始顺序
+        function resetSort() {
+            if (originalSortOrder.length === 0) {
+                alert('没有可重置的顺序');
+                return;
+            }
+
+            sortedIndicatorIds = [...originalSortOrder];
+
+            const selectedIndicators = sortedIndicatorIds.map(id =>
+                allIndicators.find(ind => ind.id === id)
+            ).filter(ind => ind);
+
+            renderSortList(selectedIndicators);
+
+            alert('已重置为原始顺序');
+        }
+
+        // 应用并关闭
+        function applySortAndClose() {
+            applySort();
+
+            // 延迟关闭，让用户看到成功提示
+            setTimeout(() => {
+                if (sortModal) {
+                    sortModal.hide();
+                }
+            }, 500);
         }
 
     </script>

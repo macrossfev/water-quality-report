@@ -65,3 +65,6 @@ docs/_build/
 *.tmp
 *.bak
 *.orig
+
+# 数据库文件（不提交实际数据）
+*.db
