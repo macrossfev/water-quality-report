@@ -27,12 +27,16 @@ class ReportGenerator:
         self.template_info = None
         self.workbook = None
 
-    def generate(self, output_path=None):
+    def generate(self, output_path=None, filename_template=None, export_format='xlsx'):
         """
         生成报告
 
         Args:
             output_path: 输出文件路径，如果为None则自动生成
+            filename_template: 文件名模板，支持变量：{report_number}, {sampling_location}, {timestamp}
+                              示例: "{sampling_location}_{timestamp}" 或 "{sampling_location}_{report_number}"
+                              默认: "report_{report_number}_{timestamp}"
+            export_format: 导出格式，支持 'xlsx' 或 'pdf'，默认 'xlsx'
 
         Returns:
             str: 生成的文件路径
@@ -45,9 +49,28 @@ class ReportGenerator:
 
         # 3. 复制模版文件
         if output_path is None:
+            # 生成文件名
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            report_number = self.report_data.get('report_number', 'report')
-            output_path = f"exports/report_{report_number}_{timestamp}.xlsx"
+
+            # 如果没有指定模板，使用默认模板
+            if filename_template is None:
+                filename_template = "report_{report_number}_{timestamp}"
+
+            # 准备变量替换
+            variables = {
+                'report_number': self.report_data.get('report_number', 'report'),
+                'sampling_location': self.report_data.get('sampling_location', ''),
+                'timestamp': timestamp
+            }
+
+            # 替换变量
+            filename = filename_template.format(**variables)
+
+            # 清理文件名中的非法字符
+            filename = self._sanitize_filename(filename)
+
+            # 先生成Excel文件
+            output_path = f"exports/{filename}.xlsx"
 
         os.makedirs('exports', exist_ok=True)
         shutil.copy2(self.template_info['template_file_path'], output_path)
@@ -58,9 +81,18 @@ class ReportGenerator:
         # 5. 填充数据
         self._fill_data()
 
-        # 6. 保存文件
+        # 6. 保存Excel文件
         self.workbook.save(output_path)
         self.workbook.close()
+
+        # 7. 如果需要PDF格式，进行转换
+        if export_format.lower() == 'pdf':
+            pdf_path = self._convert_to_pdf(output_path)
+            if pdf_path:
+                return pdf_path
+            else:
+                print("⚠ PDF转换失败，返回Excel文件")
+                return output_path
 
         return output_path
 
@@ -233,11 +265,21 @@ class ReportGenerator:
                 continue
 
             # 控制标记：数据区结束标记
-            if field_type == 'control_mark' and field.get('control_type') == 'data_region_end':
+            # 修复：数据库中没有control_type字段，通过field_type和field_name识别
+            if field_type == 'control_mark' and field_name == 'data_region_end':
                 from openpyxl.utils.cell import coordinate_from_string
                 _, end_row = coordinate_from_string(cell_address)
                 data_region_ends[sheet_name] = end_row
-                print(f"数据区结束标记: {sheet_name} 最大行 {end_row}")
+                print(f"✓ 数据区结束标记: 工作表 {sheet_name}, 结束行 {end_row}, 单元格 {cell_address}")
+
+                # 清除控制标记单元格内容和格式，避免在报告中显示
+                cell = ws[cell_address]
+                cell.value = None
+                # 清除背景色
+                from openpyxl.styles import PatternFill
+                cell.fill = PatternFill(fill_type=None)
+                print(f"  已清除控制标记显示和背景色")
+
                 continue
 
             # 根据字段类型填充数据
@@ -527,6 +569,99 @@ class ReportGenerator:
             # 检测方法
             worksheet.cell(row, start_col + 5).value = item.get('method', '')
 
+    def _format_detection_method(self, method_text):
+        """
+        格式化检测方法，自动在标准编号和方法名称之间添加换行
+
+        Args:
+            method_text: 原始检测方法文本
+
+        Returns:
+            str: 格式化后的检测方法（包含换行符）
+
+        示例：
+            输入: "GB/T 5750.5-2023 4.2 离子色谱法"
+            输出: "GB/T 5750.5-2023 4.2\n离子色谱法"
+        """
+        if not method_text or '\n' in method_text:
+            return method_text  # 已经包含换行符，直接返回
+
+        import re
+
+        # 匹配标准编号模式: GB/T xxxx-xxxx 或 GB xxxx-xxxx
+        # 策略：先匹配标准编号，然后在剩余部分找第一个汉字位置进行分割
+        pattern = r'^((?:GB/?T?|HJ|CJ)\s*\d+(?:\.\d+)?-\d+)\s*(.+)$'
+
+        match = re.match(pattern, method_text, re.IGNORECASE)
+        if match:
+            standard = match.group(1).strip()  # 标准编号部分 (如 GB/T 5750.4-2023)
+            suffix = match.group(2).strip()     # 剩余部分 (如 "7.1直接观察法" 或 "4.2 离子色谱法")
+
+            # 在suffix中找第一个汉字的位置
+            chinese_match = re.search(r'[\u4e00-\u9fff]', suffix)
+            if chinese_match:
+                pos = chinese_match.start()
+                chapter = suffix[:pos].strip()   # 章节号 (如 "7.1" 或 "4.2")
+                method_name = suffix[pos:].strip()  # 方法名 (如 "直接观察法" 或 "离子色谱法")
+
+                if chapter:
+                    # 有章节号，标准编号+章节号一行，方法名另一行
+                    return f"{standard} {chapter}\n{method_name}"
+                else:
+                    # 没有章节号，标准编号一行，方法名另一行
+                    return f"{standard}\n{method_name}"
+            else:
+                # suffix中没有汉字（纯数字/字母），不分割
+                return f"{standard}\n{suffix}"
+
+        # 如果没有匹配到标准模式，尝试其他常见分隔
+        # 例如：按最后一个数字后的空格分隔
+        parts = method_text.rsplit(' ', 1)
+        if len(parts) == 2 and parts[1] and not parts[1][0].isdigit():
+            return f"{parts[0]}\n{parts[1]}"
+
+        return method_text  # 无法识别模式，返回原文
+
+    def _auto_adjust_row_height(self, sheet_name, start_row, row_count):
+        """
+        根据单元格内容自动调整行高
+
+        Args:
+            sheet_name: 工作表名称
+            start_row: 起始行号
+            row_count: 需要调整的行数
+        """
+        if sheet_name not in self.workbook.sheetnames:
+            return
+
+        ws = self.workbook[sheet_name]
+
+        for i in range(row_count):
+            row_num = start_row + i
+            max_lines = 1
+
+            # 检查该行所有单元格，找出最大行数
+            for cell in ws[row_num]:
+                if cell.value:
+                    cell_text = str(cell.value)
+                    lines = cell_text.count('\n') + 1
+                    max_lines = max(max_lines, lines)
+
+            # 根据行数计算高度
+            # 优化为适应A4打印：22行数据需要控制在约600点以内
+            # 单行：17点，双行：26点，三行：35点
+            base_height = 8
+            line_height = 9
+            calculated_height = base_height + (max_lines * line_height)
+
+            # 限制在合理范围内
+            min_height = 15
+            max_height = 80  # 降低最大高度限制
+            final_height = max(min_height, min(calculated_height, max_height))
+
+            # 设置行高
+            ws.row_dimensions[row_num].height = final_height
+
     def _fill_detection_data_by_columns(self, detection_columns, data_region_ends):
         """
         使用动态列位置填充检测数据，支持跨页填充
@@ -630,20 +765,39 @@ class ReportGenerator:
                     elif mapping == 'limit':
                         value = item.get('limit', '')
                     elif mapping == 'method':
-                        value = item.get('method', '')
+                        raw_method = item.get('method', '')
+                        value = self._format_detection_method(raw_method)  # 格式化检测方法
                     elif mapping == 'judgment':
                         value = item.get('judgment', '')
                     else:
                         value = ''
 
                     try:
-                        ws.cell(row=current_row, column=col_index).value = value
+                        cell = ws.cell(row=current_row, column=col_index)
+                        cell.value = value
+
+                        # 如果值包含换行符，启用自动换行
+                        if value and isinstance(value, str) and '\n' in value:
+                            from openpyxl.styles import Alignment
+                            # 保持现有对齐方式，只启用换行
+                            current_alignment = cell.alignment
+                            cell.alignment = Alignment(
+                                horizontal=current_alignment.horizontal or 'center',
+                                vertical=current_alignment.vertical or 'center',
+                                wrap_text=True  # 启用自动换行
+                            )
+
                         if i == 0:  # 只打印第一行的详细信息
                             print(f"  列 {mapping}: {col_letter}{current_row} = '{value}'")
                     except Exception as e:
                         print(f"  ✗ 填充失败 {col_letter}{current_row}: {e}")
 
             print(f"  ✓ 已填充 {items_to_fill} 行到 {sheet_name}")
+
+            # 自动调整行高
+            self._auto_adjust_row_height(sheet_name, start_row, items_to_fill)
+            print(f"  ✓ 已自动调整行高")
+
             item_index += items_to_fill
 
             # 如果所有数据都已填充完，退出循环
@@ -655,6 +809,107 @@ class ReportGenerator:
 
         if item_index < len(detection_items):
             print(f"⚠ 警告: 有 {len(detection_items) - item_index} 项数据未填充（数据页容量不足）")
+
+    def _sanitize_filename(self, filename):
+        """
+        清理文件名中的非法字符
+
+        Args:
+            filename: 原始文件名
+
+        Returns:
+            str: 清理后的文件名
+        """
+        import re
+
+        # Windows和Linux文件名非法字符
+        illegal_chars = r'[<>:"/\\|?*]'
+
+        # 替换非法字符为下划线
+        filename = re.sub(illegal_chars, '_', filename)
+
+        # 替换中文括号为英文括号（可选，保持兼容性）
+        filename = filename.replace('（', '(').replace('）', ')')
+
+        # 去除首尾空格
+        filename = filename.strip()
+
+        # 如果文件名为空，使用默认值
+        if not filename:
+            filename = 'report'
+
+        return filename
+
+    def _convert_to_pdf(self, excel_path):
+        """
+        将Excel文件转换为PDF
+
+        Args:
+            excel_path: Excel文件路径
+
+        Returns:
+            str: PDF文件路径，如果转换失败返回None
+        """
+        import subprocess
+        import platform
+
+        # 生成PDF文件路径
+        pdf_path = excel_path.replace('.xlsx', '.pdf')
+
+        try:
+            # 检查LibreOffice是否可用
+            system = platform.system()
+
+            if system == 'Linux':
+                # Linux系统使用libreoffice
+                cmd = [
+                    'libreoffice',
+                    '--headless',
+                    '--convert-to', 'pdf',
+                    '--outdir', os.path.dirname(excel_path),
+                    excel_path
+                ]
+            elif system == 'Windows':
+                # Windows系统使用soffice.exe
+                cmd = [
+                    'soffice.exe',
+                    '--headless',
+                    '--convert-to', 'pdf',
+                    '--outdir', os.path.dirname(excel_path),
+                    excel_path
+                ]
+            else:
+                print(f"⚠ 不支持的操作系统: {system}")
+                return None
+
+            # 执行转换
+            print(f"正在转换为PDF: {excel_path}")
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30  # 30秒超时
+            )
+
+            if result.returncode == 0 and os.path.exists(pdf_path):
+                print(f"✓ PDF转换成功: {pdf_path}")
+                # 删除原Excel文件（可选）
+                # os.remove(excel_path)
+                return pdf_path
+            else:
+                print(f"✗ PDF转换失败: {result.stderr}")
+                return None
+
+        except FileNotFoundError:
+            print("⚠ LibreOffice未安装，无法转换为PDF")
+            print("  安装方法: sudo apt-get install libreoffice")
+            return None
+        except subprocess.TimeoutExpired:
+            print("✗ PDF转换超时")
+            return None
+        except Exception as e:
+            print(f"✗ PDF转换异常: {str(e)}")
+            return None
 
 def generate_simple_report(report_id):
     """

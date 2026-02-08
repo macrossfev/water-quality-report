@@ -3579,6 +3579,56 @@ def api_submit_report(id):
     finally:
         conn.close()
 
+@app.route('/api/reports/<int:id>/return', methods=['POST'])
+@login_required
+def api_return_report(id):
+    """退回报告到审核状态"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # 检查报告是否存在
+        report = conn.execute('SELECT id, review_status, created_by, review_person FROM reports WHERE id = ?', (id,)).fetchone()
+        if not report:
+            return jsonify({'error': '报告不存在'}), 404
+
+        # 检查权限（仅管理员或报告创建人可退回）
+        if session.get('role') != 'admin' and report['created_by'] != session['user_id']:
+            return jsonify({'error': '无权退回此报告'}), 403
+
+        # 检查当前状态是否为已审核
+        if report['review_status'] != 'approved':
+            return jsonify({'error': f'只有已审核通过的报告才能退回（当前状态: {report["review_status"]}）'}), 400
+
+        # 获取退回原因
+        data = request.json or {}
+        return_reason = data.get('reason', '').strip()
+
+        # 更新状态为pending，清除生成的报告路径
+        cursor.execute('''
+            UPDATE reports
+            SET review_status = 'pending',
+                generated_report_path = NULL,
+                review_comment = ?
+            WHERE id = ?
+        ''', (f'[已退回] {return_reason}' if return_reason else '[已退回] 需要重新审核', id))
+
+        # 记录退回历史
+        cursor.execute('''
+            INSERT INTO review_history (report_id, reviewer_id, review_status, review_comment, reviewed_at)
+            VALUES (?, ?, 'returned', ?, ?)
+        ''', (id, session.get('user_id'), return_reason or '退回重新审核', datetime.now()))
+
+        conn.commit()
+        log_operation('退回报告', f'报告ID: {id}, 原因: {return_reason}')
+
+        return jsonify({'message': '报告已退回到审核状态'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
 @app.route('/api/reports/<int:id>/preview', methods=['POST'])
 @login_required
 def api_preview_report(id):
@@ -3764,9 +3814,15 @@ def api_generate_report(id):
 
     data = request.json
     template_id = data.get('template_id')
+    export_format = data.get('export_format', 'xlsx')  # 导出格式：xlsx 或 pdf
+    filename_template = data.get('filename_template')  # 文件名模板（可选）
 
     if not template_id:
         return jsonify({'error': '请选择报告模板'}), 400
+
+    # 验证导出格式
+    if export_format not in ['xlsx', 'pdf']:
+        return jsonify({'error': '导出格式必须是 xlsx 或 pdf'}), 400
 
     conn = get_db_connection()
 
@@ -3808,7 +3864,10 @@ def api_generate_report(id):
 
         # 生成报告（传递report_id以从数据库加载完整数据）
         generator = ReportGenerator(template_id, report_data, report_id=id)
-        output_path = generator.generate()
+        output_path = generator.generate(
+            filename_template=filename_template,
+            export_format=export_format
+        )
 
         # 更新报告记录
         cursor = conn.cursor()

@@ -3564,6 +3564,9 @@ async function loadGenReports() {
                    <button class="btn btn-sm btn-primary me-1" onclick="downloadReport(${report.id})">
                        <i class="bi bi-download"></i> 下载
                    </button>
+                   <button class="btn btn-sm btn-secondary me-1" onclick="returnReport(${report.id})">
+                       <i class="bi bi-arrow-return-left"></i> 退回
+                   </button>
                    <button class="btn btn-sm btn-danger" onclick="deleteReport(${report.id}, 'gen')">
                        <i class="bi bi-trash"></i> 删除
                    </button>`
@@ -3575,6 +3578,9 @@ async function loadGenReports() {
                    </button>
                    <button class="btn btn-sm btn-success me-1" onclick="generateReport(${report.id})">
                        <i class="bi bi-file-earmark-plus"></i> 生成报告
+                   </button>
+                   <button class="btn btn-sm btn-secondary me-1" onclick="returnReport(${report.id})">
+                       <i class="bi bi-arrow-return-left"></i> 退回
                    </button>
                    <button class="btn btn-sm btn-danger" onclick="deleteReport(${report.id}, 'gen')">
                        <i class="bi bi-trash"></i> 删除
@@ -3864,6 +3870,38 @@ async function deleteReport(reportId, module) {
     } catch (error) {
         console.error('删除报告失败:', error);
         showToast('删除报告失败: ' + error.message, 'error');
+    }
+}
+
+// ==================== 退回报告功能 ====================
+async function returnReport(reportId) {
+    const reason = prompt('请输入退回原因（可选）：', '');
+
+    // 用户点击取消
+    if (reason === null) {
+        return;
+    }
+
+    if (!confirm('确定要将此报告退回到审核状态吗？\n\n退回后：\n- 报告状态将变为"待审核"\n- 已生成的报告文件将被清除\n- 需要重新审核后才能再次生成')) {
+        return;
+    }
+
+    try {
+        await apiRequest(`/api/reports/${reportId}/return`, {
+            method: 'POST',
+            body: JSON.stringify({
+                reason: reason.trim()
+            })
+        });
+
+        showToast('报告已成功退回到审核状态');
+
+        // 刷新报告生成列表
+        loadGenReports();
+
+    } catch (error) {
+        console.error('退回报告失败:', error);
+        showToast('退回报告失败: ' + error.message, 'error');
     }
 }
 
