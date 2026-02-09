@@ -1338,6 +1338,144 @@ def api_export_excel(id):
     log_operation('导出Excel报告', f'报告编号:{report["report_number"]}')
     return send_file(filename, as_attachment=True, download_name=f"{report['report_number']}.xlsx")
 
+@app.route('/api/reports/<int:id>/export/pdf', methods=['GET'])
+@login_required
+def api_export_pdf(id):
+    """导出PDF报告（先生成Excel再转换为PDF）"""
+    import subprocess
+
+    conn = get_db_connection()
+
+    report = conn.execute(
+        'SELECT r.*, st.name as sample_type_name, c.name as company_name '
+        'FROM reports r '
+        'LEFT JOIN sample_types st ON r.sample_type_id = st.id '
+        'LEFT JOIN companies c ON r.company_id = c.id '
+        'WHERE r.id = ?',
+        (id,)
+    ).fetchone()
+
+    if not report:
+        conn.close()
+        return jsonify({'error': '报告不存在'}), 404
+
+    data = conn.execute(
+        'SELECT rd.*, i.name as indicator_name, i.unit, g.name as group_name '
+        'FROM report_data rd '
+        'LEFT JOIN indicators i ON rd.indicator_id = i.id '
+        'LEFT JOIN indicator_groups g ON i.group_id = g.id '
+        'WHERE rd.report_id = ? '
+        'ORDER BY g.sort_order, i.sort_order',
+        (id,)
+    ).fetchall()
+
+    conn.close()
+
+    # 创建Excel工作簿（与Excel导出相同）
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "水质检测报告"
+
+    title_font = Font(name='宋体', size=16, bold=True)
+    header_font = Font(name='宋体', size=11, bold=True)
+    normal_font = Font(name='宋体', size=10)
+    border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+
+    ws.merge_cells('A1:G1')
+    title_cell = ws['A1']
+    title_cell.value = '水质检测报告'
+    title_cell.font = title_font
+    title_cell.alignment = Alignment(horizontal='center', vertical='center')
+    ws.row_dimensions[1].height = 30
+
+    row = 3
+    info_items = [
+        ('报告编号', report['report_number']),
+        ('样品编号', report['sample_number']),
+        ('样品类型', report['sample_type_name']),
+        ('委托单位', report['company_name']),
+        ('检测日期', report['detection_date']),
+        ('检测人员', report['detection_person']),
+        ('审核人员', report['review_person'])
+    ]
+
+    for label, value in info_items:
+        if value:
+            ws[f'A{row}'] = label + '：'
+            ws[f'B{row}'] = value
+            ws[f'A{row}'].font = header_font
+            ws.merge_cells(f'B{row}:G{row}')
+            row += 1
+
+    row += 1
+
+    headers = ['序号', '检测项目', '单位', '检测结果', '所属分组', '备注']
+    for col, header in enumerate(headers, start=1):
+        cell = ws.cell(row=row, column=col)
+        cell.value = header
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = border
+
+    for idx, item in enumerate(data, start=1):
+        row += 1
+        row_data = [
+            idx,
+            item['indicator_name'],
+            item['unit'] or '',
+            item['measured_value'] or '',
+            item['group_name'] or '',
+            item['remark'] or ''
+        ]
+        for col, value in enumerate(row_data, start=1):
+            cell = ws.cell(row=row, column=col)
+            cell.value = value
+            cell.font = normal_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = border
+
+    ws.column_dimensions['A'].width = 8
+    ws.column_dimensions['B'].width = 20
+    ws.column_dimensions['C'].width = 10
+    ws.column_dimensions['D'].width = 15
+    ws.column_dimensions['E'].width = 15
+    ws.column_dimensions['F'].width = 20
+
+    os.makedirs('exports', exist_ok=True)
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    xlsx_filename = f"exports/report_{report['report_number']}_{timestamp}.xlsx"
+    wb.save(xlsx_filename)
+
+    # 转换为PDF
+    try:
+        abs_xlsx = os.path.abspath(xlsx_filename)
+        abs_outdir = os.path.dirname(abs_xlsx)
+        result = subprocess.run(
+            ['libreoffice', '--headless', '--convert-to', 'pdf', '--outdir', abs_outdir, abs_xlsx],
+            capture_output=True, text=True, timeout=30
+        )
+        pdf_filename = xlsx_filename.replace('.xlsx', '.pdf')
+        if result.returncode == 0 and os.path.exists(pdf_filename):
+            os.remove(xlsx_filename)
+            log_operation('导出PDF报告', f'报告编号:{report["report_number"]}')
+            return send_file(pdf_filename, as_attachment=True, download_name=f"{report['report_number']}.pdf")
+        else:
+            os.remove(xlsx_filename)
+            return jsonify({'error': f'PDF转换失败: {result.stderr}'}), 500
+    except subprocess.TimeoutExpired:
+        if os.path.exists(xlsx_filename):
+            os.remove(xlsx_filename)
+        return jsonify({'error': 'PDF转换超时'}), 500
+    except Exception as e:
+        if os.path.exists(xlsx_filename):
+            os.remove(xlsx_filename)
+        return jsonify({'error': f'PDF转换异常: {str(e)}'}), 500
+
 @app.route('/api/reports/<int:id>/export-simple', methods=['GET'])
 @login_required
 def api_export_simple_report(id):
@@ -3911,6 +4049,81 @@ def api_download_report(id):
         return jsonify({'error': '文件不存在'}), 404
 
     return send_file(file_path, as_attachment=True, download_name=os.path.basename(file_path))
+
+@app.route('/api/reports/<int:id>/download-pdf', methods=['GET'])
+@login_required
+def api_download_report_pdf(id):
+    """将已生成的报告转换为PDF下载"""
+    import subprocess
+
+    conn = get_db_connection()
+    report = conn.execute(
+        'SELECT generated_report_path, report_number FROM reports WHERE id = ?',
+        (id,)
+    ).fetchone()
+    conn.close()
+
+    if not report or not report['generated_report_path']:
+        return jsonify({'error': '报告尚未生成，请先生成报告'}), 404
+
+    file_path = report['generated_report_path']
+    if not os.path.exists(file_path):
+        return jsonify({'error': '报告文件不存在'}), 404
+
+    # 创建临时副本，设置打印页面参数后再转换
+    import shutil
+    try:
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S%f')
+        temp_xlsx = os.path.join(os.path.dirname(file_path), f'_pdf_temp_{timestamp}.xlsx')
+        shutil.copy2(file_path, temp_xlsx)
+
+        # 设置每个工作表的页面布局：缩放至1页宽，自动高度
+        wb = openpyxl.load_workbook(temp_xlsx)
+        for ws in wb.worksheets:
+            ws.page_setup.paperSize = ws.PAPERSIZE_A4
+            ws.page_setup.orientation = ws.page_setup.orientation or 'portrait'
+            ws.page_setup.fitToWidth = 1
+            ws.page_setup.fitToHeight = 0
+            ws.sheet_properties.pageSetUpPr.fitToPage = True
+            ws.page_margins.left = 0.5
+            ws.page_margins.right = 0.5
+            ws.page_margins.top = 0.6
+            ws.page_margins.bottom = 0.6
+            ws.page_margins.header = 0.3
+            ws.page_margins.footer = 0.3
+        wb.save(temp_xlsx)
+        wb.close()
+
+        abs_path = os.path.abspath(temp_xlsx)
+        abs_outdir = os.path.dirname(abs_path)
+        result = subprocess.run(
+            ['libreoffice', '--headless', '--convert-to', 'pdf', '--outdir', abs_outdir, abs_path],
+            capture_output=True, text=True, timeout=60
+        )
+        pdf_path = abs_path.rsplit('.', 1)[0] + '.pdf'
+        # 清理临时Excel
+        try:
+            os.remove(temp_xlsx)
+        except Exception:
+            pass
+        if result.returncode == 0 and os.path.exists(pdf_path):
+            report_number = report['report_number'] or f'report_{id}'
+            log_operation('下载PDF报告', f'报告编号:{report_number}')
+            response = send_file(pdf_path, as_attachment=True, download_name=f"{report_number}.pdf")
+            # 下载后清理临时PDF文件
+            @response.call_on_close
+            def cleanup():
+                try:
+                    os.remove(pdf_path)
+                except Exception:
+                    pass
+            return response
+        else:
+            return jsonify({'error': f'PDF转换失败: {result.stderr}'}), 500
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'PDF转换超时'}), 500
+    except Exception as e:
+        return jsonify({'error': f'PDF转换异常: {str(e)}'}), 500
 
 @app.route('/api/reports/<int:id>/load-template', methods=['GET'])
 @login_required

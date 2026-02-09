@@ -622,6 +622,113 @@ class ReportGenerator:
 
         return method_text  # 无法识别模式，返回原文
 
+    def _auto_fit_font_size(self, cell, col_width, max_row_height=None):
+        """
+        当单元格文本可能超出列宽时，自动缩小字体以确保内容可见。
+        仅在文本超长时缩小，其余单元格保持原字体大小不变。
+
+        Args:
+            cell: openpyxl单元格对象
+            col_width: 列宽（Excel字符单位）
+            max_row_height: 最大行高(pt)，用于估算可用行数
+        """
+        from openpyxl.styles import Font, Alignment
+        from copy import copy
+
+        value = cell.value
+        if not value or not isinstance(value, str):
+            return
+
+        # 获取当前字体大小
+        original_size = cell.font.size or 9.0
+
+        # Excel列宽单位与字符宽度的对应关系（9pt字体下）：
+        # - 中文字符约占 1.2 列宽单位
+        # - ASCII字符约占 0.6 列宽单位
+        CJK_WIDTH = 1.2  # 列宽单位 per Chinese char at 9pt
+        ASCII_WIDTH = 0.5  # 列宽单位 per ASCII char at 9pt
+
+        # 计算一行文本占用的列宽单位
+        def calc_line_width(line, font_size):
+            ratio = font_size / 9.0
+            width = 0
+            for ch in line:
+                if ord(ch) > 127:
+                    width += CJK_WIDTH * ratio
+                else:
+                    width += ASCII_WIDTH * ratio
+            return width
+
+        # 计算文本显示所需的行数
+        def calc_lines_needed(text, font_size):
+            lines = text.split('\n')
+            total = 0
+            for line in lines:
+                line_w = calc_line_width(line, font_size)
+                if line_w <= col_width:
+                    total += 1
+                else:
+                    total += max(1, -(-int(line_w * 100) // int(col_width * 100)))  # ceiling division
+            return total
+
+        # 估算最大可用行数（基于行高限制，+1容差允许轻微溢出）
+        max_lines = 4  # 默认最大4行
+        if max_row_height:
+            line_height_pt = original_size * 1.4
+            max_lines = max(2, int(max_row_height / line_height_pt))
+
+        # 尝试当前字体大小
+        lines = calc_lines_needed(value, original_size)
+
+        if lines <= max_lines:
+            return  # 当前字体大小可以容纳，无需缩小
+
+        print(f"  [AUTO-FIT] Cell {cell.coordinate}: lines_needed={lines}, max_lines={max_lines}, col_w={col_width}, value='{value[:50]}...'")
+
+        # 逐步缩小字体，最小到5pt
+        for size in [original_size - 1, original_size - 2, 7, 6.5, 6, 5.5, 5]:
+            if size < 5:
+                break
+            lines = calc_lines_needed(value, size)
+            if lines <= max_lines:
+                # 应用缩小的字体
+                new_font = copy(cell.font)
+                cell.font = Font(
+                    name=new_font.name,
+                    size=size,
+                    bold=new_font.bold,
+                    italic=new_font.italic,
+                    color=new_font.color,
+                    underline=new_font.underline,
+                    strikethrough=new_font.strikethrough
+                )
+                # 确保启用自动换行
+                current_alignment = cell.alignment
+                cell.alignment = Alignment(
+                    horizontal=current_alignment.horizontal or 'center',
+                    vertical=current_alignment.vertical or 'center',
+                    wrap_text=True
+                )
+                return
+
+        # 即使最小字体也放不下，仍使用最小字体+换行
+        new_font = copy(cell.font)
+        cell.font = Font(
+            name=new_font.name,
+            size=5,
+            bold=new_font.bold,
+            italic=new_font.italic,
+            color=new_font.color,
+            underline=new_font.underline,
+            strikethrough=new_font.strikethrough
+        )
+        current_alignment = cell.alignment
+        cell.alignment = Alignment(
+            horizontal=current_alignment.horizontal or 'center',
+            vertical=current_alignment.vertical or 'center',
+            wrap_text=True
+        )
+
     def _auto_adjust_row_height(self, sheet_name, start_row, row_count):
         """
         根据单元格内容自动调整行高
@@ -786,6 +893,14 @@ class ReportGenerator:
                                 vertical=current_alignment.vertical or 'center',
                                 wrap_text=True  # 启用自动换行
                             )
+
+                        # 自动缩小字体以适应单元格（仅对超长文本）
+                        if value and isinstance(value, str) and len(value) > 10:
+                            col_w = ws.column_dimensions[col_letter].width or 10
+                            # 使用预期调整后的行高（基于换行符数量）
+                            newline_lines = value.count('\n') + 1
+                            expected_h = max(15, min(8 + newline_lines * 9, 80))
+                            self._auto_fit_font_size(cell, col_w, max_row_height=expected_h)
 
                         if i == 0:  # 只打印第一行的详细信息
                             print(f"  列 {mapping}: {col_letter}{current_row} = '{value}'")
