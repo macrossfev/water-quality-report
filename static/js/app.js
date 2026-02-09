@@ -3813,34 +3813,8 @@ async function executeGenerateReport(reportId, templateId) {
     }
 }
 
-async function downloadReport(reportId) {
-    try {
-        const response = await fetch(`/api/reports/${reportId}/download`);
-        if (!response.ok) {
-            throw new Error('下载失败');
-        }
-
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-
-        // 从自定义响应头获取文件名
-        const xFilename = response.headers.get('X-Filename');
-        let filename = xFilename ? decodeURIComponent(xFilename) : 'report.xlsx';
-
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-
-        showToast('报告下载成功');
-
-    } catch (error) {
-        console.error('下载报告失败:', error);
-        showToast('下载报告失败: ' + error.message, 'error');
-    }
+function downloadReport(reportId) {
+    window.location.href = `/api/reports/${reportId}/download`;
 }
 
 async function deleteReport(reportId, module) {
