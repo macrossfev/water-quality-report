@@ -1336,7 +1336,7 @@ def api_export_excel(id):
 
     # 保存文件
     os.makedirs('exports', exist_ok=True)
-    filename = f"exports/{report['report_number']}.xlsx"
+    filename = f"exports/report_{report['report_number']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.xlsx"
     wb.save(filename)
 
     log_operation('导出Excel报告', f'报告编号:{report["report_number"]}')
@@ -1441,7 +1441,7 @@ def api_export_word(id):
 
     # 保存文件
     os.makedirs('exports', exist_ok=True)
-    filename = f"exports/{report['report_number']}.docx"
+    filename = f"exports/report_{report['report_number']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.docx"
     doc.save(filename)
 
     log_operation('导出Word报告', f'报告编号:{report["report_number"]}')
@@ -4050,7 +4050,7 @@ def api_save_from_editor(id):
 
         # 创建新的Excel文件
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        output_path = f"exports/{report['report_number']}_edited.xlsx"
+        output_path = f"exports/report_{report['report_number']}_edited_{timestamp}.xlsx"
         os.makedirs('exports', exist_ok=True)
 
         # 创建工作簿

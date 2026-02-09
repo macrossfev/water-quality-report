@@ -54,7 +54,7 @@ class ReportGenerator:
 
             # 如果没有指定模板，使用默认模板
             if filename_template is None:
-                filename_template = "{report_number}"
+                filename_template = "report_{report_number}_{timestamp}"
 
             # 准备变量替换
             variables = {
@@ -1130,7 +1130,7 @@ def generate_simple_report(report_id):
 
     # 保存文件
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    output_path = f"exports/{report['report_number']}.xlsx"
+    output_path = f"exports/report_{report['report_number']}_{timestamp}.xlsx"
     os.makedirs('exports', exist_ok=True)
     wb.save(output_path)
 
