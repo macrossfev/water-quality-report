@@ -3907,7 +3907,7 @@ def api_download_report(id):
     conn = get_db_connection()
 
     report = conn.execute(
-        'SELECT generated_report_path, report_number FROM reports WHERE id = ?',
+        'SELECT generated_report_path FROM reports WHERE id = ?',
         (id,)
     ).fetchone()
 
@@ -3920,12 +3920,7 @@ def api_download_report(id):
     if not os.path.exists(file_path):
         return jsonify({'error': '文件不存在'}), 404
 
-    ext = os.path.splitext(file_path)[1] or '.xlsx'
-    from urllib.parse import quote
-    download_name = f"{report['report_number']}{ext}"
-    response = send_file(file_path, as_attachment=True, download_name=download_name)
-    response.headers['X-Filename'] = quote(download_name)
-    return response
+    return send_file(file_path, as_attachment=True, download_name=os.path.basename(file_path))
 
 @app.route('/api/reports/<int:id>/load-template', methods=['GET'])
 @login_required

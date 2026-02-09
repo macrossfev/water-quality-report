@@ -3813,8 +3813,37 @@ async function executeGenerateReport(reportId, templateId) {
     }
 }
 
-function downloadReport(reportId) {
-    window.location.href = `/api/reports/${reportId}/download`;
+async function downloadReport(reportId) {
+    try {
+        const response = await fetch(`/api/reports/${reportId}/download`);
+        if (!response.ok) {
+            throw new Error('下载失败');
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = 'report.xlsx';
+        if (contentDisposition) {
+            const match = contentDisposition.match(/filename="?([^";]+)"?/);
+            if (match) filename = match[1];
+        }
+
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+        showToast('报告下载成功');
+
+    } catch (error) {
+        console.error('下载报告失败:', error);
+        showToast('下载报告失败: ' + error.message, 'error');
+    }
 }
 
 async function deleteReport(reportId, module) {
