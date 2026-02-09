@@ -2253,9 +2253,6 @@ function updateReportsList() {
                     <button class="btn btn-sm btn-info me-1" onclick="exportReport(${report.id}, 'word')">
                         <i class="bi bi-file-earmark-word"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-danger me-1" onclick="exportReport(${report.id}, 'pdf')" title="导出PDF">
-                        <i class="bi bi-file-earmark-pdf"></i>
-                    </button>
                     <button class="btn btn-sm btn-danger" onclick="deleteReport(${report.id})">
                         <i class="bi bi-trash"></i>
                     </button>
@@ -2533,7 +2530,7 @@ async function exportReport(id, format) {
         const downloadUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = downloadUrl;
-        const extMap = { 'excel': 'xlsx', 'word': 'docx', 'pdf': 'pdf' };
+        const extMap = { 'excel': 'xlsx', 'word': 'docx' };
         a.download = `report_${id}.${extMap[format] || format}`;
         a.click();
 
@@ -3566,10 +3563,7 @@ async function loadGenReports() {
                        <i class="bi bi-eye"></i> 预览
                    </button>
                    <button class="btn btn-sm btn-primary me-1" onclick="downloadReport(${report.id})">
-                       <i class="bi bi-download"></i> 下载Excel
-                   </button>
-                   <button class="btn btn-sm btn-outline-danger me-1" onclick="downloadReportPdf(${report.id})" title="下载PDF">
-                       <i class="bi bi-file-earmark-pdf"></i> 下载PDF
+                       <i class="bi bi-download"></i> 下载
                    </button>
                    <button class="btn btn-sm btn-secondary me-1" onclick="returnReport(${report.id})">
                        <i class="bi bi-arrow-return-left"></i> 退回
@@ -3831,12 +3825,17 @@ async function downloadReport(reportId) {
         const a = document.createElement('a');
         a.href = url;
 
-        // 从响应头获取文件名
+        // 从响应头获取文件名（优先使用UTF-8编码的filename*）
         const contentDisposition = response.headers.get('Content-Disposition');
         let filename = 'report.xlsx';
         if (contentDisposition) {
-            const match = contentDisposition.match(/filename="?(.+)"?/);
-            if (match) filename = match[1];
+            const utf8Match = contentDisposition.match(/filename\*=UTF-8''(.+?)(?:;|$)/i);
+            if (utf8Match) {
+                filename = decodeURIComponent(utf8Match[1]);
+            } else {
+                const match = contentDisposition.match(/filename="?([^";]+)"?/);
+                if (match) filename = match[1];
+            }
         }
 
         a.download = filename;
@@ -3850,40 +3849,6 @@ async function downloadReport(reportId) {
     } catch (error) {
         console.error('下载报告失败:', error);
         showToast('下载报告失败: ' + error.message, 'error');
-    }
-}
-
-async function downloadReportPdf(reportId) {
-    try {
-        showToast('正在生成PDF，请稍候...', 'info');
-        const response = await fetch(`/api/reports/${reportId}/download-pdf`);
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error || 'PDF下载失败');
-        }
-
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-
-        const contentDisposition = response.headers.get('Content-Disposition');
-        let filename = 'report.pdf';
-        if (contentDisposition) {
-            const match = contentDisposition.match(/filename="?(.+)"?/);
-            if (match) filename = match[1];
-        }
-
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-
-        showToast('PDF报告下载成功');
-    } catch (error) {
-        console.error('下载PDF报告失败:', error);
-        showToast('下载PDF报告失败: ' + error.message, 'error');
     }
 }
 
