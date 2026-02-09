@@ -1340,7 +1340,7 @@ def api_export_excel(id):
     wb.save(filename)
 
     log_operation('导出Excel报告', f'报告编号:{report["report_number"]}')
-    return send_file(filename, as_attachment=True, download_name=f"{report['report_number']}.xlsx")
+    return send_file(filename, as_attachment=True, download_name=f"{report['sample_number']}.xlsx")
 
 @app.route('/api/reports/<int:id>/export/pdf', methods=['GET'])
 @login_required
@@ -1469,7 +1469,7 @@ def api_export_pdf(id):
         if result.returncode == 0 and os.path.exists(pdf_filename):
             os.remove(xlsx_filename)
             log_operation('导出PDF报告', f'报告编号:{report["report_number"]}')
-            return send_file(pdf_filename, as_attachment=True, download_name=f"{report['report_number']}.pdf")
+            return send_file(pdf_filename, as_attachment=True, download_name=f"{report['sample_number']}.pdf")
         else:
             os.remove(xlsx_filename)
             return jsonify({'error': f'PDF转换失败: {result.stderr}'}), 500
@@ -1585,7 +1585,7 @@ def api_export_word(id):
     doc.save(filename)
 
     log_operation('导出Word报告', f'报告编号:{report["report_number"]}')
-    return send_file(filename, as_attachment=True, download_name=f"{report['report_number']}.docx")
+    return send_file(filename, as_attachment=True, download_name=f"{report['sample_number']}.docx")
 
 # ==================== 检测指标导入导出 API ====================
 @app.route('/api/indicators/export/excel', methods=['GET'])
@@ -4047,7 +4047,7 @@ def api_download_report(id):
     conn = get_db_connection()
 
     report = conn.execute(
-        'SELECT generated_report_path FROM reports WHERE id = ?',
+        'SELECT generated_report_path, sample_number FROM reports WHERE id = ?',
         (id,)
     ).fetchone()
 
@@ -4060,7 +4060,8 @@ def api_download_report(id):
     if not os.path.exists(file_path):
         return jsonify({'error': '文件不存在'}), 404
 
-    return send_file(file_path, as_attachment=True, download_name=os.path.basename(file_path))
+    ext = os.path.splitext(file_path)[1] or '.xlsx'
+    return send_file(file_path, as_attachment=True, download_name=f"{report['sample_number']}{ext}")
 
 @app.route('/api/reports/<int:id>/download-pdf', methods=['GET'])
 @login_required
@@ -4070,7 +4071,7 @@ def api_download_report_pdf(id):
 
     conn = get_db_connection()
     report = conn.execute(
-        'SELECT generated_report_path, report_number FROM reports WHERE id = ?',
+        'SELECT generated_report_path, report_number, sample_number FROM reports WHERE id = ?',
         (id,)
     ).fetchone()
     conn.close()
@@ -4120,8 +4121,9 @@ def api_download_report_pdf(id):
             pass
         if result.returncode == 0 and os.path.exists(pdf_path):
             report_number = report['report_number'] or f'report_{id}'
+            sample_number = report['sample_number'] or report_number
             log_operation('下载PDF报告', f'报告编号:{report_number}')
-            response = send_file(pdf_path, as_attachment=True, download_name=f"{report_number}.pdf")
+            response = send_file(pdf_path, as_attachment=True, download_name=f"{sample_number}.pdf")
             # 下载后清理临时PDF文件
             @response.call_on_close
             def cleanup():
