@@ -3921,7 +3921,11 @@ def api_download_report(id):
         return jsonify({'error': '文件不存在'}), 404
 
     ext = os.path.splitext(file_path)[1] or '.xlsx'
-    return send_file(file_path, as_attachment=True, download_name=f"{report['report_number']}{ext}")
+    from urllib.parse import quote
+    download_name = f"{report['report_number']}{ext}"
+    response = send_file(file_path, as_attachment=True, download_name=download_name)
+    response.headers['X-Filename'] = quote(download_name)
+    return response
 
 @app.route('/api/reports/<int:id>/load-template', methods=['GET'])
 @login_required

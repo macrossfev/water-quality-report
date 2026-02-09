@@ -3825,18 +3825,9 @@ async function downloadReport(reportId) {
         const a = document.createElement('a');
         a.href = url;
 
-        // 从响应头获取文件名（优先使用UTF-8编码的filename*）
-        const contentDisposition = response.headers.get('Content-Disposition');
-        let filename = 'report.xlsx';
-        if (contentDisposition) {
-            const utf8Match = contentDisposition.match(/filename\*=UTF-8''(.+?)(?:;|$)/i);
-            if (utf8Match) {
-                filename = decodeURIComponent(utf8Match[1]);
-            } else {
-                const match = contentDisposition.match(/filename="?([^";]+)"?/);
-                if (match) filename = match[1];
-            }
-        }
+        // 从自定义响应头获取文件名
+        const xFilename = response.headers.get('X-Filename');
+        let filename = xFilename ? decodeURIComponent(xFilename) : 'report.xlsx';
 
         a.download = filename;
         document.body.appendChild(a);
