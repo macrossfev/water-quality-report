@@ -183,8 +183,11 @@ class ReportGenerator:
                 FROM report_data rd
                 JOIN indicators i ON rd.indicator_id = i.id
                 LEFT JOIN indicator_groups g ON i.group_id = g.id
+                JOIN reports r ON rd.report_id = r.id
+                LEFT JOIN template_indicators ti
+                    ON ti.indicator_id = rd.indicator_id AND ti.sample_type_id = r.sample_type_id
                 WHERE rd.report_id = ?
-                ORDER BY g.sort_order, i.sort_order, i.name
+                ORDER BY ti.sort_order, g.sort_order, i.sort_order, i.name
             ''', (self.report_id,)).fetchall()
 
             self.report_data['detection_items'] = [
@@ -1058,8 +1061,11 @@ def generate_simple_report(report_id):
         'SELECT rd.*, i.name as indicator_name, i.unit, i.limit_value, i.detection_method '
         'FROM report_data rd '
         'JOIN indicators i ON rd.indicator_id = i.id '
+        'JOIN reports r ON rd.report_id = r.id '
+        'LEFT JOIN template_indicators ti '
+        '    ON ti.indicator_id = rd.indicator_id AND ti.sample_type_id = r.sample_type_id '
         'WHERE rd.report_id = ? '
-        'ORDER BY i.sort_order, i.name',
+        'ORDER BY ti.sort_order, i.sort_order, i.name',
         (report_id,)
     ).fetchall()
 

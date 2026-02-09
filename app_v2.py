@@ -1063,9 +1063,11 @@ def api_report_detail(id):
         'FROM report_data rd '
         'LEFT JOIN indicators i ON rd.indicator_id = i.id '
         'LEFT JOIN indicator_groups g ON i.group_id = g.id '
+        'LEFT JOIN template_indicators ti '
+        '    ON ti.indicator_id = rd.indicator_id AND ti.sample_type_id = ? '
         'WHERE rd.report_id = ? '
-        'ORDER BY g.sort_order, i.sort_order',
-        (id,)
+        'ORDER BY ti.sort_order, g.sort_order, i.sort_order',
+        (report['sample_type_id'], id,)
     ).fetchall()
 
     # 获取模板字段值
@@ -1241,9 +1243,11 @@ def api_export_excel(id):
         'FROM report_data rd '
         'LEFT JOIN indicators i ON rd.indicator_id = i.id '
         'LEFT JOIN indicator_groups g ON i.group_id = g.id '
+        'LEFT JOIN template_indicators ti '
+        '    ON ti.indicator_id = rd.indicator_id AND ti.sample_type_id = ? '
         'WHERE rd.report_id = ? '
-        'ORDER BY g.sort_order, i.sort_order',
-        (id,)
+        'ORDER BY ti.sort_order, g.sort_order, i.sort_order',
+        (report['sample_type_id'], id,)
     ).fetchall()
 
     conn.close()
@@ -1364,9 +1368,11 @@ def api_export_pdf(id):
         'FROM report_data rd '
         'LEFT JOIN indicators i ON rd.indicator_id = i.id '
         'LEFT JOIN indicator_groups g ON i.group_id = g.id '
+        'LEFT JOIN template_indicators ti '
+        '    ON ti.indicator_id = rd.indicator_id AND ti.sample_type_id = ? '
         'WHERE rd.report_id = ? '
-        'ORDER BY g.sort_order, i.sort_order',
-        (id,)
+        'ORDER BY ti.sort_order, g.sort_order, i.sort_order',
+        (report['sample_type_id'], id,)
     ).fetchall()
 
     conn.close()
@@ -1513,9 +1519,11 @@ def api_export_word(id):
         'FROM report_data rd '
         'LEFT JOIN indicators i ON rd.indicator_id = i.id '
         'LEFT JOIN indicator_groups g ON i.group_id = g.id '
+        'LEFT JOIN template_indicators ti '
+        '    ON ti.indicator_id = rd.indicator_id AND ti.sample_type_id = ? '
         'WHERE rd.report_id = ? '
-        'ORDER BY g.sort_order, i.sort_order',
-        (id,)
+        'ORDER BY ti.sort_order, g.sort_order, i.sort_order',
+        (report['sample_type_id'], id,)
     ).fetchall()
 
     conn.close()
@@ -3475,9 +3483,11 @@ def api_report_review_detail(id):
         FROM report_data rd
         LEFT JOIN indicators i ON rd.indicator_id = i.id
         LEFT JOIN indicator_groups ig ON i.group_id = ig.id
+        LEFT JOIN template_indicators ti
+            ON ti.indicator_id = rd.indicator_id AND ti.sample_type_id = ?
         WHERE rd.report_id = ?
-        ORDER BY ig.sort_order, i.sort_order, i.name
-    ''', (id,)).fetchall()
+        ORDER BY ti.sort_order, ig.sort_order, i.sort_order, i.name
+    ''', (report['sample_type_id'], id,)).fetchall()
 
     # 获取模板字段值
     template_fields = []
@@ -3801,9 +3811,11 @@ def api_preview_report(id):
             SELECT rd.*, i.name, i.unit, i.limit_value, i.detection_method
             FROM report_data rd
             LEFT JOIN indicators i ON rd.indicator_id = i.id
+            LEFT JOIN template_indicators ti
+                ON ti.indicator_id = rd.indicator_id AND ti.sample_type_id = ?
             WHERE rd.report_id = ?
-            ORDER BY i.sort_order, i.name
-        ''', (id,)).fetchall()
+            ORDER BY ti.sort_order, i.sort_order, i.name
+        ''', (report['sample_type_id'], id,)).fetchall()
 
         # 获取模板字段映射
         template_fields = conn.execute('''
