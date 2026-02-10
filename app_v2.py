@@ -5166,18 +5166,85 @@ def api_raw_data_for_report():
                 'detection_method': ind_row[4]
             }
 
-        # 6. 为每个检测值尝试匹配指标
+        # 构建模糊匹配索引：去除单位括号后的名称 -> 指标信息
+        import re as _re
+        fuzzy_index = {}
+        for ind_name, ind_info in all_indicators.items():
+            # 去掉末尾的(单位)部分，如 "硝酸盐(以N计)" -> "硝酸盐"
+            base = _re.sub(r'\([^)]*\)\s*$', '', ind_name).strip()
+            if base and base not in fuzzy_index:
+                fuzzy_index[base] = ind_info
+            # 也保留原名
+            fuzzy_index[ind_name] = ind_info
+
+        # 已知别名映射：原始记录常见名称 -> 系统指标名称
+        alias_map = {
+            '六价铬': '铬(六价)',
+            '挥发酚': '挥发酚类(以苯酚计)',
+            '总α放射性': '总α放射性',
+            '总β放射性': '总β放射性',
+            '总α': '总α放射性',
+            '总β': '总β放射性',
+        }
+
+        def match_indicator(col_name):
+            """尝试将原始数据字段名匹配到系统指标"""
+            # 1. 精确匹配
+            if col_name in all_indicators:
+                return all_indicators[col_name]
+            # 2. 去掉原始字段名中的单位括号后匹配
+            base = _re.sub(r'\([^)]*\)\s*$', '', col_name).strip()
+            # 可能有多层括号，如 "硝酸盐(以N计)(mg/L)" -> "硝酸盐(以N计)" -> "硝酸盐"
+            while base != col_name:
+                if base in all_indicators:
+                    return all_indicators[base]
+                if base in fuzzy_index:
+                    return fuzzy_index[base]
+                col_name = base
+                base = _re.sub(r'\([^)]*\)\s*$', '', base).strip()
+            # 3. 别名映射
+            if base in alias_map and alias_map[base] in all_indicators:
+                return all_indicators[alias_map[base]]
+            # 4. Unicode下标归一化后匹配 (₃->3, ₂->2)
+            normalized = base.replace('₃', '3').replace('₂', '2').replace('₁', '1')
+            if normalized in all_indicators:
+                return all_indicators[normalized]
+            if normalized in fuzzy_index:
+                return fuzzy_index[normalized]
+            return None
+
+        # 6. 加载已固化的字段映射
+        cursor.execute('SELECT raw_field_name, indicator_id, indicator_name FROM raw_data_field_mapping')
+        saved_mappings = {row[0]: row[1] for row in cursor.fetchall()}
+
+        # 7. 为每个检测值尝试匹配指标
         detection_items = []
         unmatched_items = []
+        new_mappings = []  # 新发现的映射，待保存
 
         for rv in raw_values:
             col_name = rv[0]
             value = rv[1]
 
-            if col_name in all_indicators:
-                ind_info = all_indicators[col_name]
+            ind_info = None
+            # 优先查已固化映射
+            if col_name in saved_mappings:
+                ind_id = saved_mappings[col_name]
+                for info in all_indicators.values():
+                    if info['indicator_id'] == ind_id:
+                        ind_info = info
+                        break
+
+            # 未命中则走模糊匹配
+            if not ind_info:
+                ind_info = match_indicator(col_name)
+                # 模糊匹配成功且非精确匹配，保存映射
+                if ind_info and col_name not in all_indicators:
+                    new_mappings.append((col_name, ind_info['indicator_id'], ind_info['indicator_name']))
+
+            if ind_info:
                 detection_items.append({
-                    'indicator_name': col_name,
+                    'indicator_name': ind_info['indicator_name'],
                     'indicator_id': ind_info['indicator_id'],
                     'measured_value': value or '',
                     'unit': ind_info['unit'] or '',
@@ -5193,6 +5260,18 @@ def api_raw_data_for_report():
                     'limit_value': '',
                     'detection_method': ''
                 })
+
+        # 8. 持久化新发现的映射
+        for raw_name, ind_id, ind_name in new_mappings:
+            try:
+                cursor.execute(
+                    'INSERT OR IGNORE INTO raw_data_field_mapping (raw_field_name, indicator_id, indicator_name) VALUES (?, ?, ?)',
+                    (raw_name, ind_id, ind_name)
+                )
+            except Exception:
+                pass
+        if new_mappings:
+            conn.commit()
 
         conn.close()
 

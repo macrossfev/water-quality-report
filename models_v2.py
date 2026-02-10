@@ -228,6 +228,18 @@ def init_database():
         )
     ''')
 
+    # ==================== 原始数据字段映射表 ====================
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS raw_data_field_mapping (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            raw_field_name TEXT NOT NULL UNIQUE,
+            indicator_id INTEGER NOT NULL,
+            indicator_name TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (indicator_id) REFERENCES indicators (id) ON DELETE CASCADE
+        )
+    ''')
+
     # ==================== 导出模板分类表 ====================
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS export_template_categories (
