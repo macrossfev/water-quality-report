@@ -4339,6 +4339,165 @@ function resetNewReportForm() {
     setNewReportDefaults();
 }
 
+// ==================== 从原始数据导入功能 ====================
+
+// 打开原始数据导入模态框
+function openRawDataImportModal() {
+    const modal = new bootstrap.Modal(document.getElementById('rawDataImportModal'));
+    const searchInput = document.getElementById('rawDataSearchInput');
+    searchInput.value = '';
+    document.getElementById('rawDataImportWarnings').style.display = 'none';
+    // 初始加载列表
+    searchRawDataSamples('');
+    modal.show();
+    setTimeout(() => searchInput.focus(), 300);
+}
+
+// 搜索原始数据样品编号
+let rawDataSearchTimer = null;
+async function searchRawDataSamples(keyword) {
+    try {
+        const url = '/api/raw-data/sample-numbers' + (keyword ? '?search=' + encodeURIComponent(keyword) : '');
+        const results = await apiRequest(url);
+        const tbody = document.getElementById('rawDataSearchResults');
+
+        if (!results || results.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">未找到匹配的原始数据记录</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = results.map(r => `
+            <tr>
+                <td>${escapeHtml(r.sample_number || '')}</td>
+                <td>${escapeHtml(r.company_name || '')}</td>
+                <td>${escapeHtml(r.plant_name || '')}</td>
+                <td>${escapeHtml(r.sample_type || '')}</td>
+                <td>${escapeHtml(r.sampling_date || '')}</td>
+                <td>
+                    <button class="btn btn-sm btn-success" onclick="selectRawDataForReport('${escapeHtml(r.sample_number || '')}')">
+                        <i class="bi bi-check-lg"></i> 选择
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error('搜索原始数据失败:', error);
+    }
+}
+
+// 选择一条原始数据并导入到报告表单
+async function selectRawDataForReport(sampleNumber) {
+    try {
+        const data = await apiRequest('/api/raw-data/for-report?sample_number=' + encodeURIComponent(sampleNumber));
+
+        // 1. 填充样品编号
+        document.getElementById('newReportSampleNumber').value = data.sample_number || '';
+
+        // 2. 填充采样日期
+        if (data.sampling_date) {
+            document.getElementById('newSamplingDate').value = data.sampling_date;
+        }
+
+        // 3. 选择样品类型
+        if (data.sample_type_id) {
+            const sampleTypeSelect = document.getElementById('newReportSampleType');
+            sampleTypeSelect.value = data.sample_type_id;
+            // 触发change事件以启用加载按钮
+            sampleTypeSelect.dispatchEvent(new Event('change'));
+        }
+
+        // 4. 填充客户信息（被检单位）
+        if (data.company_name) {
+            document.getElementById('customerUnitInput').value = data.company_name;
+        }
+
+        // 5. 加载检测项目并填入检测值
+        if (data.sample_type_id) {
+            // 先加载模板检测项目
+            const indicators = await apiRequest(`/api/template-indicators?sample_type_id=${data.sample_type_id}`);
+
+            if (indicators && indicators.length > 0) {
+                // 建立原始数据检测值的映射（按指标名称）
+                const rawValueMap = {};
+                if (data.detection_items) {
+                    data.detection_items.forEach(item => {
+                        rawValueMap[item.indicator_name] = item.measured_value;
+                    });
+                }
+                if (data.unmatched_items) {
+                    data.unmatched_items.forEach(item => {
+                        rawValueMap[item.indicator_name] = item.measured_value;
+                    });
+                }
+
+                // 用模板指标填充，同时匹配原始数据检测值
+                reportIndicators = indicators.map((ind, index) => ({
+                    ...ind,
+                    order: index,
+                    measured_value: rawValueMap[ind.indicator_name] !== undefined
+                        ? rawValueMap[ind.indicator_name]
+                        : (ind.default_value || '')
+                }));
+
+                renderIndicatorsTable();
+                document.getElementById('indicatorsCard').style.display = 'block';
+            }
+        }
+
+        // 6. 显示未匹配项警告
+        const warningsDiv = document.getElementById('rawDataImportWarnings');
+        if (data.unmatched_items && data.unmatched_items.length > 0) {
+            const unmatchedNames = data.unmatched_items.map(i => i.indicator_name).join('、');
+            warningsDiv.innerHTML = `
+                <div class="alert alert-warning mb-0">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>以下原始数据项未匹配到系统指标（${data.unmatched_items.length}项）：</strong><br>
+                    ${escapeHtml(unmatchedNames)}<br>
+                    <small class="text-muted">这些项目的检测值未自动导入，如需要请手动添加。</small>
+                </div>`;
+            warningsDiv.style.display = 'block';
+        } else {
+            warningsDiv.style.display = 'none';
+        }
+
+        // 提示匹配情况
+        if (!data.sample_type_id) {
+            showToast(`样品类型"${data.sample_type || ''}"未匹配，请手动选择`, 'warning');
+        }
+        if (!data.company_id) {
+            showToast(`公司"${data.company_name || ''}"未在系统中匹配`, 'info');
+        }
+
+        showToast('原始数据已导入，请检查并补充信息', 'success');
+
+        // 关闭模态框
+        const modal = bootstrap.Modal.getInstance(document.getElementById('rawDataImportModal'));
+        if (modal) modal.hide();
+
+    } catch (error) {
+        console.error('导入原始数据失败:', error);
+        showToast('导入原始数据失败: ' + error.message, 'error');
+    }
+}
+
+// 初始化原始数据导入搜索事件
+function initRawDataImport() {
+    const importBtn = document.getElementById('importRawDataBtn');
+    if (importBtn) {
+        importBtn.addEventListener('click', openRawDataImportModal);
+    }
+
+    const searchInput = document.getElementById('rawDataSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            clearTimeout(rawDataSearchTimer);
+            rawDataSearchTimer = setTimeout(() => {
+                searchRawDataSamples(this.value.trim());
+            }, 300);
+        });
+    }
+}
+
 // 选择编辑页面的样品来源
 function selectEditSampleSource(source) {
     const sourceInput = document.getElementById('editSampleSource');
@@ -4382,6 +4541,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 检查是否在报告填写页面
     if (document.getElementById('newReportSampleNumber')) {
         initNewReportPage();
+        initRawDataImport();
     }
 
     // 绑定编辑报告页面的按钮事件

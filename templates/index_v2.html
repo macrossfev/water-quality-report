@@ -188,7 +188,12 @@
                                             </div>
                                             <div class="col-md-6">
                                                 <label class="form-label">样品编号 <span class="text-danger">*</span></label>
-                                                <input type="text" class="form-control" id="newReportSampleNumber" placeholder="请输入样品编号">
+                                                <div class="input-group">
+                                                    <input type="text" class="form-control" id="newReportSampleNumber" placeholder="请输入样品编号">
+                                                    <button class="btn btn-outline-success" type="button" id="importRawDataBtn" title="从原始数据导入">
+                                                        <i class="bi bi-database-down"></i> 从原始数据导入
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                         <div class="row g-3 mb-3">
@@ -985,6 +990,45 @@
                     <button type="button" class="btn btn-primary" id="confirmGenerateBtn">
                         <i class="bi bi-file-earmark-arrow-down"></i> 确认生成
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 原始数据导入选择模态框 -->
+    <div class="modal fade" id="rawDataImportModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title"><i class="bi bi-database-down"></i> 从原始数据导入</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">搜索样品编号</label>
+                        <input type="text" class="form-control" id="rawDataSearchInput" placeholder="输入样品编号、公司名或水厂名搜索..." autocomplete="off">
+                    </div>
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-hover table-sm">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>样品编号</th>
+                                    <th>公司名称</th>
+                                    <th>水厂名称</th>
+                                    <th>样品类型</th>
+                                    <th>采样日期</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rawDataSearchResults">
+                                <tr><td colspan="6" class="text-center text-muted">请输入关键字搜索或直接查看列表</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="rawDataImportWarnings" class="mt-3" style="display:none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
                 </div>
             </div>
         </div>

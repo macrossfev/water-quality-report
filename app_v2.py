@@ -5056,5 +5056,161 @@ def api_raw_data_filter_preview():
     except Exception as e:
         return jsonify({'error': f'查询失败: {str(e)}'}), 500
 
+@app.route('/api/raw-data/sample-numbers', methods=['GET'])
+@login_required
+def api_raw_data_sample_numbers():
+    """获取原始数据样品编号列表（用于自动完成/下拉选择）"""
+    try:
+        search = request.args.get('search', '').strip()
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        query = '''
+            SELECT sample_number, company_name, plant_name, sample_type, sampling_date
+            FROM raw_data_records
+        '''
+        params = []
+
+        if search:
+            query += ' WHERE sample_number LIKE ? OR company_name LIKE ? OR plant_name LIKE ?'
+            params = [f'%{search}%', f'%{search}%', f'%{search}%']
+
+        query += ' ORDER BY sampling_date DESC LIMIT 50'
+
+        cursor.execute(query, params)
+        results = []
+        for row in cursor.fetchall():
+            results.append({
+                'sample_number': row[0],
+                'company_name': row[1],
+                'plant_name': row[2],
+                'sample_type': row[3],
+                'sampling_date': row[4]
+            })
+
+        conn.close()
+        return jsonify(results)
+
+    except Exception as e:
+        return jsonify({'error': f'查询失败: {str(e)}'}), 500
+
+
+@app.route('/api/raw-data/for-report', methods=['GET'])
+@login_required
+def api_raw_data_for_report():
+    """根据样品编号获取原始数据用于创建报告"""
+    try:
+        sample_number = request.args.get('sample_number', '').strip()
+        if not sample_number:
+            return jsonify({'error': '请提供样品编号'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 1. 查询原始数据记录
+        cursor.execute('''
+            SELECT id, sample_number, company_name, plant_name, sample_type, sampling_date
+            FROM raw_data_records
+            WHERE sample_number = ?
+        ''', (sample_number,))
+
+        record = cursor.fetchone()
+        if not record:
+            conn.close()
+            return jsonify({'error': f'未找到样品编号为 {sample_number} 的原始数据'}), 404
+
+        record_id = record[0]
+        company_name = record[2]
+        plant_name = record[3]
+        sample_type = record[4]
+        sampling_date = record[5]
+
+        # 2. 查询原始数据检测值
+        cursor.execute('''
+            SELECT column_name, value
+            FROM raw_data_values
+            WHERE record_id = ?
+            ORDER BY id
+        ''', (record_id,))
+
+        raw_values = cursor.fetchall()
+
+        # 3. 匹配公司名称 -> company_id
+        company_id = None
+        if company_name:
+            cursor.execute('SELECT id FROM companies WHERE name = ?', (company_name,))
+            company_row = cursor.fetchone()
+            if company_row:
+                company_id = company_row[0]
+
+        # 4. 匹配样品类型 -> sample_type_id
+        sample_type_id = None
+        if sample_type:
+            cursor.execute('SELECT id FROM sample_types WHERE name = ?', (sample_type,))
+            type_row = cursor.fetchone()
+            if type_row:
+                sample_type_id = type_row[0]
+
+        # 5. 预加载所有指标，用于匹配
+        cursor.execute('''
+            SELECT id, name, unit, limit_value, detection_method
+            FROM indicators
+        ''')
+        all_indicators = {}
+        for ind_row in cursor.fetchall():
+            all_indicators[ind_row[1]] = {
+                'indicator_id': ind_row[0],
+                'indicator_name': ind_row[1],
+                'unit': ind_row[2],
+                'limit_value': ind_row[3],
+                'detection_method': ind_row[4]
+            }
+
+        # 6. 为每个检测值尝试匹配指标
+        detection_items = []
+        unmatched_items = []
+
+        for rv in raw_values:
+            col_name = rv[0]
+            value = rv[1]
+
+            if col_name in all_indicators:
+                ind_info = all_indicators[col_name]
+                detection_items.append({
+                    'indicator_name': col_name,
+                    'indicator_id': ind_info['indicator_id'],
+                    'measured_value': value or '',
+                    'unit': ind_info['unit'] or '',
+                    'limit_value': ind_info['limit_value'] or '',
+                    'detection_method': ind_info['detection_method'] or ''
+                })
+            else:
+                unmatched_items.append({
+                    'indicator_name': col_name,
+                    'indicator_id': None,
+                    'measured_value': value or '',
+                    'unit': '',
+                    'limit_value': '',
+                    'detection_method': ''
+                })
+
+        conn.close()
+
+        return jsonify({
+            'sample_number': sample_number,
+            'company_name': company_name,
+            'company_id': company_id,
+            'plant_name': plant_name,
+            'sample_type': sample_type,
+            'sample_type_id': sample_type_id,
+            'sampling_date': sampling_date,
+            'detection_items': detection_items,
+            'unmatched_items': unmatched_items
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'查询失败: {str(e)}'}), 500
+
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
