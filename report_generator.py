@@ -34,8 +34,7 @@ class ReportGenerator:
         Args:
             output_path: 输出文件路径，如果为None则自动生成
             filename_template: 文件名模板，支持变量：{report_number}, {sampling_location}, {timestamp}
-                              示例: "{sampling_location}_{timestamp}" 或 "{sampling_location}_{report_number}"
-                              默认: "report_{report_number}_{timestamp}"
+                              默认: "{sampling_location}{report_number}"
             export_format: 导出格式，支持 'xlsx' 或 'pdf'，默认 'xlsx'
 
         Returns:
@@ -54,7 +53,7 @@ class ReportGenerator:
 
             # 如果没有指定模板，使用默认模板
             if filename_template is None:
-                filename_template = "report_{report_number}_{timestamp}"
+                filename_template = "{sampling_location}{report_number}"
 
             # 准备变量替换
             variables = {
@@ -886,24 +885,12 @@ class ReportGenerator:
                         cell = ws.cell(row=current_row, column=col_index)
                         cell.value = value
 
-                        # 如果值包含换行符，启用自动换行
+                        # 如果值包含换行符，仅启用wrap_text，保留模板原有对齐格式
                         if value and isinstance(value, str) and '\n' in value:
-                            from openpyxl.styles import Alignment
-                            # 保持现有对齐方式，只启用换行
-                            current_alignment = cell.alignment
-                            cell.alignment = Alignment(
-                                horizontal=current_alignment.horizontal or 'center',
-                                vertical=current_alignment.vertical or 'center',
-                                wrap_text=True  # 启用自动换行
-                            )
-
-                        # 自动缩小字体以适应单元格（仅对超长文本）
-                        if value and isinstance(value, str) and len(value) > 10:
-                            col_w = ws.column_dimensions[col_letter].width or 10
-                            # 使用预期调整后的行高（基于换行符数量）
-                            newline_lines = value.count('\n') + 1
-                            expected_h = max(15, min(8 + newline_lines * 9, 80))
-                            self._auto_fit_font_size(cell, col_w, max_row_height=expected_h)
+                            from copy import copy
+                            new_align = copy(cell.alignment)
+                            new_align.wrap_text = True
+                            cell.alignment = new_align
 
                         if i == 0:  # 只打印第一行的详细信息
                             print(f"  列 {mapping}: {col_letter}{current_row} = '{value}'")
@@ -912,9 +899,7 @@ class ReportGenerator:
 
             print(f"  ✓ 已填充 {items_to_fill} 行到 {sheet_name}")
 
-            # 自动调整行高
-            self._auto_adjust_row_height(sheet_name, start_row, items_to_fill)
-            print(f"  ✓ 已自动调整行高")
+            # 保留模板原始行高，不做自动调整
 
             item_index += items_to_fill
 
