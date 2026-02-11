@@ -44,6 +44,17 @@
                     </div>
                 </div>
                 <div class="col-md-6 text-end">
+                    <div class="btn-group me-2">
+                        <button class="btn btn-outline-success" onclick="window.location.href='/api/customers/export'" title="导出所有客户到Excel">
+                            <i class="bi bi-download"></i> 导出客户
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="window.location.href='/api/customers/download-template'" title="下载导入模板">
+                            <i class="bi bi-file-earmark-arrow-down"></i> 下载模板
+                        </button>
+                        <button class="btn btn-outline-warning" onclick="openImportModal()" title="从Excel导入客户">
+                            <i class="bi bi-upload"></i> 导入客户
+                        </button>
+                    </div>
                     <button class="btn btn-success" id="addBtn">
                         <i class="bi bi-plus-circle"></i> 添加客户
                     </button>
@@ -150,6 +161,47 @@
         </div>
     </div>
 
+    <!-- 导入客户模态框 -->
+    <div class="modal fade" id="importModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-upload"></i> 导入客户</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="importForm" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="importFile" class="form-label">选择Excel文件</label>
+                            <input type="file" class="form-control" id="importFile" accept=".xlsx,.xls" required>
+                            <div class="form-text">支持 .xlsx 和 .xls 格式，可先<a href="/api/customers/download-template">下载模板</a>填写后上传。</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">重复记录处理方式</label>
+                            <select class="form-select" id="onDuplicate">
+                                <option value="skip">跳过重复记录（默认）</option>
+                                <option value="overwrite">覆盖更新已有记录</option>
+                                <option value="abort">发现重复时中止导入</option>
+                            </select>
+                            <div class="form-text">重复判断依据：被检单位 + 水厂名称 相同视为重复。</div>
+                        </div>
+                    </form>
+                    <div id="importResult" style="display:none;">
+                        <hr>
+                        <h6>导入结果</h6>
+                        <div id="importResultContent"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="button" class="btn btn-primary" id="doImportBtn" onclick="doImport()">
+                        <i class="bi bi-upload"></i> 开始导入
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let currentPage = 1;
@@ -158,10 +210,12 @@
         let allData = [];
         let filteredData = [];
         let editModal;
+        let importModal;
 
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
             editModal = new bootstrap.Modal(document.getElementById('editModal'));
+            importModal = new bootstrap.Modal(document.getElementById('importModal'));
 
             // 绑定事件
             document.getElementById('addBtn').addEventListener('click', () => openEditModal());
@@ -429,6 +483,77 @@
             } catch (error) {
                 console.error('复制客户失败:', error);
                 alert('复制客户失败，请重试');
+            }
+        }
+
+        // 打开导入模态框
+        function openImportModal() {
+            document.getElementById('importForm').reset();
+            document.getElementById('importResult').style.display = 'none';
+            document.getElementById('importResultContent').innerHTML = '';
+            document.getElementById('doImportBtn').disabled = false;
+            importModal.show();
+        }
+
+        // 执行导入
+        async function doImport() {
+            const fileInput = document.getElementById('importFile');
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert('请选择要导入的Excel文件');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('on_duplicate', document.getElementById('onDuplicate').value);
+
+            const btn = document.getElementById('doImportBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 导入中...';
+
+            try {
+                const response = await fetch('/api/customers/import', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                const resultDiv = document.getElementById('importResult');
+                const contentDiv = document.getElementById('importResultContent');
+                resultDiv.style.display = 'block';
+
+                let html = '';
+                if (result.error) {
+                    html = `<div class="alert alert-danger">${result.error}</div>`;
+                } else {
+                    const alertClass = result.errors && result.errors.length > 0 ? 'alert-warning' : 'alert-success';
+                    html = `<div class="alert ${alertClass}">
+                        <strong>${result.message}</strong><br>
+                        <small>总行数: ${result.total_rows} | 成功: ${result.success_count} | 跳过: ${result.skip_count} | 错误: ${result.errors ? result.errors.length : 0}</small>
+                    </div>`;
+
+                    if (result.warnings && result.warnings.length > 0) {
+                        html += '<div class="mb-2"><strong>警告:</strong><ul class="mb-0">';
+                        result.warnings.forEach(w => { html += `<li class="text-warning"><small>${w}</small></li>`; });
+                        html += '</ul></div>';
+                    }
+                    if (result.errors && result.errors.length > 0) {
+                        html += '<div class="mb-2"><strong>错误:</strong><ul class="mb-0">';
+                        result.errors.forEach(e => { html += `<li class="text-danger"><small>${e}</small></li>`; });
+                        html += '</ul></div>';
+                    }
+
+                    // Reload data
+                    loadData();
+                }
+
+                contentDiv.innerHTML = html;
+            } catch (error) {
+                document.getElementById('importResult').style.display = 'block';
+                document.getElementById('importResultContent').innerHTML = `<div class="alert alert-danger">导入失败: ${error.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-upload"></i> 开始导入';
             }
         }
 
