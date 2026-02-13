@@ -3887,19 +3887,43 @@ function initSampleSourceDropdown() {
     });
 }
 
-// 根据样品来源切换标签文字
+// 根据样品来源切换标签文字及字段状态
 function updateSampleSourceLabels(prefix, source) {
     const samplerLabel = document.getElementById(prefix + 'SamplerLabel');
     const dateLabel = document.getElementById(prefix + 'SamplingDateLabel');
     const samplerInput = document.getElementById(prefix === 'new' ? 'newSampler' : 'editSampler');
+    const locationInput = document.getElementById(prefix === 'new' ? 'newSamplingLocation' : 'editSamplingLocation');
+    const basisInput = document.getElementById(prefix === 'new' ? 'newSamplingBasis' : 'editSamplingBasis');
     if (source === '委托送样') {
         if (samplerLabel) samplerLabel.textContent = '送样人';
         if (dateLabel) dateLabel.textContent = '送样日期';
         if (samplerInput) samplerInput.placeholder = '送样人姓名';
+        if (locationInput) {
+            locationInput._prevValue = locationInput.value;
+            locationInput.value = '-';
+            locationInput.disabled = true;
+        }
+        if (basisInput) {
+            basisInput._prevValue = basisInput.value;
+            basisInput.value = '-';
+            basisInput.disabled = true;
+        }
     } else {
         if (samplerLabel) samplerLabel.textContent = '采样人';
         if (dateLabel) dateLabel.textContent = '采样日期';
         if (samplerInput) samplerInput.placeholder = '采样人姓名';
+        if (locationInput) {
+            locationInput.disabled = false;
+            if (locationInput.value === '-') {
+                locationInput.value = locationInput._prevValue || '';
+            }
+        }
+        if (basisInput) {
+            basisInput.disabled = false;
+            if (basisInput.value === '-') {
+                basisInput.value = basisInput._prevValue || 'GB/T 5750.2-2023';
+            }
+        }
     }
 }
 
