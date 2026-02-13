@@ -9,58 +9,67 @@
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-    <!-- 导航栏 -->
-    <nav class="navbar navbar-dark bg-primary">
-        <div class="container-fluid">
-            <span class="navbar-brand mb-0 h1">
-                <i class="bi bi-droplet-fill"></i> 水质检测报告系统
-            </span>
-            <div class="d-flex align-items-center text-white">
-                <span class="me-3">
+    <!-- 整体布局容器 -->
+    <div class="app-layout">
+        <!-- 左侧导航栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-icon">
+                    <i class="bi bi-droplet-fill"></i>
+                </div>
+                <div class="brand-text">
+                    <span class="brand-title">水质检测</span>
+                    <span class="brand-subtitle">报告系统</span>
+                </div>
+            </div>
+
+            <div class="sidebar-nav">
+                <ul class="nav flex-column" id="mainTabs" role="tablist">
+                    <li class="nav-item" role="presentation" id="templateTabLi">
+                        <button class="nav-link active" id="template-tab" data-bs-toggle="tab" data-bs-target="#template" type="button">
+                            <i class="bi bi-file-earmark-text"></i> <span>模板管理</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="report-tab" data-bs-toggle="tab" data-bs-target="#report" type="button">
+                            <i class="bi bi-clipboard-data"></i> <span>报告填写</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="review-tab" data-bs-toggle="tab" data-bs-target="#review" type="button">
+                            <i class="bi bi-clipboard-check"></i> <span>报告审核</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="generate-tab" data-bs-toggle="tab" data-bs-target="#generate" type="button">
+                            <i class="bi bi-file-earmark-arrow-down"></i> <span>报告生成</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation" id="dataTabLi">
+                        <button class="nav-link" id="data-tab" data-bs-toggle="tab" data-bs-target="#data" type="button">
+                            <i class="bi bi-database"></i> <span>数据管理</span>
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="user-info">
                     <i class="bi bi-person-circle"></i>
                     <span id="currentUsername">用户</span>
-                    <span class="badge bg-light text-dark ms-2" id="currentUserRole">角色</span>
-                </span>
-                <button class="btn btn-outline-light btn-sm" id="logoutBtn">
+                    <span class="badge user-role-badge" id="currentUserRole">角色</span>
+                </div>
+                <button class="btn btn-logout" id="logoutBtn">
                     <i class="bi bi-box-arrow-right"></i> 退出
                 </button>
             </div>
-        </div>
-    </nav>
+        </aside>
 
-    <!-- 主内容区 -->
-    <div class="container-fluid mt-3">
-        <!-- 标签页导航 -->
-        <ul class="nav nav-tabs" id="mainTabs" role="tablist">
-            <li class="nav-item" role="presentation" id="templateTabLi">
-                <button class="nav-link active" id="template-tab" data-bs-toggle="tab" data-bs-target="#template" type="button">
-                    <i class="bi bi-file-earmark-text"></i> 模板管理
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="report-tab" data-bs-toggle="tab" data-bs-target="#report" type="button">
-                    <i class="bi bi-clipboard-data"></i> 报告填写
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="review-tab" data-bs-toggle="tab" data-bs-target="#review" type="button">
-                    <i class="bi bi-clipboard-check"></i> 报告审核
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="generate-tab" data-bs-toggle="tab" data-bs-target="#generate" type="button">
-                    <i class="bi bi-file-earmark-arrow-down"></i> 报告生成
-                </button>
-            </li>
-            <li class="nav-item" role="presentation" id="dataTabLi">
-                <button class="nav-link" id="data-tab" data-bs-toggle="tab" data-bs-target="#data" type="button">
-                    <i class="bi bi-database"></i> 数据管理
-                </button>
-            </li>
-        </ul>
-
-        <!-- 标签页内容 -->
-        <div class="tab-content mt-3" id="mainTabContent">
+        <!-- 右侧主内容区 -->
+        <main class="main-content">
+            <div class="content-wrapper">
+                <!-- 标签页内容 -->
+                <div class="tab-content" id="mainTabContent">
             <!-- 模板管理标签页 -->
             <div class="tab-pane fade show active" id="template" role="tabpanel">
                 <div class="alert alert-info">
@@ -955,7 +964,9 @@
                     </div>
                 </div>
             </div>
-        </div>
+                </div>
+            </div>
+        </main>
     </div>
 
     <!-- Toast通知容器 -->
