@@ -286,7 +286,7 @@
                                         <div class="row g-3 mb-3">
                                             <div class="col-md-12">
                                                 <label class="form-label">检测项目</label>
-                                                <textarea class="form-control" id="newTestItems" rows="3" readonly>色度、浑浊度、pH、菌落总数、氟化物、硫酸盐、铜、铁、锰、砷、锌、铝、氰化物、溶解性总固体、三氯甲烷等共计43项指标</textarea>
+                                                <textarea class="form-control" id="newTestItems" rows="3">色度、浑浊度、pH、菌落总数、氟化物、硫酸盐、铜、铁、锰、砷、锌、铝、氰化物、溶解性总固体、三氯甲烷等共计43项指标</textarea>
                                             </div>
                                         </div>
                                         <div class="row g-3 mb-3">
@@ -876,14 +876,19 @@
                                 <h5 class="mb-0"><i class="bi bi-database-gear"></i> 数据备份</h5>
                             </div>
                             <div class="card-body">
-                                <button class="btn btn-success mb-3" id="createBackupBtn">
+                                <button class="btn btn-success mb-3 me-2" id="createBackupBtn">
                                     <i class="bi bi-cloud-arrow-down"></i> 创建备份
                                 </button>
+                                <button class="btn btn-primary mb-3" onclick="document.getElementById('importBackupFile').click()">
+                                    <i class="bi bi-upload"></i> 导入备份
+                                </button>
+                                <input type="file" id="importBackupFile" accept=".db" style="display:none" onchange="importBackup(this)">
                                 <div class="table-responsive">
                                     <table class="table table-sm">
                                         <thead>
                                             <tr>
                                                 <th>备份名称</th>
+                                                <th>说明</th>
                                                 <th>创建时间</th>
                                                 <th>操作</th>
                                             </tr>

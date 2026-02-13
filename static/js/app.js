@@ -178,8 +178,8 @@ function bindEvents() {
     document.getElementById('refreshGenReportBtn')?.addEventListener('click', loadGenReports);
 
     // 报告查询
-    document.getElementById('searchReportBtn').addEventListener('click', searchReports);
-    document.getElementById('refreshReportBtn').addEventListener('click', () => loadReports());
+    document.getElementById('searchReportBtn')?.addEventListener('click', searchReports);
+    document.getElementById('refreshReportBtn')?.addEventListener('click', () => loadReports());
 
     // 数据管理
     document.getElementById('createBackupBtn')?.addEventListener('click', createBackup);
@@ -2579,7 +2579,7 @@ function updateBackupsList(backups) {
     tbody.innerHTML = '';
 
     if (backups.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">暂无备份</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">暂无备份</td></tr>';
         return;
     }
 
@@ -2587,15 +2587,69 @@ function updateBackupsList(backups) {
         tbody.innerHTML += `
             <tr>
                 <td>${backup.name}</td>
+                <td><small class="text-muted">${backup.description || '-'}</small></td>
                 <td>${formatDateTime(backup.backup_time)}</td>
                 <td>
-                    <button class="btn btn-sm btn-warning" onclick="restoreBackup('${backup.name}')">
+                    <button class="btn btn-sm btn-primary me-1" onclick="downloadBackup('${backup.name}')">
+                        <i class="bi bi-download"></i> 下载
+                    </button>
+                    <button class="btn btn-sm btn-warning me-1" onclick="restoreBackup('${backup.name}')">
                         <i class="bi bi-arrow-counterclockwise"></i> 恢复
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteBackup('${backup.name}')">
+                        <i class="bi bi-trash"></i> 删除
                     </button>
                 </td>
             </tr>
         `;
     });
+}
+
+function downloadBackup(backupName) {
+    window.location.href = '/api/backup/download/' + encodeURIComponent(backupName);
+}
+
+async function importBackup(input) {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = '';
+
+    if (!file.name.endsWith('.db')) {
+        showToast('仅支持 .db 格式的SQLite数据库文件', 'warning');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const response = await fetch('/api/backup/import', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        if (response.ok) {
+            showToast(data.message);
+            await loadBackups();
+        } else {
+            showToast(data.error || '导入失败', 'error');
+        }
+    } catch (error) {
+        console.error('导入备份失败:', error);
+        showToast('导入备份失败', 'error');
+    }
+}
+
+async function deleteBackup(backupName) {
+    if (!confirm('⚠️ 确定要删除备份 "' + backupName + '" 吗？\n\n删除后将无法恢复，请确认该备份不再需要！')) return;
+    if (!confirm('⚠️ 再次确认：删除备份 "' + backupName + '"？\n此操作不可撤销！')) return;
+    try {
+        const data = await apiRequest('/api/backup/delete/' + encodeURIComponent(backupName), { method: 'DELETE' });
+        showToast(data.message);
+        await loadBackups();
+    } catch (error) {
+        console.error('删除备份失败:', error);
+    }
 }
 
 async function restoreBackup(backupName) {
