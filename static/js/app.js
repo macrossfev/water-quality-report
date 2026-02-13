@@ -2874,6 +2874,7 @@ async function editPendingReport(reportId) {
         document.getElementById('editSampleNumber').value = report.sample_number || '';
         document.getElementById('editSampleType').value = report.sample_type_name || '';
         document.getElementById('editSampleSource').value = report.sample_source || '';
+        updateSampleSourceLabels('edit', report.sample_source || '');
         document.getElementById('editSampleStatus').value = report.sample_status || '';
         document.getElementById('editSampler').value = report.sampler || '';
         document.getElementById('editSamplingDate').value = report.sampling_date || '';
@@ -3851,6 +3852,14 @@ function setNewReportDefaults() {
     if (sampleSourceInput && !sampleSourceInput.value) {
         sampleSourceInput.value = '委托采样';
     }
+    updateSampleSourceLabels('new', sampleSourceInput ? sampleSourceInput.value : '');
+
+    // 监听手动输入变化
+    if (sampleSourceInput) {
+        sampleSourceInput.addEventListener('input', function() {
+            updateSampleSourceLabels('new', this.value.trim());
+        });
+    }
 }
 
 // 初始化样品来源下拉菜单
@@ -3878,6 +3887,22 @@ function initSampleSourceDropdown() {
     });
 }
 
+// 根据样品来源切换标签文字
+function updateSampleSourceLabels(prefix, source) {
+    const samplerLabel = document.getElementById(prefix + 'SamplerLabel');
+    const dateLabel = document.getElementById(prefix + 'SamplingDateLabel');
+    const samplerInput = document.getElementById(prefix === 'new' ? 'newSampler' : 'editSampler');
+    if (source === '委托送样') {
+        if (samplerLabel) samplerLabel.textContent = '送样人';
+        if (dateLabel) dateLabel.textContent = '送样日期';
+        if (samplerInput) samplerInput.placeholder = '送样人姓名';
+    } else {
+        if (samplerLabel) samplerLabel.textContent = '采样人';
+        if (dateLabel) dateLabel.textContent = '采样日期';
+        if (samplerInput) samplerInput.placeholder = '采样人姓名';
+    }
+}
+
 // 选择样品来源
 function selectSampleSource(source) {
     const sourceInput = document.getElementById('newSampleSource');
@@ -3890,6 +3915,8 @@ function selectSampleSource(source) {
     if (sourceDropdown) {
         sourceDropdown.classList.remove('show');
     }
+
+    updateSampleSourceLabels('new', source);
 }
 
 // 加载样品类型列表
@@ -4510,6 +4537,8 @@ function selectEditSampleSource(source) {
     if (sourceDropdown) {
         sourceDropdown.classList.remove('show');
     }
+
+    updateSampleSourceLabels('edit', source);
 }
 
 // 初始化编辑页面的样品来源下拉菜单
@@ -4533,6 +4562,11 @@ function initEditSampleSourceDropdown() {
         if (!sourceInput.contains(e.target) && !sourceDropdown.contains(e.target)) {
             sourceDropdown.classList.remove('show');
         }
+    });
+
+    // 监听手动输入变化
+    sourceInput.addEventListener('input', function() {
+        updateSampleSourceLabels('edit', this.value.trim());
     });
 }
 

@@ -120,28 +120,42 @@
                     </div>
                 </div>
 
-                <!-- 报告模版管理入口 -->
+                <!-- 报告模版管理 + 客户管理 并排 -->
                 <div class="row mb-4">
-                    <div class="col-md-12">
-                        <div class="card shadow-sm border-warning">
-                            <div class="card-body text-center p-4">
-                                <div class="row align-items-center">
-                                    <div class="col-md-2">
-                                        <i class="bi bi-file-earmark-spreadsheet" style="font-size: 3rem; color: #f39c12;"></i>
-                                    </div>
-                                    <div class="col-md-7 text-start">
-                                        <div class="badge bg-warning text-dark mb-2">步骤 3</div>
-                                        <h4 class="card-title mb-2">报告模版管理</h4>
-                                        <p class="card-text text-muted mb-0">
-                                            导入Excel模板，配置字段映射，最终形成完整的报告模板
-                                        </p>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <button class="btn btn-warning btn-lg" onclick="window.location.href='/report-template-manager'">
-                                            <i class="bi bi-arrow-right-circle"></i> 进入管理
-                                        </button>
-                                    </div>
+                    <div class="col-md-6">
+                        <div class="card shadow-sm h-100 border-warning">
+                            <div class="card-body text-center p-5">
+                                <div class="mb-3">
+                                    <i class="bi bi-file-earmark-spreadsheet" style="font-size: 3rem; color: #f39c12;"></i>
                                 </div>
+                                <div class="badge bg-warning text-dark mb-3">步骤 3</div>
+                                <h4 class="card-title mb-3">报告模版管理</h4>
+                                <p class="card-text text-muted">
+                                    导入Excel模板，配置字段映射<br>
+                                    最终形成完整的报告模板
+                                </p>
+                                <button class="btn btn-warning btn-lg mt-3" onclick="window.location.href='/report-template-manager'">
+                                    <i class="bi bi-arrow-right-circle"></i> 进入管理
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="card shadow-sm h-100 border-info">
+                            <div class="card-body text-center p-5">
+                                <div class="mb-3">
+                                    <i class="bi bi-people-fill" style="font-size: 3rem; color: #0dcaf0;"></i>
+                                </div>
+                                <div class="badge bg-info mb-3">客户</div>
+                                <h4 class="card-title mb-3">客户管理</h4>
+                                <p class="card-text text-muted">
+                                    预先录入客户信息（被检单位、水厂等）<br>
+                                    生成报告时可快速导入相关信息
+                                </p>
+                                <button class="btn btn-info btn-lg mt-3" onclick="window.location.href='/customers-manager'">
+                                    <i class="bi bi-arrow-right-circle"></i> 进入管理
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -235,11 +249,11 @@
                                         </div>
                                         <div class="row g-3 mb-3">
                                             <div class="col-md-6">
-                                                <label class="form-label">采样人</label>
+                                                <label class="form-label" id="newSamplerLabel">采样人</label>
                                                 <input type="text" class="form-control" id="newSampler" placeholder="采样人姓名">
                                             </div>
                                             <div class="col-md-6">
-                                                <label class="form-label">采样日期</label>
+                                                <label class="form-label" id="newSamplingDateLabel">采样日期</label>
                                                 <input type="date" class="form-control" id="newSamplingDate">
                                             </div>
                                         </div>
@@ -567,11 +581,11 @@
                                         </div>
                                         <div class="row g-3 mb-3">
                                             <div class="col-md-6">
-                                                <label class="form-label">采样人</label>
+                                                <label class="form-label" id="editSamplerLabel">采样人</label>
                                                 <input type="text" class="form-control" id="editSampler">
                                             </div>
                                             <div class="col-md-6">
-                                                <label class="form-label">采样日期</label>
+                                                <label class="form-label" id="editSamplingDateLabel">采样日期</label>
                                                 <input type="date" class="form-control" id="editSamplingDate">
                                             </div>
                                         </div>
@@ -846,35 +860,6 @@
                                     </div>
                                     <div class="col-md-4">
                                         <button class="btn btn-primary btn-lg" onclick="window.location.href='/raw-data-manager'">
-                                            <i class="bi bi-arrow-right-circle"></i> 进入管理
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 客户管理入口 -->
-                <div class="row mb-4">
-                    <div class="col-md-12">
-                        <div class="card shadow-sm border-info">
-                            <div class="card-body text-center p-4">
-                                <div class="row align-items-center">
-                                    <div class="col-md-8 text-start">
-                                        <div class="d-flex align-items-center">
-                                            <i class="bi bi-people-fill" style="font-size: 3rem; color: #0dcaf0;"></i>
-                                            <div class="ms-4">
-                                                <h4 class="card-title mb-2">客户管理</h4>
-                                                <p class="card-text text-muted mb-0">
-                                                    预先录入客户信息（被检单位、水厂、地址、联系人等）<br>
-                                                    在生成检测报告时可快速导入相关信息
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <button class="btn btn-info btn-lg" onclick="window.location.href='/customers-manager'">
                                             <i class="bi bi-arrow-right-circle"></i> 进入管理
                                         </button>
                                     </div>

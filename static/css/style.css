@@ -1,33 +1,33 @@
 /* ============================================
-   水质检测报告系统 — Wing Zero 机甲主题
-   飞翼零式：白色机体 / 钴蓝装甲 / 金色V字 / 红色点缀
+   水质检测报告系统 — 清澈湖水主题
+   白色主体 / 深湖蓝侧栏 / 天蓝强调 / 碧绿辅助
    ============================================ */
 
 :root {
-    --bg-deep: #f0f2f5;
+    --bg-deep: #f0f9ff;
     --bg-panel: #ffffff;
     --bg-card: #ffffff;
-    --bg-card-hover: #f8f9fc;
-    --border-subtle: #d8dce6;
-    --border-accent: #1a56db;
-    --text-primary: #1a1f36;
-    --text-secondary: #4a5568;
-    --text-muted: #8492a6;
-    --accent-cyan: #1a56db;
-    --accent-blue: #1a56db;
-    --accent-purple: #1a56db;
+    --bg-card-hover: #f0f9ff;
+    --border-subtle: #e0f2fe;
+    --border-accent: #0ea5e9;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --accent-cyan: #0ea5e9;
+    --accent-blue: #0ea5e9;
+    --accent-purple: #0ea5e9;
     --accent-green: #10b981;
-    --accent-yellow: #d4a017;
-    --accent-red: #c8102e;
-    --wing-white: #f5f7fa;
-    --wing-blue: #1a56db;
-    --wing-blue-light: #e8eefb;
-    --wing-gold: #d4a017;
-    --wing-gold-light: #fdf6e3;
-    --wing-red: #c8102e;
-    --wing-navy: #0f2557;
-    --glow-cyan: 0 0 12px rgba(26, 86, 219, 0.2);
-    --glow-blue: 0 0 12px rgba(26, 86, 219, 0.2);
+    --accent-yellow: #f59e0b;
+    --accent-red: #ef4444;
+    --wing-white: #f0f9ff;
+    --wing-blue: #0ea5e9;
+    --wing-blue-light: #e0f2fe;
+    --wing-gold: #0d9488;
+    --wing-gold-light: #ccfbf1;
+    --wing-red: #ef4444;
+    --wing-navy: #0c4a6e;
+    --glow-cyan: 0 0 12px rgba(14, 165, 233, 0.25);
+    --glow-blue: 0 0 12px rgba(14, 165, 233, 0.25);
     --sidebar-width: 240px;
 }
 
