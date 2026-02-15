@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>水质检测报告系统</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
@@ -376,13 +377,14 @@
                                             <table class="table table-bordered table-hover">
                                                 <thead class="table-light">
                                                     <tr>
-                                                        <th width="5%">序号</th>
-                                                        <th width="18%">检测项目名称</th>
-                                                        <th width="8%">单位</th>
-                                                        <th width="12%">检测结果</th>
-                                                        <th width="15%">限值</th>
-                                                        <th width="27%">检测方法</th>
-                                                        <th width="15%">操作</th>
+                                                        <th width="4%">序号</th>
+                                                        <th width="16%">检测项目名称</th>
+                                                        <th width="6%">单位</th>
+                                                        <th width="10%">检测结果</th>
+                                                        <th width="10%">限值</th>
+                                                        <th width="24%">检测方法</th>
+                                                        <th width="8%">判定</th>
+                                                        <th width="10%">操作</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody id="indicatorsTableBody">
@@ -687,13 +689,14 @@
                                             <table class="table table-bordered table-hover">
                                                 <thead class="table-light">
                                                     <tr>
-                                                        <th width="5%">序号</th>
-                                                        <th width="18%">检测项目名称</th>
-                                                        <th width="8%">单位</th>
-                                                        <th width="12%">检测结果</th>
-                                                        <th width="15%">限值</th>
-                                                        <th width="27%">检测方法</th>
-                                                        <th width="15%">操作</th>
+                                                        <th width="4%">序号</th>
+                                                        <th width="16%">检测项目名称</th>
+                                                        <th width="6%">单位</th>
+                                                        <th width="10%">检测结果</th>
+                                                        <th width="10%">限值</th>
+                                                        <th width="24%">检测方法</th>
+                                                        <th width="8%">判定</th>
+                                                        <th width="10%">操作</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody id="editIndicatorsTableBody">
@@ -944,6 +947,7 @@
                                                 <th>用户名</th>
                                                 <th>角色</th>
                                                 <th>创建时间</th>
+                                                <th>操作</th>
                                             </tr>
                                         </thead>
                                         <tbody id="usersList"></tbody>
@@ -1036,6 +1040,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/csrf_helper.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>

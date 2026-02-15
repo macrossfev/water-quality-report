@@ -3,6 +3,12 @@
    白色主体 / 深湖蓝侧栏 / 天蓝强调 / 碧绿辅助
    ============================================ */
 
+/* 检测项目填写状态着色 */
+.indicator-filled { background-color: #d4edda !important; }
+.indicator-unfilled { background-color: #fff3cd !important; }
+.judgment-pass { color: #198754; font-weight: 600; background-color: #d4edda !important; }
+.judgment-fail { color: #dc3545; font-weight: 600; background-color: #f8d7da !important; }
+
 :root {
     --bg-deep: #f0f9ff;
     --bg-panel: #ffffff;

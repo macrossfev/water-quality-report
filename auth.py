@@ -69,8 +69,39 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
             return jsonify({'error': '请先登录'}), 401
-        if session.get('role') != 'admin':
+        if session.get('role') not in ['admin', 'super_admin']:
             return jsonify({'error': '需要管理员权限'}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def super_admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': '请先登录'}), 401
+        if session.get('role') != 'super_admin':
+            return jsonify({'error': '需要超级管理员权限'}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
+def admin_or_above(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': '请先登录'}), 401
+        if session.get('role') not in ['admin', 'super_admin']:
+            return jsonify({'error': '需要管理员权限'}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
+def reviewer_or_above(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': '请先登录'}), 401
+        if session.get('role') not in ['reviewer', 'super_admin']:
+            return jsonify({'error': '需要审核权限'}), 403
         return f(*args, **kwargs)
     return decorated_function
 
@@ -82,7 +113,7 @@ def create_user(username, password, role='reporter'):
     :param role: 角色 (admin/reporter)
     :return: (success: bool, message: str, user_id: int or None)
     """
-    if role not in ['admin', 'reporter']:
+    if role not in ['super_admin', 'admin', 'reviewer', 'reporter']:
         return False, '角色参数错误', None
 
     conn = get_db_connection()
@@ -164,9 +195,9 @@ def log_operation(operation_type, operation_detail='', user_id=None, ip_address=
         conn = get_db_connection()
 
     conn.execute(
-        'INSERT INTO operation_logs (user_id, operation_type, operation_detail, ip_address) '
-        'VALUES (?, ?, ?, ?)',
-        (user_id, operation_type, operation_detail, ip_address)
+        'INSERT INTO operation_logs (user_id, operation_type, operation_detail, ip_address, created_at) '
+        'VALUES (?, ?, ?, ?, ?)',
+        (user_id, operation_type, operation_detail, ip_address, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     )
 
     # 只有我们自己创建的连接才需要commit和close

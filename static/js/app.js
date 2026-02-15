@@ -100,7 +100,8 @@ async function loadCurrentUser() {
         const data = await apiRequest('/api/auth/current-user');
         AppState.currentUser = data.user;
         document.getElementById('currentUsername').textContent = data.user.username;
-        document.getElementById('currentUserRole').textContent = data.user.role === 'admin' ? '管理员' : '填写人';
+        const roleNames = {'super_admin': '超级管理员', 'admin': '管理员', 'reviewer': '审核人员', 'reporter': '填写人'};
+        document.getElementById('currentUserRole').textContent = roleNames[data.user.role] || '填写人';
     } catch (error) {
         window.location.href = '/login';
     }
@@ -109,7 +110,7 @@ async function loadCurrentUser() {
 function updateUIByRole() {
     if (!AppState.currentUser) return;
 
-    if (AppState.currentUser.role !== 'admin') {
+    if (!['admin', 'super_admin'].includes(AppState.currentUser.role)) {
         document.getElementById('templateTabLi').style.display = 'none';
         document.getElementById('dataTabLi').style.display = 'none';
 
@@ -2716,15 +2717,24 @@ function updateUsersList(users) {
     tbody.innerHTML = '';
 
     users.forEach(user => {
-        const roleBadge = user.role === 'admin'
-            ? '<span class="badge bg-danger">管理员</span>'
-            : '<span class="badge bg-primary">填写人</span>';
+        const roleMap = {'super_admin':'<span class="badge bg-dark">超级管理员</span>','admin':'<span class="badge bg-danger">管理员</span>','reviewer':'<span class="badge bg-warning text-dark">审核人员</span>','reporter':'<span class="badge bg-primary">编写人员</span>'};
+        const roleBadge = roleMap[user.role] || '<span class="badge bg-secondary">' + user.role + '</span>';
+
+        const isCurrentUser = AppState.currentUser && AppState.currentUser.id === user.id;
+        const actions = AppState.currentUser && ['super_admin','admin'].includes(AppState.currentUser.role) ? `
+            <button class="btn btn-sm btn-outline-warning me-1" onclick="showChangeRoleModal(${user.id}, '${escapeHtml(user.username)}', '${user.role}')" title="修改角色">
+                <i class="bi bi-person-gear"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger" onclick="showResetPasswordModal(${user.id}, '${escapeHtml(user.username)}')" title="重置密码">
+                <i class="bi bi-key"></i>
+            </button>` : '';
 
         tbody.innerHTML += `
             <tr>
-                <td>${user.username}</td>
+                <td>${user.username}${isCurrentUser ? ' <small class="text-muted">(当前)</small>' : ''}</td>
                 <td>${roleBadge}</td>
                 <td>${formatDateTime(user.created_at)}</td>
+                <td>${actions}</td>
             </tr>
         `;
     });
@@ -2752,8 +2762,10 @@ function showAddUserModal() {
                             <div class="mb-3">
                                 <label class="form-label">角色</label>
                                 <select class="form-select" id="newUserRole">
-                                    <option value="reporter">填写人</option>
+                                    <option value="reporter">编写人员</option>
+                                    <option value="reviewer">审核人员</option>
                                     <option value="admin">管理员</option>
+                                    <option value="super_admin">超级管理员</option>
                                 </select>
                             </div>
                         </form>
@@ -2789,6 +2801,89 @@ async function addUser() {
     } catch (error) {
         console.error('添加用户失败:', error);
     }
+}
+
+function showChangeRoleModal(userId, username, currentRole) {
+    var old = document.getElementById('changeRoleModal');
+    if (old) old.remove();
+    var roleNames = {'super_admin': '超级管理员', 'admin': '管理员', 'reviewer': '审核人员', 'reporter': '填写人'};
+    var allRoles = ['super_admin', 'admin', 'reviewer', 'reporter'].filter(r => r !== currentRole);
+    var otherRole = allRoles[0];
+    var otherLabel = roleNames[otherRole];
+    var modalHTML = `
+    <div class="modal fade" id="changeRoleModal" tabindex="-1">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header"><h6 class="modal-title">修改角色 - ${username}</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <p>当前角色：<strong>${roleNames[currentRole] || currentRole}</strong></p>
+                    <p>确认切换为 <strong>${otherLabel}</strong>？</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                    <button class="btn btn-primary btn-sm" onclick="changeUserRole(${userId}, '${otherRole}')">确认</button>
+                </div>
+            </div>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    new bootstrap.Modal(document.getElementById('changeRoleModal')).show();
+}
+
+async function changeUserRole(userId, newRole) {
+    try {
+        await apiRequest('/api/users/' + userId, {
+            method: 'PUT', body: JSON.stringify({ role: newRole })
+        });
+        showToast('角色修改成功');
+        bootstrap.Modal.getInstance(document.getElementById('changeRoleModal'))?.hide();
+        await loadUsers();
+    } catch (e) { console.error(e); }
+}
+
+function showResetPasswordModal(userId, username) {
+    var old = document.getElementById('resetPwdModal');
+    if (old) old.remove();
+    var modalHTML = `
+    <div class="modal fade" id="resetPwdModal" tabindex="-1">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header"><h6 class="modal-title">重置密码 - ${username}</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">新密码 <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="resetNewPwd" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">确认密码 <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="resetConfirmPwd" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                    <button class="btn btn-danger btn-sm" onclick="resetUserPassword(${userId})">重置</button>
+                </div>
+            </div>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    new bootstrap.Modal(document.getElementById('resetPwdModal')).show();
+}
+
+async function resetUserPassword(userId) {
+    var pwd = document.getElementById('resetNewPwd').value;
+    var confirm = document.getElementById('resetConfirmPwd').value;
+    if (!pwd) { showToast('请输入新密码', 'error'); return; }
+    if (pwd !== confirm) { showToast('两次密码不一致', 'error'); return; }
+    try {
+        await apiRequest('/api/users/' + userId, {
+            method: 'PUT', body: JSON.stringify({ new_password: pwd })
+        });
+        showToast('密码重置成功');
+        bootstrap.Modal.getInstance(document.getElementById('resetPwdModal'))?.hide();
+    } catch (e) { console.error(e); }
 }
 
 // ==================== 待提交报告 ====================
@@ -2981,7 +3076,12 @@ function renderEditIndicatorsTable() {
     const tbody = document.getElementById('editIndicatorsTableBody');
     if (!tbody) return;
 
-    tbody.innerHTML = editReportIndicators.map((ind, index) => `
+    tbody.innerHTML = editReportIndicators.map((ind, index) => {
+        var filled = ind.measured_value && ind.measured_value.trim();
+        var inputClass = filled ? 'indicator-filled' : 'indicator-unfilled';
+        var judgment = autoJudge(ind.measured_value || '', ind.limit_value || '');
+        var judgmentClass = judgment === '合格' ? 'judgment-pass' : judgment === '不合格' ? 'judgment-fail' : '';
+        return `
         <tr data-index="${index}">
             <td class="text-center">${index + 1}</td>
             <td>
@@ -2996,7 +3096,7 @@ function renderEditIndicatorsTable() {
                        onchange="updateEditIndicatorField(${index}, 'unit', this.value)">
             </td>
             <td>
-                <input type="text" class="form-control form-control-sm"
+                <input type="text" class="form-control form-control-sm ${inputClass}"
                        value="${escapeHtml(ind.measured_value || '')}"
                        onchange="updateEditIndicatorField(${index}, 'measured_value', this.value)">
             </td>
@@ -3010,6 +3110,7 @@ function renderEditIndicatorsTable() {
                        value="${escapeHtml(ind.detection_method || '')}"
                        onchange="updateEditIndicatorField(${index}, 'detection_method', this.value)">
             </td>
+            <td class="text-center ${judgmentClass}">${judgment}</td>
             <td class="text-center">
                 <button class="btn btn-sm btn-outline-primary" onclick="moveEditIndicator(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>
                     <i class="bi bi-arrow-up"></i>
@@ -3019,14 +3120,17 @@ function renderEditIndicatorsTable() {
                     <i class="bi bi-arrow-down"></i>
                 </button>
             </td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
 }
 
 // 更新编辑页面的指标字段
 function updateEditIndicatorField(index, field, value) {
     if (editReportIndicators[index]) {
         editReportIndicators[index][field] = value;
+        if (field === 'measured_value' || field === 'limit_value') {
+            renderEditIndicatorsTable();
+        }
     }
 }
 
@@ -3868,7 +3972,7 @@ function initNewReportPage() {
     }
 
     if (loadBtn) {
-        loadBtn.addEventListener('click', loadReportIndicators);
+        loadBtn.addEventListener('click', showLoadIndicatorsOptions);
     }
 
     if (saveBtn) {
@@ -4182,7 +4286,52 @@ function loadCustomerInfo() {
 }
 
 // 加载检测项目
-async function loadReportIndicators() {
+function showLoadIndicatorsOptions() {
+    const sampleTypeId = document.getElementById('newReportSampleType').value;
+    if (!sampleTypeId) {
+        showToast('请先选择样品类型', 'warning');
+        return;
+    }
+
+    // 移除已有的弹窗
+    var old = document.getElementById('loadOptionsModal');
+    if (old) old.remove();
+
+    var modalHTML = `
+    <div class="modal fade" id="loadOptionsModal" tabindex="-1">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h6 class="modal-title">加载检测项目</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <p class="text-muted small mb-3">请选择是否加载各项目的默认检测值</p>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary" onclick="loadReportIndicators(true)">
+                            <i class="bi bi-clipboard-data"></i> 加载默认值
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="loadReportIndicators(false)">
+                            <i class="bi bi-clipboard"></i> 仅加载项目（不填值）
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>`;
+
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    var modal = new bootstrap.Modal(document.getElementById('loadOptionsModal'));
+    modal.show();
+}
+
+async function loadReportIndicators(withDefaults) {
+    // 关闭弹窗
+    var modalEl = document.getElementById('loadOptionsModal');
+    if (modalEl) {
+        bootstrap.Modal.getInstance(modalEl)?.hide();
+    }
+
     const sampleTypeId = document.getElementById('newReportSampleType').value;
 
     if (!sampleTypeId) {
@@ -4201,7 +4350,7 @@ async function loadReportIndicators() {
         reportIndicators = indicators.map((ind, index) => ({
             ...ind,
             order: index,
-            measured_value: ind.default_value || ''
+            measured_value: withDefaults ? (ind.default_value || '') : ''
         }));
 
         renderIndicatorsTable();
@@ -4213,13 +4362,51 @@ async function loadReportIndicators() {
     }
 }
 
+// 自动判定检测结果是否合格
+function autoJudge(measuredValue, limitValue) {
+    if (!measuredValue || !limitValue) return '';
+    var mv = measuredValue.trim();
+    var lv = limitValue.trim();
+    // "不得检出"类
+    if (/不得检出|不可检出/.test(lv)) {
+        return /未检出|ND|未检测出/.test(mv) ? '合格' : '不合格';
+    }
+    // 检测结果是"<X"格式（低于检出限），通常视为合格
+    if (/^[<＜]/.test(mv)) return '合格';
+    var num = parseFloat(mv);
+    if (isNaN(num)) return '';
+    // 范围格式 "0.1~0.8" 或 "0.1-0.8" 或 "0.1～0.8"
+    var rangeMatch = lv.match(/^([0-9.]+)\s*[~\-～]\s*([0-9.]+)$/);
+    if (rangeMatch) {
+        var lo = parseFloat(rangeMatch[1]);
+        var hi = parseFloat(rangeMatch[2]);
+        return (num >= lo && num <= hi) ? '合格' : '不合格';
+    }
+    // "≥X" 或 ">=X"
+    var lowerMatch = lv.match(/^[≥>][=＝]?\s*([0-9.]+)$/);
+    if (lowerMatch) {
+        return num >= parseFloat(lowerMatch[1]) ? '合格' : '不合格';
+    }
+    // "≤X" 或 "<=X" 或纯数字（默认按上限处理）
+    var upperMatch = lv.match(/^[≤<]?[=＝]?\s*([0-9.]+)$/);
+    if (upperMatch) {
+        return num <= parseFloat(upperMatch[1]) ? '合格' : '不合格';
+    }
+    return '';
+}
+
 // 渲染检测项目表格
 function renderIndicatorsTable() {
     const tbody = document.getElementById('indicatorsTableBody');
 
     if (!tbody) return;
 
-    tbody.innerHTML = reportIndicators.map((ind, index) => `
+    tbody.innerHTML = reportIndicators.map((ind, index) => {
+        var filled = ind.measured_value && ind.measured_value.trim();
+        var inputClass = filled ? 'indicator-filled' : 'indicator-unfilled';
+        var judgment = autoJudge(ind.measured_value || '', ind.limit_value || '');
+        var judgmentClass = judgment === '合格' ? 'judgment-pass' : judgment === '不合格' ? 'judgment-fail' : '';
+        return `
         <tr data-index="${index}">
             <td class="text-center">${index + 1}</td>
             <td>
@@ -4235,7 +4422,7 @@ function renderIndicatorsTable() {
                        placeholder="单位">
             </td>
             <td>
-                <input type="text" class="form-control form-control-sm"
+                <input type="text" class="form-control form-control-sm ${inputClass}"
                        value="${escapeHtml(ind.measured_value || '')}"
                        onchange="updateIndicatorField(${index}, 'measured_value', this.value)"
                        placeholder="检测结果">
@@ -4252,6 +4439,7 @@ function renderIndicatorsTable() {
                        onchange="updateIndicatorField(${index}, 'detection_method', this.value)"
                        placeholder="检测方法">
             </td>
+            <td class="text-center ${judgmentClass}">${judgment}</td>
             <td class="text-center">
                 <button class="btn btn-sm btn-outline-primary"
                         onclick="moveIndicator(${index}, 'up')"
@@ -4266,8 +4454,8 @@ function renderIndicatorsTable() {
                     <i class="bi bi-arrow-down"></i>
                 </button>
             </td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
 }
 
 // HTML转义函数
@@ -4287,6 +4475,9 @@ function escapeHtml(text) {
 function updateIndicatorField(index, field, value) {
     if (reportIndicators[index]) {
         reportIndicators[index][field] = value;
+        if (field === 'measured_value' || field === 'limit_value') {
+            renderIndicatorsTable();
+        }
     }
 }
 

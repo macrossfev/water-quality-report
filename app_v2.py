@@ -3,14 +3,17 @@
 支持模板管理、权限系统、多格式导出等功能
 """
 from flask import Flask, render_template, request, jsonify, send_file, session
+from flask_wtf.csrf import CSRFProtect
 from models_v2 import get_db_connection, init_database, DATABASE_PATH
 from auth import (
     login_user, logout_user, get_current_user, login_required, admin_required,
+    super_admin_required, admin_or_above, reviewer_or_above,
     create_user, change_password, log_operation, get_operation_logs
 )
 from datetime import datetime, timedelta
 import json
 import os
+import secrets
 import shutil
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
@@ -20,8 +23,25 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 import pandas as pd
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-change-in-production'  # 生产环境需修改
+
+# 安全配置：从文件加载持久化密钥，避免重启后session失效
+_secret_key_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.secret_key')
+if os.path.exists(_secret_key_path):
+    with open(_secret_key_path, 'r') as f:
+        app.secret_key = f.read().strip()
+else:
+    app.secret_key = secrets.token_hex(32)
+    with open(_secret_key_path, 'w') as f:
+        f.write(app.secret_key)
+    os.chmod(_secret_key_path, 0o600)
+
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Session有效期7天
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 文件上传限制50MB
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+# CSRF保护
+csrf = CSRFProtect(app)
 
 # 初始化数据库
 init_database()
@@ -83,7 +103,7 @@ def api_change_password():
         return jsonify({'error': message}), 400
 
 @app.route('/api/users', methods=['GET', 'POST'])
-@admin_required
+@super_admin_required
 def api_users():
     """用户管理(仅管理员)"""
     if request.method == 'POST':
@@ -109,6 +129,51 @@ def api_users():
     conn.close()
 
     return jsonify([dict(user) for user in users])
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+@login_required
+def api_update_user(user_id):
+    """管理员修改用户角色或重置密码"""
+    current_role = session.get('role')
+    if current_role not in ['super_admin', 'admin']:
+        return jsonify({'error': '权限不足'}), 403
+    data = request.json
+    conn = get_db_connection()
+    try:
+        user = conn.execute('SELECT id, username FROM users WHERE id = ?', (user_id,)).fetchone()
+        if not user:
+            conn.close()
+            return jsonify({'error': '用户不存在'}), 404
+
+        new_role = data.get('role')
+        new_password = data.get('new_password')
+        changes = []
+
+        if new_role:
+            if current_role != 'super_admin':
+                conn.close()
+                return jsonify({'error': '只有超级管理员可以修改角色'}), 403
+            if new_role not in ['super_admin', 'admin', 'reviewer', 'reporter']:
+                conn.close()
+                return jsonify({'error': '角色参数错误'}), 400
+            conn.execute('UPDATE users SET role = ? WHERE id = ?', (new_role, user_id))
+            changes.append(f'角色改为{new_role}')
+
+        if new_password:
+            from werkzeug.security import generate_password_hash
+            conn.execute('UPDATE users SET password_hash = ? WHERE id = ?',
+                        (generate_password_hash(new_password), user_id))
+            changes.append('密码已重置')
+
+        if changes:
+            conn.commit()
+            log_operation('修改用户', f'用户{user["username"]}: {", ".join(changes)}')
+
+        conn.close()
+        return jsonify({'message': '、'.join(changes) if changes else '无修改'})
+    except Exception as e:
+        conn.close()
+        return jsonify({'error': f'操作失败: {str(e)}'}), 500
 
 # ==================== 公司管理 API ====================
 @app.route('/api/companies', methods=['GET', 'POST'])

@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>报告模版管理 - 水质检测报告系统</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
@@ -47,6 +48,73 @@
             <button class="btn btn-warning" id="downloadExampleBtn">
                 <i class="bi bi-file-earmark-excel"></i> 下载Excel模板示例
             </button>
+        </div>
+
+        <!-- 字段代号参考面板 -->
+        <div class="action-box">
+            <a class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" href="#fieldCodeRef" role="button" aria-expanded="false">
+                <i class="bi bi-book"></i> 字段代号速查表（点击展开）
+            </a>
+            <div class="collapse mt-3" id="fieldCodeRef">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-file-text"></i> 报告基本信息字段</h6>
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light"><tr><th>代号</th><th>含义</th></tr></thead>
+                            <tbody>
+                                <tr><td><code>[#report_no]</code></td><td>报告编号</td></tr>
+                                <tr><td><code>[#sample_no]</code></td><td>样品编号</td></tr>
+                                <tr><td><code>[#sample_type]</code></td><td>样品类型</td></tr>
+                                <tr><td><code>[#company]</code></td><td>委托单位</td></tr>
+                                <tr><td><code>[#customer_unit]</code></td><td>被检单位</td></tr>
+                                <tr><td><code>[#customer_plant]</code></td><td>被检水厂</td></tr>
+                                <tr><td><code>[#unit_address]</code></td><td>单位地址</td></tr>
+                                <tr><td><code>[#sampling_date]</code></td><td>采样日期</td></tr>
+                                <tr><td><code>[#sampler]</code></td><td>采样人</td></tr>
+                                <tr><td><code>[#sampling_location]</code></td><td>采样地点</td></tr>
+                                <tr><td><code>[#sampling_basis]</code></td><td>采样依据</td></tr>
+                                <tr><td><code>[#sample_source]</code></td><td>样品来源</td></tr>
+                                <tr><td><code>[#sample_status]</code></td><td>样品状态</td></tr>
+                                <tr><td><code>[#sample_received]</code></td><td>收样日期</td></tr>
+                                <tr><td><code>[#detection_date]</code></td><td>检测日期</td></tr>
+                                <tr><td><code>[#detection_person]</code></td><td>检测人</td></tr>
+                                <tr><td><code>[#review_person]</code></td><td>审核人</td></tr>
+                                <tr><td><code>[#report_date]</code></td><td>报告编制日期</td></tr>
+                                <tr><td><code>[#product_standard]</code></td><td>产品标准</td></tr>
+                                <tr><td><code>[#test_conclusion]</code></td><td>检测结论</td></tr>
+                                <tr><td><code>[#additional_info]</code></td><td>附加信息</td></tr>
+                                <tr><td><code>[#remark]</code></td><td>备注</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-table"></i> 检测数据列代号</h6>
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light"><tr><th>代号</th><th>含义</th></tr></thead>
+                            <tbody>
+                                <tr><td><code>[#dt_index]</code></td><td>序号（自动编号）</td></tr>
+                                <tr><td><code>[#dt_name]</code></td><td>检测项目名称</td></tr>
+                                <tr><td><code>[#dt_unit]</code></td><td>单位</td></tr>
+                                <tr><td><code>[#dt_result]</code></td><td>检测结果</td></tr>
+                                <tr><td><code>[#dt_limit]</code></td><td>标准限值</td></tr>
+                                <tr><td><code>[#dt_method]</code></td><td>检测方法</td></tr>
+                                <tr><td><code>[#dt_judgment]</code></td><td>单项判定</td></tr>
+                            </tbody>
+                        </table>
+                        <h6 class="mt-3"><i class="bi bi-gear"></i> 特殊控制标记</h6>
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light"><tr><th>代号</th><th>含义</th></tr></thead>
+                            <tbody>
+                                <tr><td><code>[#dt_end]</code></td><td>数据区结束位置</td></tr>
+                                <tr><td><code>[#page_break]</code></td><td>分页符</td></tr>
+                            </tbody>
+                        </table>
+                        <h6 class="mt-3"><i class="bi bi-link-45deg"></i> 引用字段</h6>
+                        <p class="text-muted small mb-1">从已审核报告引用对应值，格式：<code>[*字段名]</code></p>
+                        <p class="text-muted small">示例：<code>[*被检单位]</code>、<code>[*采样日期]</code></p>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- 模版列表 -->
@@ -219,6 +287,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/csrf_helper.js"></script>
     <script>
         // 全局变量
         let templates = [];
