@@ -3966,8 +3966,35 @@ function initNewReportPage() {
     const loadCustomerBtn = document.getElementById('loadCustomerInfoBtn');
 
     if (sampleTypeSelect) {
-        sampleTypeSelect.addEventListener('change', function() {
+        sampleTypeSelect.addEventListener('change', async function() {
             loadBtn.disabled = !this.value;
+
+            // 选择样品类型后自动带入默认值
+            if (this.value) {
+                try {
+                    const resp = await fetch(`/api/sample-types/${this.value}`);
+                    if (resp.ok) {
+                        const st = await resp.json();
+                        if (st.default_sample_status) {
+                            document.getElementById('newSampleStatus').value = st.default_sample_status;
+                        }
+                        if (st.default_sampling_basis) {
+                            document.getElementById('newSamplingBasis').value = st.default_sampling_basis;
+                        }
+                        if (st.default_product_standard) {
+                            document.getElementById('newProductStandard').value = st.default_product_standard;
+                        }
+                        if (st.default_detection_items) {
+                            document.getElementById('newTestItems').value = st.default_detection_items;
+                        }
+                        if (st.default_test_conclusion) {
+                            document.getElementById('newTestConclusion').value = st.default_test_conclusion;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('加载样品类型默认值失败:', e);
+                }
+            }
         });
     }
 

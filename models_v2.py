@@ -319,6 +319,23 @@ def init_database():
         cursor.execute("UPDATE sample_types SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL")
         print("sample_types表迁移完成（updated_at）！")
 
+    # 检查sample_types表是否有默认字段列
+    default_fields = [
+        ('default_sample_status', 'TEXT', '默认样品状态'),
+        ('default_sampling_basis', 'TEXT', '默认采样依据'),
+        ('default_product_standard', 'TEXT', '默认产品标准'),
+        ('default_detection_items', 'TEXT', '默认检测项目'),
+        ('default_test_conclusion', 'TEXT', '默认检测结论'),
+    ]
+    # 重新获取最新的列信息
+    cursor.execute("PRAGMA table_info(sample_types)")
+    sample_type_columns = [row[1] for row in cursor.fetchall()]
+    for field_name, field_type, description in default_fields:
+        if field_name not in sample_type_columns:
+            print(f"正在迁移sample_types表，添加{field_name}列（{description}）...")
+            cursor.execute(f'ALTER TABLE sample_types ADD COLUMN {field_name} {field_type}')
+            print(f"sample_types表迁移完成（{field_name}）！")
+
     conn.commit()
 
     # ==================== 初始化默认数据 ====================

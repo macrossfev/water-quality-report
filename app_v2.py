@@ -692,7 +692,7 @@ def api_sample_types():
 
     if request.method == 'POST':
         # 仅管理员可创建
-        if session.get('role') != 'admin':
+        if session.get('role') not in ('admin', 'super_admin'):
             return jsonify({'error': '需要管理员权限'}), 403
 
         data = request.json
@@ -701,6 +701,11 @@ def api_sample_types():
         description = data.get('description', '')
         remark = data.get('remark', '')
         indicator_ids = data.get('indicator_ids', [])  # 检测项目ID列表
+        default_sample_status = data.get('default_sample_status', '')
+        default_sampling_basis = data.get('default_sampling_basis', '')
+        default_product_standard = data.get('default_product_standard', '')
+        default_detection_items = data.get('default_detection_items', '')
+        default_test_conclusion = data.get('default_test_conclusion', '')
 
         if not name or not code:
             return jsonify({'error': '样品类型名称和代码不能为空'}), 400
@@ -708,8 +713,12 @@ def api_sample_types():
         try:
             cursor = conn.cursor()
             cursor.execute(
-                'INSERT INTO sample_types (name, code, description, remark) VALUES (?, ?, ?, ?)',
-                (name, code, description, remark)
+                'INSERT INTO sample_types (name, code, description, remark, '
+                'default_sample_status, default_sampling_basis, default_product_standard, '
+                'default_detection_items, default_test_conclusion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                (name, code, description, remark,
+                 default_sample_status, default_sampling_basis, default_product_standard,
+                 default_detection_items, default_test_conclusion)
             )
             sample_type_id = cursor.lastrowid
 
@@ -772,7 +781,7 @@ def api_sample_type_detail(id):
 
     if request.method == 'DELETE':
         # 仅管理员可删除
-        if session.get('role') != 'admin':
+        if session.get('role') not in ('admin', 'super_admin'):
             return jsonify({'error': '需要管理员权限'}), 403
         sample_type = conn.execute('SELECT name FROM sample_types WHERE id = ?', (id,)).fetchone()
 
@@ -790,7 +799,7 @@ def api_sample_type_detail(id):
 
     if request.method == 'PUT':
         # 仅管理员可更新
-        if session.get('role') != 'admin':
+        if session.get('role') not in ('admin', 'super_admin'):
             return jsonify({'error': '需要管理员权限'}), 403
 
         data = request.json
@@ -800,6 +809,11 @@ def api_sample_type_detail(id):
         remark = data.get('remark', '')
         indicator_ids = data.get('indicator_ids', [])  # 检测项目ID列表
         client_version = data.get('version')  # 客户端的版本号
+        default_sample_status = data.get('default_sample_status', '')
+        default_sampling_basis = data.get('default_sampling_basis', '')
+        default_product_standard = data.get('default_product_standard', '')
+        default_detection_items = data.get('default_detection_items', '')
+        default_test_conclusion = data.get('default_test_conclusion', '')
 
         if not name or not code:
             return jsonify({'error': '样品类型名称和代码不能为空'}), 400
@@ -830,8 +844,13 @@ def api_sample_type_detail(id):
             # 更新样品类型，版本号+1
             new_version = current_version + 1
             cursor.execute(
-                'UPDATE sample_types SET name = ?, code = ?, description = ?, remark = ?, version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-                (name, code, description, remark, new_version, id)
+                'UPDATE sample_types SET name = ?, code = ?, description = ?, remark = ?, version = ?, '
+                'default_sample_status = ?, default_sampling_basis = ?, default_product_standard = ?, '
+                'default_detection_items = ?, default_test_conclusion = ?, '
+                'updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                (name, code, description, remark, new_version,
+                 default_sample_status, default_sampling_basis, default_product_standard,
+                 default_detection_items, default_test_conclusion, id)
             )
 
             # 更新检测项目关联：先删除旧关联，再添加新关联（使用间隔序号）
@@ -867,7 +886,7 @@ def api_indicator_groups():
 
     if request.method == 'POST':
         # 仅管理员可创建
-        if session.get('role') != 'admin':
+        if session.get('role') not in ('admin', 'super_admin'):
             return jsonify({'error': '需要管理员权限'}), 403
 
         data = request.json
@@ -956,7 +975,7 @@ def api_indicators():
 
     if request.method == 'POST':
         # 仅管理员可创建
-        if session.get('role') != 'admin':
+        if session.get('role') not in ('admin', 'super_admin'):
             return jsonify({'error': '需要管理员权限'}), 403
 
         data = request.json
@@ -1097,7 +1116,7 @@ def api_template_indicators():
 
     if request.method == 'POST':
         # 仅管理员可创建
-        if session.get('role') != 'admin':
+        if session.get('role') not in ('admin', 'super_admin'):
             return jsonify({'error': '需要管理员权限'}), 403
 
         data = request.json
@@ -1311,7 +1330,7 @@ def api_report_detail(id):
             conn.close()
             return jsonify({'error': '报告不存在'}), 404
 
-        if session.get('role') != 'admin' and report['created_by'] != session['user_id']:
+        if session.get('role') not in ('admin', 'super_admin') and report['created_by'] != session['user_id']:
             conn.close()
             return jsonify({'error': '无权删除此报告'}), 403
 
@@ -1338,7 +1357,7 @@ def api_report_detail(id):
             conn.close()
             return jsonify({'error': '报告不存在'}), 404
 
-        if session.get('role') != 'admin' and report['created_by'] != session['user_id']:
+        if session.get('role') not in ('admin', 'super_admin') and report['created_by'] != session['user_id']:
             conn.close()
             return jsonify({'error': '无权修改此报告'}), 403
 
@@ -2654,7 +2673,7 @@ def api_report_template_detail(id):
 
     if request.method == 'PUT':
         # 仅管理员可修改
-        if session.get('role') != 'admin':
+        if session.get('role') not in ('admin', 'super_admin'):
             return jsonify({'error': '需要管理员权限'}), 403
 
         data = request.json
@@ -2703,7 +2722,7 @@ def api_report_template_detail(id):
 
     if request.method == 'DELETE':
         # 仅管理员可删除
-        if session.get('role') != 'admin':
+        if session.get('role') not in ('admin', 'super_admin'):
             return jsonify({'error': '需要管理员权限'}), 403
 
         # 获取模版信息
@@ -2834,7 +2853,7 @@ def api_template_field_detail(field_id):
 
     if request.method == 'PUT':
         # 仅管理员可修改
-        if session.get('role') != 'admin':
+        if session.get('role') not in ('admin', 'super_admin'):
             conn.close()
             return jsonify({'error': '需要管理员权限'}), 403
 
@@ -2886,7 +2905,7 @@ def api_template_field_detail(field_id):
 
     if request.method == 'DELETE':
         # 仅管理员可删除
-        if session.get('role') != 'admin':
+        if session.get('role') not in ('admin', 'super_admin'):
             conn.close()
             return jsonify({'error': '需要管理员权限'}), 403
 
@@ -4052,7 +4071,7 @@ def api_submit_report(id):
             return jsonify({'error': '报告不存在'}), 404
 
         # 检查权限（仅创建人或管理员可提交）
-        if session.get('role') != 'admin' and report['created_by'] != session['user_id']:
+        if session.get('role') not in ('admin', 'super_admin') and report['created_by'] != session['user_id']:
             return jsonify({'error': '无权提交此报告'}), 403
 
         # 检查当前状态是否允许提交
@@ -4090,7 +4109,7 @@ def api_return_report(id):
             return jsonify({'error': '报告不存在'}), 404
 
         # 检查权限（仅管理员或报告创建人可退回）
-        if session.get('role') != 'admin' and report['created_by'] != session['user_id']:
+        if session.get('role') not in ('admin', 'super_admin') and report['created_by'] != session['user_id']:
             return jsonify({'error': '无权退回此报告'}), 403
 
         # 检查当前状态是否为已审核
