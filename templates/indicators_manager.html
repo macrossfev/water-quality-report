@@ -713,7 +713,7 @@
                 }
 
                 const result = await response.json();
-                alert(`导入成功！成功: ${result.success_count}条, 失败: ${result.fail_count}条`);
+                alert(`导入成功！新增: ${result.imported}条, 更新: ${result.updated}条` + (result.errors && result.errors.length > 0 ? `, 失败: ${result.errors.length}条` : ''));
                 loadData();
             } catch (error) {
                 alert('导入失败: ' + error.message);
