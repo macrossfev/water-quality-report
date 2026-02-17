@@ -6,6 +6,7 @@ from flask import Blueprint, request, jsonify, send_file, session
 from models_v2 import get_db, get_db_connection
 from auth import login_required, admin_required, log_operation
 from raw_data_importer import RawDataImporter
+from raw_data_converter import convert_raw_excel
 from raw_data_template_generator import generate_raw_data_template
 from werkzeug.utils import secure_filename
 import os
@@ -73,6 +74,184 @@ def api_raw_data_upload():
 
     except Exception as e:
         return jsonify({'error': f'上传失败: {str(e)}'}), 500
+
+CONVERT_FOLDER = 'temp/convert'
+os.makedirs(CONVERT_FOLDER, exist_ok=True)
+
+
+@raw_data_bp.route('/api/raw-data/convert-preview', methods=['POST'])
+@login_required
+def api_raw_data_convert_preview():
+    """上传原始检测Excel，预览转换结果"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': '未选择文件'}), 400
+
+        file = request.files['file']
+        if file.filename == '' or not allowed_file(file.filename):
+            return jsonify({'error': '文件格式不支持，仅支持.xlsx格式'}), 400
+
+        skip_blank = request.form.get('skip_blank', 'true') == 'true'
+
+        # 保存上传文件
+        filename = secure_filename(file.filename)
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        saved_filename = f"convert_{timestamp}_{filename}"
+        filepath = os.path.join(CONVERT_FOLDER, saved_filename)
+        file.save(filepath)
+
+        # 执行转换
+        output_path = os.path.join(CONVERT_FOLDER, f"import_{timestamp}_{filename}")
+        result = convert_raw_excel(filepath, output_path=output_path, skip_blank_samples=skip_blank)
+
+        # 删除源文件
+        try:
+            os.remove(filepath)
+        except OSError:
+            pass
+
+        if not result['success']:
+            return jsonify({'error': result['message']}), 400
+
+        # 构建预览数据
+        preview_samples = []
+        for s in result['samples']:
+            sid = s['样品编号']
+            sample_data = result['data'].get(sid, {})
+            # 取前 5 个有值的指标作为预览
+            preview_indicators = {}
+            count = 0
+            for p in result['parameters']:
+                v = sample_data.get(p)
+                if v is not None and count < 5:
+                    preview_indicators[p] = v
+                    count += 1
+            preview_samples.append({
+                'sample_number': sid,
+                'company_name': s.get('被检单位', ''),
+                'plant_name': s.get('被检水厂', ''),
+                'sample_type': s.get('样品类型', ''),
+                'sampling_date': s.get('采样日期', ''),
+                'indicator_count': len([p for p in result['parameters'] if sample_data.get(p)]),
+                'preview_indicators': preview_indicators,
+                'all_indicators': {p: sample_data.get(p, '') for p in result['parameters']},
+            })
+
+        return jsonify({
+            'success': True,
+            'message': result['message'],
+            'converted_file': saved_filename,
+            'output_file': os.path.basename(output_path),
+            'sample_count': result['sample_count'],
+            'param_count': result['param_count'],
+            'parameters': result['parameters'],
+            'samples': preview_samples,
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'转换失败: {str(e)}'}), 500
+
+
+@raw_data_bp.route('/api/raw-data/convert-import', methods=['POST'])
+@login_required
+def api_raw_data_convert_import():
+    """将预览确认的转换结果导入系统"""
+    try:
+        data = request.get_json()
+        if not data or 'output_file' not in data:
+            return jsonify({'error': '缺少转换文件信息'}), 400
+
+        output_file = secure_filename(data['output_file'])
+        filepath = os.path.join(CONVERT_FOLDER, output_file)
+
+        if not os.path.exists(filepath):
+            return jsonify({'error': '转换文件已过期，请重新上传'}), 404
+
+        on_duplicate = data.get('on_duplicate', 'skip')
+        sample_edits = data.get('sample_edits', {})
+        selected_samples = data.get('selected_samples')
+
+        # 如果有编辑数据，先修改转换后的 Excel
+        if sample_edits:
+            try:
+                wb = openpyxl.load_workbook(filepath)
+                ws = wb.active
+                # 构建样品编号→列索引的映射（第1行 B列起为样品编号）
+                sid_col_map = {}
+                for c in range(2, ws.max_column + 1):
+                    val = ws.cell(1, c).value
+                    if val:
+                        sid_col_map[str(val).strip()] = c
+                # 构建字段名→行索引的映射（A列第2行起为字段名）
+                field_row_map = {}
+                for r in range(2, ws.max_row + 1):
+                    val = ws.cell(r, 1).value
+                    if val:
+                        field_row_map[str(val).strip()] = r
+                # 字段名映射: 前端key → Excel字段名
+                key_to_field = {
+                    'company_name': '被检单位',
+                    'plant_name': '被检水厂',
+                    'sample_type': '样品类型',
+                    'sampling_date': '采样日期',
+                }
+                for sid, edits in sample_edits.items():
+                    col = sid_col_map.get(sid)
+                    if not col:
+                        continue
+                    for key, field_name in key_to_field.items():
+                        row = field_row_map.get(field_name)
+                        if row and key in edits:
+                            ws.cell(row, col).value = edits[key]
+                    # 应用检测指标编辑
+                    ind_edits = edits.get('indicators', {})
+                    for param, value in ind_edits.items():
+                        row = field_row_map.get(param)
+                        if row:
+                            ws.cell(row, col).value = value if value != '' else None
+                # 删除未勾选的样品列（从右往左删避免索引偏移）
+                if selected_samples is not None:
+                    cols_to_delete = sorted(
+                        [c for sid, c in sid_col_map.items() if sid not in selected_samples],
+                        reverse=True
+                    )
+                    for c in cols_to_delete:
+                        ws.delete_cols(c)
+
+                wb.save(filepath)
+                wb.close()
+            except Exception as e:
+                return jsonify({'error': f'应用编辑失败: {str(e)}'}), 500
+
+        # 使用现有导入器导入（宽松模式，不要求字段完全匹配）
+        importer = RawDataImporter()
+        result = importer.import_excel(filepath, on_duplicate=on_duplicate, strict_columns=False)
+
+        # 清理转换文件
+        try:
+            os.remove(filepath)
+        except OSError:
+            pass
+        # 也清理同时间戳的其他文件
+        for f in os.listdir(CONVERT_FOLDER):
+            fpath = os.path.join(CONVERT_FOLDER, f)
+            try:
+                if os.path.isfile(fpath):
+                    os.remove(fpath)
+            except OSError:
+                pass
+
+        if result['success']:
+            log_operation(
+                '转换导入原始数据',
+                f"转换导入成功: {result['success_count']}条，跳过: {result['skip_count']}条"
+            )
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({'error': f'导入失败: {str(e)}'}), 500
+
 
 @raw_data_bp.route('/api/raw-data/columns', methods=['GET'])
 @login_required

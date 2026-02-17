@@ -136,7 +136,7 @@ class RawDataImporter:
             return True, result[0]
         return False, None
 
-    def import_excel(self, file_path, on_duplicate='skip'):
+    def import_excel(self, file_path, on_duplicate='skip', strict_columns=True):
         """
         导入Excel文件（转置布局）
 
@@ -229,14 +229,25 @@ class RawDataImporter:
             self.conn = get_db_connection()
 
             # 验证字段名
-            valid, error_msg = self.validate_columns(row_fields)
-            if not valid:
-                self.conn.close()
-                return {
-                    'success': False,
-                    'message': error_msg,
-                    'errors': [error_msg]
-                }
+            if strict_columns:
+                valid, error_msg = self.validate_columns(row_fields)
+                if not valid:
+                    self.conn.close()
+                    return {
+                        'success': False,
+                        'message': error_msg,
+                        'errors': [error_msg]
+                    }
+            else:
+                # 宽松模式：只检查基础字段是否存在
+                missing = [f for f in self.BASE_ROW_FIELDS if f not in row_fields]
+                if missing:
+                    self.conn.close()
+                    return {
+                        'success': False,
+                        'message': f"Excel缺少必需字段: {', '.join(missing)}",
+                        'errors': [f"缺少必需字段: {', '.join(missing)}"]
+                    }
 
             # 首次导入时保存字段配置
             schema = self.get_column_schema()
