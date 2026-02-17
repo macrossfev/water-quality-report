@@ -1322,8 +1322,17 @@
                 if (data.message) {
                     alert('修改成功！');
                     bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
-                    // 重新执行查询
-                    document.getElementById('searchBtn').click();
+                    // 根据当前查询模式重新执行查询
+                    const searchType = document.querySelector('input[name="searchType"]:checked');
+                    if (searchType) {
+                        const btnMap = {
+                            'sample': 'sampleNumberSearchBtn',
+                            'company': 'executeSearchBtn',
+                            'time': 'timeSearchBtn'
+                        };
+                        const btn = document.getElementById(btnMap[searchType.value]);
+                        if (btn) btn.click();
+                    }
                 } else {
                     alert('修改失败: ' + (data.error || '未知错误'));
                 }
@@ -1352,8 +1361,20 @@
             .then(data => {
                 if (data.message) {
                     alert('删除成功！');
-                    // 重新执行查询
-                    document.getElementById('searchBtn').click();
+                    // 从表格中移除已删除的行
+                    const tableBody = document.getElementById('searchResultTableBody');
+                    if (tableBody) {
+                        const rows = tableBody.querySelectorAll('tr');
+                        rows.forEach(row => {
+                            if (row.querySelector(`[onclick*="deleteRecord(${recordId},"]`)) {
+                                row.remove();
+                            }
+                        });
+                        const countSpan = document.getElementById('resultCount');
+                        if (countSpan) {
+                            countSpan.textContent = tableBody.querySelectorAll('tr').length;
+                        }
+                    }
                 } else {
                     alert('删除失败: ' + (data.error || '未知错误'));
                 }
