@@ -52,11 +52,24 @@ def api_raw_data_upload():
         file.save(filepath)
 
         # 获取处理选项
-        on_duplicate = request.form.get('on_duplicate', 'skip')  # skip, overwrite, abort
+        on_duplicate = request.form.get('on_duplicate', 'skip')
+        duplicate_decisions = None
+        dd_json = request.form.get('duplicate_decisions', '')
+        if dd_json:
+            try:
+                duplicate_decisions = json.loads(dd_json)
+            except (json.JSONDecodeError, TypeError):
+                pass
 
         # 导入数据
         importer = RawDataImporter()
-        result = importer.import_excel(filepath, on_duplicate=on_duplicate)
+        result = importer.import_excel(filepath, on_duplicate=on_duplicate,
+                                       duplicate_decisions=duplicate_decisions)
+
+        # pause模式返回重复列表时保留文件路径
+        if result.get('paused'):
+            result['saved_file'] = saved_filename
+            return jsonify(result)
 
         # 删除临时文件
         try:

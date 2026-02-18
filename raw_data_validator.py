@@ -163,6 +163,11 @@ class RawDataValidator:
                 names.add(row[0])
             for row in conn.execute("SELECT name FROM companies"):
                 names.add(row[0])
+            for row in conn.execute(
+                "SELECT DISTINCT inspected_unit FROM customers "
+                "WHERE inspected_unit IS NOT NULL AND inspected_unit != ''"
+            ):
+                names.add(row[0])
             conn.close()
         except Exception:
             pass
@@ -179,6 +184,11 @@ class RawDataValidator:
             ):
                 names.add(row[0])
             for row in conn.execute("SELECT plant_name FROM plants"):
+                names.add(row[0])
+            for row in conn.execute(
+                "SELECT DISTINCT water_plant FROM customers "
+                "WHERE water_plant IS NOT NULL AND water_plant != ''"
+            ):
                 names.add(row[0])
             conn.close()
         except Exception:

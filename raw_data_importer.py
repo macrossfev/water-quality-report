@@ -136,7 +136,7 @@ class RawDataImporter:
             return True, result[0]
         return False, None
 
-    def import_excel(self, file_path, on_duplicate='skip', strict_columns=True):
+    def import_excel(self, file_path, on_duplicate='skip', strict_columns=True, duplicate_decisions=None):
         """
         导入Excel文件（转置布局）
 
@@ -151,6 +151,7 @@ class RawDataImporter:
                 - 'skip': 跳过重复记录
                 - 'overwrite': 覆盖已有记录
                 - 'abort': 终止导入
+                - 'pause': 预扫描返回重复列表，不执行导入
 
         返回:
             {
@@ -273,6 +274,49 @@ class RawDataImporter:
 
             total_samples = len(sample_columns)
 
+            # pause模式：预扫描重复，不执行导入
+            if on_duplicate == 'pause':
+                duplicates = []
+                for col_idx, sn in sample_columns:
+                    if not sn:
+                        continue
+                    is_dup, eid = self.check_duplicate_sample_number(sn)
+                    if is_dup:
+                        # 获取已有记录信息
+                        cursor = self.conn.cursor()
+                        cursor.execute(
+                            'SELECT sample_number, company_name, plant_name, sample_type, sampling_date '
+                            'FROM raw_data_records WHERE id = ?', (eid,))
+                        row = cursor.fetchone()
+                        duplicates.append({
+                            'sample_number': sn,
+                            'existing': {
+                                'company_name': row[1] or '',
+                                'plant_name': row[2] or '',
+                                'sample_type': row[3] or '',
+                                'sampling_date': row[4] or '',
+                            } if row else {},
+                            'new': {
+                                'company_name': get_cell_value('被检单位', col_idx),
+                                'plant_name': get_cell_value('被检水厂', col_idx),
+                                'sample_type': get_cell_value('样品类型', col_idx),
+                                'sampling_date': get_cell_value('采样日期', col_idx),
+                            }
+                        })
+                self.conn.close()
+                if duplicates:
+                    return {
+                        'success': True,
+                        'paused': True,
+                        'message': f'发现 {len(duplicates)} 个重复样品编号，请逐一确认处理方式',
+                        'total_rows': total_samples,
+                        'duplicates': duplicates,
+                    }
+                # 无重复，改为skip模式继续导入
+                on_duplicate = 'skip'
+                self.conn = sqlite3.connect(DATABASE_PATH, timeout=30.0)
+                self.conn.row_factory = sqlite3.Row
+
             # 逐列处理每个样品
             for col_idx, sample_number in sample_columns:
                 try:
@@ -303,7 +347,9 @@ class RawDataImporter:
                     is_duplicate, existing_id = self.check_duplicate_sample_number(sample_number)
 
                     if is_duplicate:
-                        if on_duplicate == 'abort':
+                        # 优先使用逐样品决策
+                        dup_action = (duplicate_decisions or {}).get(sample_number, on_duplicate)
+                        if dup_action == 'abort':
                             self.conn.close()
                             return {
                                 'success': False,
@@ -314,11 +360,11 @@ class RawDataImporter:
                                 'errors': self.errors,
                                 'warnings': self.warnings
                             }
-                        elif on_duplicate == 'skip':
+                        elif dup_action == 'skip':
                             self.warnings.append(f"样品'{sample_number}'已存在，已跳过")
                             self.skip_count += 1
                             continue
-                        elif on_duplicate == 'overwrite':
+                        elif dup_action == 'overwrite':
                             # 删除旧记录（级联删除会自动删除关联的检测值）
                             cursor = self.conn.cursor()
                             cursor.execute('DELETE FROM raw_data_records WHERE id = ?', (existing_id,))
