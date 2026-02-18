@@ -173,6 +173,7 @@ def parse_registration_sheet(ws, merged_map):
     # 扫描前几行，找到包含样品编号的列
     sample_id_col = None
     location_col = None
+    company_col = None  # 被检单位列
     header_row = None
 
     for r in range(1, min(ws.max_row + 1, 10)):
@@ -186,6 +187,8 @@ def parse_registration_sheet(ws, merged_map):
                 header_row = r
             elif '采样地点' in val_str or ('样品类型' in val_str and '样品编号' not in val_str):
                 location_col = c
+            elif val_str == '被检单位':
+                company_col = c
 
     if sample_id_col is None:
         # 备选：扫描所有单元格找样品编号模式
@@ -223,7 +226,15 @@ def parse_registration_sheet(ws, merged_map):
             if loc_val:
                 location = str(loc_val).strip()
 
-        company, plant = infer_company_and_plant(location)
+        # 优先从被检单位列读取，否则从采样地点推断
+        explicit_company = ''
+        if company_col:
+            comp_val = get_cell_value(ws, r, company_col, merged_map)
+            if comp_val:
+                explicit_company = str(comp_val).strip()
+
+        inferred_company, plant = infer_company_and_plant(location)
+        company = explicit_company if explicit_company else inferred_company
         sample_type = infer_sample_type(location)
 
         samples.append({

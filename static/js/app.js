@@ -232,7 +232,7 @@ async function loadSampleTypes() {
             const select = document.getElementById(selectId);
             select.innerHTML = '<option value="">请选择...</option>';
             data.forEach(st => {
-                select.innerHTML += `<option value="${st.id}">${st.name}</option>`;
+                select.innerHTML += `<option value="${st.id}">${st.name} (${st.code})</option>`;
             });
         });
 
@@ -336,7 +336,7 @@ function showEditSampleTypeModal(id) {
 
     const modalHTML = `
         <div class="modal fade" id="editSampleTypeModal" tabindex="-1">
-            <div class="modal-dialog">
+            <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">修改样品类型</h5>
@@ -355,6 +355,26 @@ function showEditSampleTypeModal(id) {
                             <div class="mb-3">
                                 <label class="form-label">说明</label>
                                 <textarea class="form-control" id="estDescription" rows="3">${sampleType.description || ''}</textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">默认样品状态</label>
+                                <input type="text" class="form-control" id="estDefaultSampleStatus" value="${sampleType.default_sample_status || ''}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">默认采样依据</label>
+                                <input type="text" class="form-control" id="estDefaultSamplingBasis" value="${sampleType.default_sampling_basis || ''}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">默认产品标准</label>
+                                <input type="text" class="form-control" id="estDefaultProductStandard" value="${sampleType.default_product_standard || ''}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">默认检测项目</label>
+                                <input type="text" class="form-control" id="estDefaultDetectionItems" value="${sampleType.default_detection_items || ''}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">默认检测结论</label>
+                                <textarea class="form-control" id="estDefaultTestConclusion" rows="2">${sampleType.default_test_conclusion || ''}</textarea>
                             </div>
                         </form>
                     </div>
@@ -376,11 +396,16 @@ async function updateSampleType(id) {
     const name = document.getElementById('estName').value;
     const code = document.getElementById('estCode').value;
     const description = document.getElementById('estDescription').value;
+    const default_sample_status = document.getElementById('estDefaultSampleStatus').value;
+    const default_sampling_basis = document.getElementById('estDefaultSamplingBasis').value;
+    const default_product_standard = document.getElementById('estDefaultProductStandard').value;
+    const default_detection_items = document.getElementById('estDefaultDetectionItems').value;
+    const default_test_conclusion = document.getElementById('estDefaultTestConclusion').value;
 
     try {
         await apiRequest(`/api/sample-types/${id}`, {
             method: 'PUT',
-            body: JSON.stringify({ name, code, description })
+            body: JSON.stringify({ name, code, description, default_sample_status, default_sampling_basis, default_product_standard, default_detection_items, default_test_conclusion })
         });
 
         showToast('样品类型更新成功');
@@ -1163,7 +1188,7 @@ async function onReportTemplateChange() {
         AppState.sampleTypes.forEach(st => {
             const option = document.createElement('option');
             option.value = st.id;
-            option.textContent = st.name;
+            option.textContent = `${st.name} (${st.code})`;
             sampleTypeSelect.appendChild(option);
         });
 
@@ -1714,7 +1739,7 @@ function onTemplateExcelUploaded(event) {
         AppState.sampleTypes.forEach(st => {
             const option = document.createElement('option');
             option.value = st.id;
-            option.textContent = st.name;
+            option.textContent = `${st.name} (${st.code})`;
             sampleTypeSelect.appendChild(option);
         });
 

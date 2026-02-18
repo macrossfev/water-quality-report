@@ -1224,7 +1224,10 @@
                     created_end: endDate
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) throw new Error(`服务器错误(${response.status})`);
+                return response.json();
+            })
             .then(data => {
                 if (data.found && data.records.length > 0) {
                     displaySearchResults(data.records);

@@ -153,7 +153,7 @@ class ReportGenerator:
                     self.report_data['customer_plant'] = remark_data.get('customer_plant', '')
                     # 注意：remark JSON中的键名是 customer_address，需要映射到 unit_address
                     self.report_data['unit_address'] = remark_data.get('customer_address', '') or remark_data.get('unit_address', '')
-                except:
+                except (json.JSONDecodeError, KeyError, TypeError):
                     pass
 
             print(f"已加载报告数据，字段数量: {len(self.report_data)}")
@@ -178,7 +178,9 @@ class ReportGenerator:
         # 3. 加载检测数据
         if 'detection_items' not in self.report_data or not self.report_data['detection_items']:
             detection_items = conn.execute('''
-                SELECT rd.measured_value, i.name, i.unit, i.limit_value, i.detection_method
+                SELECT rd.measured_value, i.name, i.unit,
+                    COALESCE(ti.limit_value, i.limit_value) as limit_value,
+                    i.detection_method
                 FROM report_data rd
                 JOIN indicators i ON rd.indicator_id = i.id
                 LEFT JOIN indicator_groups g ON i.group_id = g.id
@@ -337,7 +339,19 @@ class ReportGenerator:
                         filled_text = filled_text.replace(field_marker, str(value))
                         print(f"  ✓ 替换 '{field_marker}' -> '{value}'")
 
+                # 将字面量 \n 转换为真正的换行符
+                if isinstance(filled_text, str) and '\\n' in filled_text:
+                    filled_text = filled_text.replace('\\n', '\n')
+
                 ws[cell_address] = filled_text
+
+                # 如果值包含换行符，启用wrap_text以正确显示
+                if isinstance(filled_text, str) and '\n' in filled_text:
+                    from copy import copy
+                    new_align = copy(ws[cell_address].alignment)
+                    new_align.wrap_text = True
+                    ws[cell_address].alignment = new_align
+
                 print(f"  ✓ 完成填充到 {sheet_name}!{cell_address}: {repr(filled_text)}")
             else:
                 # 没有原始文本，直接填充第一个字段的值
@@ -355,7 +369,19 @@ class ReportGenerator:
                     if field.get('field_type') == 'date' or 'date' in field_name.lower() or '日期' in field_name:
                         value = self._format_date_chinese(value)
 
+                    # 将字面量 \n 转换为真正的换行符
+                    if isinstance(value, str) and '\\n' in value:
+                        value = value.replace('\\n', '\n')
+
                     ws[cell_address] = value
+
+                    # 如果值包含换行符，启用wrap_text以正确显示
+                    if isinstance(value, str) and '\n' in value:
+                        from copy import copy
+                        new_align = copy(ws[cell_address].alignment)
+                        new_align.wrap_text = True
+                        ws[cell_address].alignment = new_align
+
                     print(f"  ✓ 已填充到 {sheet_name}!{cell_address}: {value}")
 
         # 填充检测数据（使用动态列位置，支持跨页填充）
@@ -489,7 +515,7 @@ class ReportGenerator:
                                 value = remark_data['customer_plant']
                             elif field_name == '单位地址' and 'unit_address' in remark_data:
                                 value = remark_data['unit_address']
-                        except:
+                        except (json.JSONDecodeError, KeyError, TypeError):
                             pass
 
                     conn.close()
@@ -519,7 +545,7 @@ class ReportGenerator:
                             value = remark_data['customer_plant']
                         elif field_name == '单位地址' and 'unit_address' in remark_data:
                             value = remark_data['unit_address']
-                    except:
+                    except (json.JSONDecodeError, KeyError, TypeError):
                         pass
 
                 conn.close()
@@ -570,6 +596,46 @@ class ReportGenerator:
 
             # 检测方法
             worksheet.cell(row, start_col + 5).value = item.get('method', '')
+
+    def _convert_numeric_value(self, text):
+        """
+        尝试将文本转换为数值，并返回保留原始小数位数的数字格式。
+
+        Returns:
+            (value, number_format) - 转换成功返回 (数值, 格式字符串)，
+                                     失败返回 (原始文本, None)
+        示例：
+            "0.3"   -> (0.3,   "0.0")
+            "0.005" -> (0.005, "0.000")
+            "1000"  -> (1000,  "0")
+            "≤0.3"  -> ("≤0.3", None)
+        """
+        if not text or not isinstance(text, str):
+            return text, None
+
+        text = text.strip()
+        if not text:
+            return text, None
+
+        try:
+            numeric_val = float(text)
+        except (ValueError, TypeError):
+            return text, None
+
+        # 根据原始文本的小数位数生成格式
+        if '.' in text:
+            decimal_places = len(text.rstrip('0').split('.')[-1])
+            # 保留原始位数（包括尾部的0）
+            decimal_places = len(text.split('.')[1])
+            number_format = '0.' + '0' * decimal_places
+        else:
+            number_format = '0'
+
+        # 如果是整数值，使用int避免显示为 1000.0
+        if numeric_val == int(numeric_val) and '.' not in text:
+            numeric_val = int(numeric_val)
+
+        return numeric_val, number_format
 
     def _format_detection_method(self, method_text):
         """
@@ -861,6 +927,7 @@ class ReportGenerator:
                 for mapping, cell_address in columns.items():
                     col_letter, _ = coordinate_from_string(cell_address)
                     col_index = column_index_from_string(col_letter)
+                    _pending_num_fmt = None
 
                     # 根据映射类型获取数据
                     if mapping == 'index':
@@ -871,8 +938,14 @@ class ReportGenerator:
                         value = item.get('unit', '')
                     elif mapping == 'result':
                         value = item.get('result', '')
+                        value, num_fmt = self._convert_numeric_value(value)
+                        if num_fmt:
+                            _pending_num_fmt = num_fmt
                     elif mapping == 'limit':
                         value = item.get('limit', '')
+                        value, num_fmt = self._convert_numeric_value(value)
+                        if num_fmt:
+                            _pending_num_fmt = num_fmt
                     elif mapping == 'method':
                         raw_method = item.get('method', '')
                         value = self._format_detection_method(raw_method)  # 格式化检测方法
@@ -884,6 +957,10 @@ class ReportGenerator:
                     try:
                         cell = ws.cell(row=current_row, column=col_index)
                         cell.value = value
+
+                        # 如果有待应用的数字格式，设置单元格格式
+                        if _pending_num_fmt:
+                            cell.number_format = _pending_num_fmt
 
                         # 如果值包含换行符，仅启用wrap_text，保留模板原有对齐格式
                         if value and isinstance(value, str) and '\n' in value:
@@ -1043,7 +1120,8 @@ def generate_simple_report(report_id):
 
     # 获取检测数据
     data_items = conn.execute(
-        'SELECT rd.*, i.name as indicator_name, i.unit, i.limit_value, i.detection_method '
+        'SELECT rd.*, i.name as indicator_name, i.unit, '
+        'COALESCE(ti.limit_value, i.limit_value) as limit_value, i.detection_method '
         'FROM report_data rd '
         'JOIN indicators i ON rd.indicator_id = i.id '
         'JOIN reports r ON rd.report_id = r.id '

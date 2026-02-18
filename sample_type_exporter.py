@@ -77,7 +77,8 @@ class SampleTypeExporter:
         # 获取该样品类型关联的所有检测指标
         indicators = conn.execute('''
             SELECT i.id, i.group_id, i.name, i.unit, i.default_value,
-                   i.description, i.created_at, i.limit_value,
+                   i.description, i.created_at,
+                   COALESCE(ti.limit_value, i.limit_value) as limit_value,
                    i.detection_method, i.remark, ti.sort_order
             FROM indicators i
             JOIN template_indicators ti ON i.id = ti.indicator_id
