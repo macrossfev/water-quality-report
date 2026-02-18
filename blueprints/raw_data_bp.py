@@ -1015,8 +1015,8 @@ def api_raw_data_samples():
     """获取指定条件下的所有样品"""
     try:
         data = request.json
-        company_name = data.get('company_name', '').strip()
-        plant_name = data.get('plant_name', '').strip()
+        company_name = (data.get('company_name') or '').strip()
+        plant_name = (data.get('plant_name') or '').strip()
         sample_type_id = data.get('sample_type_id')
 
         with get_db() as conn:
@@ -1114,41 +1114,129 @@ def api_raw_data_filter_export():
             if not records:
                 return jsonify({'error': '未找到选中的样品数据'}), 404
 
-            # 准备导出数据：行为样品编号，列为检测项目
-            export_data = []
+            # 复用 raw_data_field_mapping + for-report 同款匹配逻辑
+            # 反向查找：indicator_name → raw列名
+
+            # 1) 获取指标信息（name → id, unit）
+            cursor.execute('SELECT id, name, unit FROM indicators')
+            ind_rows = cursor.fetchall()
+            ind_name_to_id = {row[1]: row[0] for row in ind_rows}
+            ind_id_to_name = {row[0]: row[1] for row in ind_rows}
+            ind_name_to_unit = {row[1]: row[2] for row in ind_rows}
+
+            # 2) 加载已固化的字段映射（raw_field_name → indicator_id），构建反向索引
+            cursor.execute('SELECT raw_field_name, indicator_id FROM raw_data_field_mapping')
+            raw_to_ind_id = {row[0]: row[1] for row in cursor.fetchall()}
+            # 反向：indicator_id → raw_field_name
+            ind_id_to_raw = {}
+            for raw_name, ind_id in raw_to_ind_id.items():
+                if ind_id not in ind_id_to_raw:
+                    ind_id_to_raw[ind_id] = raw_name
+
+            # 3) 获取所有raw列名，构建模糊匹配索引
+            cursor.execute('SELECT DISTINCT column_name FROM raw_data_values')
+            all_raw_columns = [row[0] for row in cursor.fetchall()]
+            # raw列名 → 逐层去括号的基础名列表
+            raw_base_index = {}  # base_name → raw_col
+            for rc in all_raw_columns:
+                name = rc
+                while True:
+                    stripped = re.sub(r'\([^)]*\)\s*$', '', name).strip()
+                    if stripped != name:
+                        raw_base_index[stripped] = rc
+                        name = stripped
+                    else:
+                        raw_base_index[name] = rc
+                        break
+
+            # 与 for-report 一致的别名映射（raw常见名 → 系统指标名）
+            alias_map = {
+                '六价铬': '铬(六价)',
+                '挥发酚': '挥发酚类(以苯酚计)',
+                '总α': '总α放射性',
+                '总β': '总β放射性',
+            }
+            # 反向别名：系统指标名 → raw常见名
+            reverse_alias = {v: k for k, v in alias_map.items()}
+
+            # 4) 为每个模板指标找到对应的raw列名
+            indicator_to_raw = {}
+            indicator_display = {}
+
+            for indicator in template_indicators:
+                matched_raw = None
+                ind_id = ind_name_to_id.get(indicator)
+
+                # 策略1：通过 raw_data_field_mapping 反查
+                if ind_id and ind_id in ind_id_to_raw:
+                    matched_raw = ind_id_to_raw[ind_id]
+
+                # 策略2：精确匹配raw列名
+                if not matched_raw and indicator in all_raw_columns:
+                    matched_raw = indicator
+
+                # 策略3：逐层去括号匹配（与for-report的match_indicator同逻辑）
+                if not matched_raw:
+                    name = indicator
+                    while True:
+                        stripped = re.sub(r'\([^)]*\)\s*$', '', name).strip()
+                        if stripped in raw_base_index:
+                            matched_raw = raw_base_index[stripped]
+                            break
+                        if stripped == name:
+                            break
+                        name = stripped
+
+                # 策略4：反向别名匹配
+                if not matched_raw:
+                    base = re.sub(r'\([^)]*\)', '', indicator).strip()
+                    alias_key = reverse_alias.get(indicator) or reverse_alias.get(base)
+                    if alias_key and alias_key in raw_base_index:
+                        matched_raw = raw_base_index[alias_key]
+
+                if matched_raw:
+                    indicator_to_raw[indicator] = matched_raw
+                    indicator_display[indicator] = matched_raw
+                else:
+                    unit = ind_name_to_unit.get(indicator, '')
+                    if unit and unit != '/':
+                        indicator_display[indicator] = f'{indicator}({unit})'
+                    else:
+                        indicator_display[indicator] = indicator
+
+            # 准备导出数据：转置格式 - 行为检测项目，列为样品编号
+            sample_numbers = []
+            sample_values = {}
 
             for record in records:
                 record_id = record[0]
-                row_data = {
-                    '样品编号': record[1],
-                    '报告编号': record[2] or '',
-                    '被检单位': record[3] or '',
-                    '被检水厂': record[4] or '',
-                    '样品类型': record[5] or '',
-                    '采样日期': record[6]
-                }
+                sample_number = record[1]
+                sample_numbers.append(sample_number)
 
-                # 获取该样品的所有检测指标值
                 cursor.execute('''
                     SELECT column_name, value
                     FROM raw_data_values
                     WHERE record_id = ?
                 ''', (record_id,))
 
-                indicator_values = dict(cursor.fetchall())
+                raw_values = dict(cursor.fetchall())
 
-                # 只导出模板中选择的检测指标
+                values = {}
                 for indicator in template_indicators:
-                    row_data[indicator] = indicator_values.get(indicator, '')
+                    raw_col = indicator_to_raw.get(indicator, indicator)
+                    values[indicator] = raw_values.get(raw_col, '')
+                sample_values[sample_number] = values
 
-                export_data.append(row_data)
+            # 构建转置DataFrame：行=检测项目（带单位），列=样品编号
+            transposed_data = []
+            for indicator in template_indicators:
+                row = {'检测项目': indicator_display[indicator]}
+                for sn in sample_numbers:
+                    row[sn] = sample_values[sn].get(indicator, '')
+                transposed_data.append(row)
 
-
-            # 构建列顺序：基础字段 + 检测指标
-            columns = ['样品编号', '报告编号', '被检单位', '被检水厂', '样品类型', '采样日期'] + template_indicators
-
-            # 创建DataFrame
-            df = pd.DataFrame(export_data, columns=columns)
+            columns = ['检测项目'] + sample_numbers
+            df = pd.DataFrame(transposed_data, columns=columns)
 
             # 生成文件
             timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
