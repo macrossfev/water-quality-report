@@ -63,6 +63,11 @@
                     <i class="bi bi-arrow-repeat"></i> 原始数据转换
                 </button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="validate-tab" data-bs-toggle="tab" data-bs-target="#validate" type="button">
+                    <i class="bi bi-shield-check"></i> 数据校核
+                </button>
+            </li>
         </ul>
 
         <!-- 标签页内容 -->
@@ -570,6 +575,24 @@
                                         <div id="convertParamList" class="border rounded p-3 mt-2 bg-light d-flex flex-wrap gap-2" style="max-height: 200px; overflow-y: auto;"></div>
                                     </details>
 
+                                    <!-- 校核结果（方案C：转换预览阶段预校核） -->
+                                    <div id="convertValidation" class="mb-3" style="display: none;">
+                                        <details>
+                                            <summary>
+                                                <strong><i class="bi bi-shield-check"></i> 数据校核结果</strong>
+                                                <span id="cvtValBadges" class="ms-2"></span>
+                                            </summary>
+                                            <div class="border rounded p-2 mt-2" style="max-height: 250px; overflow-y: auto;">
+                                                <table class="table table-sm table-bordered mb-0">
+                                                    <thead class="table-light">
+                                                        <tr><th style="width:60px">级别</th><th style="width:90px">类别</th><th style="width:120px">样品</th><th style="width:140px">指标</th><th>描述</th></tr>
+                                                    </thead>
+                                                    <tbody id="cvtValBody"></tbody>
+                                                </table>
+                                            </div>
+                                        </details>
+                                    </div>
+
                                     <!-- 导入选项与按钮 -->
                                     <div class="card border-success mt-3">
                                         <div class="card-body">
@@ -624,6 +647,105 @@
                     </div>
                 </div>
             </div>
+
+            <!-- ===== 数据校核 Tab ===== -->
+            <div class="tab-pane fade" id="validate" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-10 offset-md-1">
+                        <div class="card shadow">
+                            <div class="card-header bg-info text-white">
+                                <h5><i class="bi bi-shield-check"></i> 原始记录数据校核</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-info">
+                                    <i class="bi bi-info-circle"></i> <strong>功能说明：</strong>
+                                    对已导入的原始记录进行多维度校核：异常值识别、数值合理性（标准限值比对）、关联一致性（总硬度/钙镁、三卤甲烷）、元信息校验、精度与格式检查。
+                                </div>
+
+                                <!-- 筛选条件 -->
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label">被检单位</label>
+                                        <input type="text" class="form-control" id="valCompany" placeholder="模糊搜索">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">被检水厂</label>
+                                        <input type="text" class="form-control" id="valPlant" placeholder="模糊搜索">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label">样品类型</label>
+                                        <select class="form-select" id="valSampleType">
+                                            <option value="">全部</option>
+                                            <option value="出厂水">出厂水</option>
+                                            <option value="管网水">管网水</option>
+                                            <option value="原水">原水</option>
+                                            <option value="二次供水">二次供水</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label">采样日期从</label>
+                                        <input type="date" class="form-control" id="valDateFrom">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label">采样日期至</label>
+                                        <input type="date" class="form-control" id="valDateTo">
+                                    </div>
+                                </div>
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label">检测日期（校验用）</label>
+                                        <input type="date" class="form-control" id="valDetectionDate">
+                                    </div>
+                                    <div class="col-md-9 d-flex align-items-end">
+                                        <button class="btn btn-info text-white" id="valRunBtn">
+                                            <i class="bi bi-shield-check"></i> 执行校核
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- 校核进度 -->
+                                <div id="valProgress" class="mt-3" style="display: none;">
+                                    <div class="d-flex align-items-center">
+                                        <div class="spinner-border text-info me-3" role="status"></div>
+                                        <span>正在执行校核，请稍候...</span>
+                                    </div>
+                                </div>
+
+                                <!-- 校核结果 -->
+                                <div id="valResultArea" style="display: none;">
+                                    <!-- 统计摘要 -->
+                                    <div id="valSummary" class="mb-3"></div>
+
+                                    <!-- 级别筛选 -->
+                                    <div class="btn-group mb-3" role="group">
+                                        <button type="button" class="btn btn-outline-secondary btn-sm active val-level-filter" data-level="all">全部</button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm val-level-filter" data-level="error">错误</button>
+                                        <button type="button" class="btn btn-outline-warning btn-sm val-level-filter" data-level="warning">警告</button>
+                                        <button type="button" class="btn btn-outline-info btn-sm val-level-filter" data-level="notice">提示</button>
+                                    </div>
+
+                                    <!-- 结果表格 -->
+                                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                                        <table class="table table-sm table-bordered table-hover">
+                                            <thead class="table-dark sticky-top">
+                                                <tr>
+                                                    <th style="width:70px">级别</th>
+                                                    <th style="width:100px">类别</th>
+                                                    <th style="width:130px">样品编号</th>
+                                                    <th style="width:160px">指标</th>
+                                                    <th>描述</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="valResultBody"></tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -2250,6 +2372,9 @@
                     data.parameters.map((p, i) => `<span class="badge bg-secondary">${i + 1}. ${p}</span>`).join('');
 
                 document.getElementById('convertPreviewResult').style.display = 'block';
+
+                // 方案C：显示转换预览校核结果
+                renderConvertValidation(data.validation || []);
             })
             .catch(error => {
                 document.getElementById('convertProgress').style.display = 'none';
@@ -2394,6 +2519,130 @@
                 row.querySelector('.badge.bg-primary').textContent = count;
             }
             bootstrap.Modal.getInstance(document.getElementById('convertDataModal')).hide();
+        });
+
+        // ── 校核结果渲染（共用） ────────────────────────────────────────
+        const valLevelConfig = {
+            error:   { label: '错误', badge: 'bg-danger',  icon: 'bi-x-circle-fill' },
+            warning: { label: '警告', badge: 'bg-warning text-dark', icon: 'bi-exclamation-triangle-fill' },
+            notice:  { label: '提示', badge: 'bg-info',    icon: 'bi-info-circle-fill' },
+        };
+
+        function renderValidationRows(results, tbodyId, levelFilter) {
+            const tbody = document.getElementById(tbodyId);
+            const filtered = levelFilter && levelFilter !== 'all'
+                ? results.filter(r => r.level === levelFilter)
+                : results;
+            tbody.innerHTML = filtered.map(r => {
+                const cfg = valLevelConfig[r.level] || valLevelConfig.notice;
+                return `<tr>
+                    <td><span class="badge ${cfg.badge}"><i class="bi ${cfg.icon}"></i> ${cfg.label}</span></td>
+                    <td>${r.category}</td>
+                    <td>${r.sample}</td>
+                    <td>${r.indicator || ''}</td>
+                    <td>${r.message}</td>
+                </tr>`;
+            }).join('') || '<tr><td colspan="5" class="text-center text-muted">无校核问题</td></tr>';
+        }
+
+        // ── 方案C：转换预览校核结果渲染 ─────────────────────────────────
+        function renderConvertValidation(results) {
+            const area = document.getElementById('convertValidation');
+            if (!results || results.length === 0) {
+                area.style.display = 'none';
+                return;
+            }
+            area.style.display = 'block';
+
+            const counts = { error: 0, warning: 0, notice: 0 };
+            results.forEach(r => counts[r.level]++);
+
+            let badges = '';
+            if (counts.error)   badges += `<span class="badge bg-danger">${counts.error} 错误</span> `;
+            if (counts.warning) badges += `<span class="badge bg-warning text-dark">${counts.warning} 警告</span> `;
+            if (counts.notice)  badges += `<span class="badge bg-info">${counts.notice} 提示</span> `;
+            document.getElementById('cvtValBadges').innerHTML = badges;
+
+            renderValidationRows(results, 'cvtValBody');
+        }
+
+        // ── 方案A：数据校核 Tab ─────────────────────────────────────────
+        let valResults = [];
+
+        document.getElementById('valRunBtn').addEventListener('click', function() {
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 校核中...';
+            document.getElementById('valProgress').style.display = 'block';
+            document.getElementById('valResultArea').style.display = 'none';
+
+            const payload = {
+                company_name: document.getElementById('valCompany').value,
+                plant_name: document.getElementById('valPlant').value,
+                sample_type: document.getElementById('valSampleType').value,
+                date_from: document.getElementById('valDateFrom').value,
+                date_to: document.getElementById('valDateTo').value,
+                detection_date: document.getElementById('valDetectionDate').value || null,
+            };
+
+            fetch('/api/raw-data/validate-by-filters', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+                body: JSON.stringify(payload),
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('valProgress').style.display = 'none';
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-shield-check"></i> 执行校核';
+
+                if (data.error) {
+                    document.getElementById('valSummary').innerHTML =
+                        `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${data.error}</div>`;
+                    document.getElementById('valResultArea').style.display = 'block';
+                    return;
+                }
+
+                valResults = data.results || [];
+                const c = data.counts;
+                const sc = data.sample_count || 0;
+
+                let summaryClass = 'alert-success';
+                if (c.error > 0) summaryClass = 'alert-danger';
+                else if (c.warning > 0) summaryClass = 'alert-warning';
+
+                document.getElementById('valSummary').innerHTML =
+                    `<div class="alert ${summaryClass}">
+                        <i class="bi bi-shield-check"></i>
+                        已校核 <strong>${sc}</strong> 个样品，发现
+                        <strong>${data.total}</strong> 项问题：
+                        <span class="badge bg-danger">${c.error} 错误</span>
+                        <span class="badge bg-warning text-dark">${c.warning} 警告</span>
+                        <span class="badge bg-info">${c.notice} 提示</span>
+                    </div>`;
+
+                renderValidationRows(valResults, 'valResultBody');
+                document.getElementById('valResultArea').style.display = 'block';
+
+                // 重置筛选按钮
+                document.querySelectorAll('.val-level-filter').forEach(b => b.classList.remove('active'));
+                document.querySelector('.val-level-filter[data-level="all"]').classList.add('active');
+            })
+            .catch(err => {
+                document.getElementById('valProgress').style.display = 'none';
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-shield-check"></i> 执行校核';
+                alert('校核失败: ' + err.message);
+            });
+        });
+
+        // 级别筛选按钮
+        document.querySelectorAll('.val-level-filter').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.val-level-filter').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                renderValidationRows(valResults, 'valResultBody', this.dataset.level);
+            });
         });
     </script>
 </body>

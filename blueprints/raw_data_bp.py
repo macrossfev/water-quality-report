@@ -7,6 +7,7 @@ from models_v2 import get_db, get_db_connection
 from auth import login_required, admin_required, log_operation
 from raw_data_importer import RawDataImporter
 from raw_data_converter import convert_raw_excel
+from raw_data_validator import RawDataValidator, validate_samples, validate_from_database
 from raw_data_template_generator import generate_raw_data_template
 from werkzeug.utils import secure_filename
 import os
@@ -137,6 +138,13 @@ def api_raw_data_convert_preview():
                 'all_indicators': {p: sample_data.get(p, '') for p in result['parameters']},
             })
 
+        # 执行校核（方案C：转换预览阶段预校核）
+        validation_results = []
+        try:
+            validation_results = validate_samples(result['samples'], result['data'])
+        except Exception:
+            pass  # 校核失败不影响转换预览
+
         return jsonify({
             'success': True,
             'message': result['message'],
@@ -146,6 +154,7 @@ def api_raw_data_convert_preview():
             'param_count': result['param_count'],
             'parameters': result['parameters'],
             'samples': preview_samples,
+            'validation': validation_results,
         })
 
     except Exception as e:
@@ -1437,3 +1446,108 @@ def api_raw_data_for_report():
 
     except Exception as e:
         return jsonify({'error': f'查询失败: {str(e)}'}), 500
+
+
+# ── 数据校核 API ─────────────────────────────────────────────────────────
+
+@raw_data_bp.route('/api/raw-data/validate', methods=['POST'])
+@login_required
+def api_raw_data_validate():
+    """对已导入的原始数据执行校核"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': '缺少请求参数'}), 400
+
+        sample_numbers = data.get('sample_numbers', [])
+        detection_date = data.get('detection_date', None)
+
+        if not sample_numbers:
+            return jsonify({'error': '请指定样品编号'}), 400
+
+        results = validate_from_database(sample_numbers, detection_date)
+
+        # 统计
+        counts = {'error': 0, 'warning': 0, 'notice': 0}
+        for r in results:
+            counts[r['level']] += 1
+
+        return jsonify({
+            'success': True,
+            'total': len(results),
+            'counts': counts,
+            'results': results,
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'校核失败: {str(e)}'}), 500
+
+
+@raw_data_bp.route('/api/raw-data/validate-by-filters', methods=['POST'])
+@login_required
+def api_raw_data_validate_by_filters():
+    """按筛选条件查找样品并执行校核"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': '缺少请求参数'}), 400
+
+        company_name = data.get('company_name', '').strip()
+        plant_name = data.get('plant_name', '').strip()
+        sample_type = data.get('sample_type', '').strip()
+        date_from = data.get('date_from', '').strip()
+        date_to = data.get('date_to', '').strip()
+        detection_date = data.get('detection_date', None)
+
+        # 构建查询
+        conditions = []
+        query_params = []
+        if company_name:
+            conditions.append("company_name LIKE ?")
+            query_params.append(f"%{company_name}%")
+        if plant_name:
+            conditions.append("plant_name LIKE ?")
+            query_params.append(f"%{plant_name}%")
+        if sample_type:
+            conditions.append("sample_type = ?")
+            query_params.append(sample_type)
+        if date_from:
+            conditions.append("sampling_date >= ?")
+            query_params.append(date_from)
+        if date_to:
+            conditions.append("sampling_date <= ?")
+            query_params.append(date_to)
+
+        where = " AND ".join(conditions) if conditions else "1=1"
+        query = f"SELECT sample_number FROM raw_data_records WHERE {where} ORDER BY sampling_date DESC LIMIT 200"
+
+        with get_db() as conn:
+            rows = conn.execute(query, query_params).fetchall()
+
+        sample_numbers = [r['sample_number'] for r in rows]
+
+        if not sample_numbers:
+            return jsonify({
+                'success': True,
+                'total': 0,
+                'counts': {'error': 0, 'warning': 0, 'notice': 0},
+                'results': [],
+                'sample_count': 0,
+            })
+
+        results = validate_from_database(sample_numbers, detection_date)
+
+        counts = {'error': 0, 'warning': 0, 'notice': 0}
+        for r in results:
+            counts[r['level']] += 1
+
+        return jsonify({
+            'success': True,
+            'total': len(results),
+            'counts': counts,
+            'results': results,
+            'sample_count': len(sample_numbers),
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'校核失败: {str(e)}'}), 500
