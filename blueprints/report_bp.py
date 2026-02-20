@@ -315,7 +315,8 @@ def api_export_template():
 
         # 获取关联的检测项目
         template_indicators = conn.execute(
-            'SELECT ti.*, i.name as indicator_name, i.unit, i.default_value, i.group_id, '
+            'SELECT ti.id, ti.sample_type_id, ti.indicator_id, ti.is_required, ti.sort_order, ti.created_at, '
+            'i.name as indicator_name, i.unit, i.default_value, i.group_id, '
             'g.name as group_name, COALESCE(ti.limit_value, i.limit_value) as limit_value '
             'FROM template_indicators ti '
             'LEFT JOIN indicators i ON ti.indicator_id = i.id '
@@ -406,7 +407,7 @@ def api_import_template():
                             'INSERT INTO template_indicators (sample_type_id, indicator_id, is_required, sort_order, limit_value) '
                             'VALUES (?, ?, ?, ?, ?)',
                             (sample_type_id, indicator['id'], item.get('is_required', False),
-                             item.get('sort_order', 0), item.get('limit_value', ''))
+                             item.get('sort_order', 0), item.get('limit_value') or None)
                         )
                         imported_count += 1
                     except sqlite3.IntegrityError:

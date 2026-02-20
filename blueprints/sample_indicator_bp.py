@@ -439,7 +439,8 @@ def api_template_indicators():
 
         if sample_type_id:
             template_indicators = conn.execute(
-                'SELECT ti.*, i.name as indicator_name, i.unit, i.default_value, '
+                'SELECT ti.id, ti.sample_type_id, ti.indicator_id, ti.is_required, ti.sort_order, ti.created_at, '
+                'i.name as indicator_name, i.unit, i.default_value, '
                 'COALESCE(ti.limit_value, i.limit_value) as limit_value, '
                 'i.detection_method, i.group_id, g.name as group_name '
                 'FROM template_indicators ti '
@@ -484,7 +485,9 @@ def api_sample_type_indicators(sample_type_id):
 
             # 获取该样品类型关联的检测指标
             cursor.execute('''
-                SELECT i.id, i.name, i.unit, ti.is_required, ti.sort_order
+                SELECT i.id, i.name, i.unit, ti.is_required, ti.sort_order,
+                       COALESCE(ti.limit_value, i.limit_value) as limit_value,
+                       i.detection_method
                 FROM template_indicators ti
                 JOIN indicators i ON ti.indicator_id = i.id
                 WHERE ti.sample_type_id = ?
@@ -498,7 +501,9 @@ def api_sample_type_indicators(sample_type_id):
                     'name': row[1],
                     'unit': row[2],
                     'is_required': bool(row[3]),
-                    'sort_order': row[4]
+                    'sort_order': row[4],
+                    'limit_value': row[5] or '',
+                    'detection_method': row[6] or ''
                 })
 
             return jsonify({'indicators': indicators})
