@@ -27,5 +27,5 @@ echo "按 Ctrl+C 停止服务器"
 echo "================================================"
 echo ""
 
-# 启动应用
-python3 app_v2.py
+# 启动应用（使用gunicorn生产服务器）
+gunicorn -w 2 -b 0.0.0.0:5000 --timeout 120 --access-logfile logs/access.log --error-logfile logs/error.log app_v2:app

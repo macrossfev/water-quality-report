@@ -221,6 +221,9 @@ def api_raw_data_convert_import():
                     col = sid_col_map.get(sid)
                     if not col:
                         continue
+                    # 样品类型 "名称|代码" 格式写入Excel时只保留名称
+                    if 'sample_type' in edits and '|' in str(edits.get('sample_type', '')):
+                        edits['sample_type'] = edits['sample_type'].split('|', 1)[0]
                     for key, field_name in key_to_field.items():
                         row = field_row_map.get(field_name)
                         if row and key in edits:
@@ -1383,17 +1386,40 @@ def api_raw_data_for_report():
 
             raw_values = cursor.fetchall()
 
-            # 3. 匹配公司名称 -> company_id
+            # 3. 匹配客户信息 -> customer_id
+            #    优先按 被检单位+水厂 精确匹配 customers 表，回退按被检单位匹配
+            customer_id = None
+            if company_name and plant_name:
+                cursor.execute('SELECT id FROM customers WHERE inspected_unit = ? AND water_plant = ?',
+                               (company_name, plant_name))
+                cust_row = cursor.fetchone()
+                if cust_row:
+                    customer_id = cust_row[0]
+            if not customer_id and company_name:
+                cursor.execute('SELECT id FROM customers WHERE inspected_unit = ? LIMIT 1',
+                               (company_name,))
+                cust_row = cursor.fetchone()
+                if cust_row:
+                    customer_id = cust_row[0]
+            # 兼容旧 companies 表
             company_id = None
-            if company_name:
+            if not customer_id and company_name:
                 cursor.execute('SELECT id FROM companies WHERE name = ?', (company_name,))
                 company_row = cursor.fetchone()
                 if company_row:
                     company_id = company_row[0]
 
             # 4. 匹配样品类型 -> sample_type_id
+            #    支持 "名称|代码" 格式（优先按代码精确匹配）和纯名称格式
             sample_type_id = None
-            if sample_type:
+            if sample_type and '|' in sample_type:
+                st_name, st_code = sample_type.split('|', 1)
+                cursor.execute('SELECT id FROM sample_types WHERE name = ? AND code = ?', (st_name, st_code))
+                type_row = cursor.fetchone()
+                if type_row:
+                    sample_type_id = type_row[0]
+                sample_type = st_name  # 存入数据库时只保留名称
+            elif sample_type:
                 cursor.execute('SELECT id FROM sample_types WHERE name = ?', (sample_type,))
                 type_row = cursor.fetchone()
                 if type_row:
@@ -1534,6 +1560,7 @@ def api_raw_data_for_report():
                 'sample_number': sample_number,
                 'company_name': company_name,
                 'company_id': company_id,
+                'customer_id': customer_id,
                 'plant_name': plant_name,
                 'sample_type': sample_type,
                 'sample_type_id': sample_type_id,

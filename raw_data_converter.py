@@ -24,7 +24,7 @@ from datetime import datetime
 # ── 样品编号识别 ──────────────────────────────────────────────────────────
 
 # 常见的样品编号模式：W260105C01, K260105C01, S260105C01 等
-SAMPLE_ID_RE = re.compile(r'^[A-Z]\d{5,6}C\d{1,3}$')
+SAMPLE_ID_RE = re.compile(r'^[A-Z]\d{5,6}C\d{1,3}$', re.IGNORECASE)
 
 
 def is_sample_id(val):
@@ -118,8 +118,15 @@ def infer_company_and_plant(location_text):
     if not location_text:
         return '', ''
     text = str(location_text).strip()
-    # 尝试提取 "XX水厂" 部分
-    m = re.search(r'(.+?水厂)', text)
+    # 优先按水样类型关键词切分，提取关键词前面的部分作为水厂名
+    for kw in ['出厂水', '管网末梢', '管网水', '原水', '二次供水', '空白']:
+        idx = text.find(kw)
+        if idx > 0:
+            plant = text[:idx].strip()
+            if plant:
+                return plant, plant
+    # 回退：提取 "XX水厂" 部分
+    m = re.search(r'(.+水厂)', text)
     if m:
         plant = m.group(1)
         return plant, plant

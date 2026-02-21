@@ -2374,10 +2374,7 @@
                         <td><input type="text" class="form-control form-control-sm cvt-plant" value="${s.plant_name || ''}"></td>
                         <td><select class="form-select form-select-sm cvt-type">
                             <option value="" ${!s.sample_type ? 'selected' : ''}>--</option>
-                            <option value="出厂水" ${s.sample_type === '出厂水' ? 'selected' : ''}>出厂水</option>
-                            <option value="管网水" ${s.sample_type === '管网水' ? 'selected' : ''}>管网水</option>
-                            <option value="原水" ${s.sample_type === '原水' ? 'selected' : ''}>原水</option>
-                            <option value="二次供水" ${s.sample_type === '二次供水' ? 'selected' : ''}>二次供水</option>
+                            ${sampleTypes.map(st => `<option value="${st.name}|${st.code}" ${s.sample_type === st.name || s.sample_type === st.name+'|'+st.code ? 'selected' : ''}>${st.name} (${st.code})</option>`).join('')}
                         </select></td>
                         <td><input type="date" class="form-control form-control-sm cvt-date" value="${s.sampling_date || ''}"></td>
                         <td><span class="badge bg-primary">${s.indicator_count}</span></td>

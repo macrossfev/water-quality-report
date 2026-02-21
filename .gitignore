@@ -49,6 +49,9 @@ tmp/
 *~
 .DS_Store
 
+# 密钥
+.secret_key
+
 # 环境变量
 .env
 .env.local

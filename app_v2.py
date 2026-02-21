@@ -99,6 +99,7 @@ _cleanup_thread.start()
 
 
 if __name__ == '__main__':
+    # 仅用于本地开发调试，生产环境使用 gunicorn 启动
     import sys
     debug_mode = '--debug' in sys.argv
     app.run(debug=debug_mode, host='0.0.0.0', port=5000)
